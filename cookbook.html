@@ -1247,7 +1247,8 @@ const mapnav = document.getElementById('mapnav');
 const TYPES = ['Smoke','Flash','Molotov','HE','Wall Spam'];
 const typesOf = e => [].concat(e.type);
 const sectionsOf = e => [].concat(e.section);
-const typeTags = e => typesOf(e).map(t => `<span class="tag t-${t.replace(/\s+/g,'-')}">${t}</span>`).join(' ');
+const typeTags = e => typesOf(e).map(t => `<span class="tag t-${t.replace(/\s+/g,'-')}">${t}</span>`).join(' ')
+  + (sectionsOf(e).includes('strats') ? '<span class="tag t-Strats">Strat</span>' : '');
 const FILTERS = {};   // per map: {section:[], type:[]}
 const fstate = id => FILTERS[id] || (FILTERS[id] = {section:[], type:[]});
 
