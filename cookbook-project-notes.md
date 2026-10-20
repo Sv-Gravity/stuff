@@ -34,6 +34,7 @@ No downloading YouTube videos. Toshi sends screenshots (stand, aim, pop) or his 
 - Front page: "FIRE IN THE HOLE / A COOKBOOK", line-art bowl with the HE, smoke, flash and plump banana, unlit molotov standing behind the bowl. The Pantry card, then the map list.
 - Map pages: an icon bar at the top for jumping between maps (current map in orange). Ingredients sits at the end of the bar with a jar icon. No Pantry link on map pages.
 - Ingredients page order: Callouts, Odds (round win split), Timings (earliest times only, as clock times), Default CT setup.
+- One-way smokes are filed under their location section plus "sneaky" (purple "Sneaky" pill).
 - Strats get a blue "Strat" pill and can be split into stages, each with its own steps and pictures. Players are lettered (A + B, X + Y + Z), never numbered.
 
 ## Still to do
