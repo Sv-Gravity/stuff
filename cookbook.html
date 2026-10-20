@@ -105,6 +105,7 @@
   .empty{border:1px dashed var(--line);border-radius:12px;padding:28px;color:var(--muted);text-align:center}
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:18px}
   .panel h2{margin:0 0 10px;font-size:15px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+  .panel h2.bon{font-family:'Great Vibes',cursive;font-size:32px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--text)}
   ol.steps{margin:0;padding-left:22px} ol.steps li{margin:6px 0}
   .cmd{display:flex;gap:10px;align-items:stretch}
   .cmd code{flex:1;background:#0c0e12;border:1px solid var(--line);border-radius:8px;padding:10px 12px;
@@ -1228,7 +1229,7 @@ const ENTRIES = [
         ]
       },
       {
-        "title": "Final positions",
+        "title": "Bon appétit",
         "steps": [],
         "images": [
           {
@@ -2157,7 +2158,7 @@ function viewEntry(id){
       <div class="toolbar">${typeTags(e)}</div>
       <h1 style="margin-bottom:24px">${esc(entryName(e))}</h1>
       ${e.notes ? `<div class="panel"><h2>The idea</h2><p style="margin:0">${esc(e.notes)}</p></div>` : ''}
-      ${e.stages.map(g => `<div class="panel"><h2>${esc(g.title)}</h2>
+      ${e.stages.map(g => `<div class="panel"><h2${g.title === 'Bon appétit' ? ' class="bon"' : ''}>${esc(g.title)}</h2>
         ${(g.steps||[]).length ? list(g.steps) : ''}${(g.images||[]).length ? stage(g.images) : ''}</div>`).join('')}`;
     return;
   }
