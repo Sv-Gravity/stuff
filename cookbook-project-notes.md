@@ -21,7 +21,7 @@ Toshi's CS2 utility notebook. One self-contained HTML file (`cookbook.html`) wit
    - **Stand here** — a wide shot with the exact spot circled in orange on the floor. If the video's stand frame is too close up, use a wider frame from earlier and circle the spot.
    - **Aim here** — the crosshair settled on the lineup.
    - **Close-up** — crop around the crosshair, captioned "Crosshair on <exact feature>".
-   - **Result** — where it lands or pops. Skip fully white flashed frames.
+   - **Result** — where it lands or pops, captioned just "Bon appétit" (shown in script). Skip fully white flashed frames.
    Trim the CSNADES.gg watermark off the top of each picture.
 3. Entry fields: side, type (Smoke/Flash/Molotov/HE/Wall Spam), sections for both where it's thrown from and where it lands, and action icons set explicitly (jump, crouch, run, walk, left click, right click, both).
 4. Steps: stand, aim (pointing at the second and third pictures), throw. Add a one-line coach's note on when to use it.
