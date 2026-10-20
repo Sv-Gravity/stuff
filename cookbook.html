@@ -21,6 +21,7 @@
   header .brand span{color:var(--accent)}
   .mapnav{flex:1 1 auto;display:flex;justify-content:center;align-items:stretch;gap:4px;min-width:0}
   .mapnav[hidden]{display:none}
+  .mapnav.ghost{visibility:hidden}
   .mi{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:54px;padding:5px 6px 4px;
     border:1px solid transparent;border-radius:10px;color:var(--muted);text-decoration:none;
     font-size:11px;font-weight:600;letter-spacing:.02em;white-space:nowrap}
@@ -1788,7 +1789,8 @@ const MAP_ICONS = {
 };
 // page: 'map' | 'ing' | 'other' (no map); null hides the bar
 function setNav(page, mid){
-  if(!page){ mapnav.hidden = true; mapnav.innerHTML = ''; return; }
+  // the front page keeps an invisible copy of the bar so the header is the same height on every page
+  const ghost = !page;
   const item = (icon, name, href, cls, cur) => `<a class="mi${cls}" href="${href}" title="${esc(name)}"${cur ? ' aria-current="page"' : ''}>
     <svg viewBox="0 0 24 24" aria-hidden="true">${MAP_ICONS[icon]}</svg><span>${esc(name)}</span></a>`;
   mapnav.innerHTML = MAPS.map(m => {
@@ -1800,6 +1802,8 @@ function setNav(page, mid){
       ? '<span class="mi-sep" aria-hidden="true"></span>' + item('ingredients', 'Ingredients', '#/ingredients/' + mid, page === 'ing' ? ' on' : '', page === 'ing')
       : '');
   mapnav.hidden = false;
+  mapnav.classList.toggle('ghost', ghost);
+  if(ghost) mapnav.setAttribute('aria-hidden', 'true'); else mapnav.removeAttribute('aria-hidden');
 }
 
 /* ---------- views ---------- */
