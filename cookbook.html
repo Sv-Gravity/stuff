@@ -8,7 +8,7 @@
   :root{
     --bg:#12151a; --panel:#1b2028; --panel2:#232a35; --line:#2f3947;
     --text:#e6eaf0; --muted:#8c98a9; --accent:#f5a524;
-    --smoke:#9aa7b8; --flash:#f7e463; --molly:#ff6b3d; --he:#e5484d; --spam:#5fd0a5; --strat:#8ab4ff;
+    --smoke:#9aa7b8; --flash:#f7e463; --molly:#ff6b3d; --he:#e5484d; --spam:#5fd0a5; --strat:#8ab4ff; --sneaky:#c49bff;
     --ok:#3ecf8e;
   }
   *{box-sizing:border-box}
@@ -82,7 +82,7 @@
   .card.dim{opacity:.55}
   .tag{display:inline-block;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;
     border:1px solid currentColor;margin-right:6px}
-  .t-Smoke{color:var(--smoke)} .t-Flash{color:var(--flash)} .t-Molotov{color:var(--molly)} .t-HE{color:var(--he)} .t-Spam{color:var(--spam)} .t-Strats{color:var(--strat)}
+  .t-Smoke{color:var(--smoke)} .t-Flash{color:var(--flash)} .t-Molotov{color:var(--molly)} .t-HE{color:var(--he)} .t-Spam{color:var(--spam)} .t-Strats{color:var(--strat)} .t-Sneaky{color:var(--sneaky)}
   .acts{display:flex;flex-wrap:wrap;gap:8px;margin:-14px 0 22px}
   .act{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--panel);
     border-radius:999px;padding:5px 13px 5px 9px;font-size:13px;font-weight:600}
@@ -936,10 +936,13 @@ const ENTRIES = [
   {
     "id": "anubis-b-site-smoke-pillar-one-way",
     "map": "anubis",
-    "section": "sneaky",
+    "section": [
+      "b-site",
+      "sneaky"
+    ],
     "side": "T",
     "type": "Smoke",
-    "location": "B Site Pillar",
+    "location": "Pillar",
     "detail": "One way to play from Back Site",
     "images": [
       {
@@ -970,7 +973,10 @@ const ENTRIES = [
   {
     "id": "anubis-water-smoke-one-way-ebox",
     "map": "anubis",
-    "section": "water",
+    "section": [
+      "water",
+      "sneaky"
+    ],
     "side": "T",
     "type": [
       "Smoke",
@@ -1731,7 +1737,8 @@ const TYPES = ['Smoke','Flash','Molotov','HE','Spam'];
 const typesOf = e => [].concat(e.type);
 const sectionsOf = e => [].concat(e.section);
 const typeTags = e => typesOf(e).map(t => `<span class="tag t-${t.replace(/\s+/g,'-')}">${t}</span>`).join(' ')
-  + (sectionsOf(e).includes('strats') ? '<span class="tag t-Strats">Strat</span>' : '');
+  + (sectionsOf(e).includes('strats') ? '<span class="tag t-Strats">Strat</span>' : '')
+  + (sectionsOf(e).includes('sneaky') ? ' <span class="tag t-Sneaky">Sneaky</span>' : '');
 const FILTERS = {};   // per map: {section:[], type:[]}
 const fstate = id => FILTERS[id] || (FILTERS[id] = {section:[], type:[]});
 
