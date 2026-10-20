@@ -23,7 +23,7 @@ Toshi's CS2 utility notebook. One self-contained HTML file (`cookbook.html`) wit
    - **Close-up** — crop around the crosshair, captioned "Crosshair on <exact feature>".
    - **Result** — where it lands or pops, captioned just "Bon appétit" (soft white script). Skip fully white flashed frames.
    Trim the CSNADES.gg watermark off the top of each picture.
-3. Entry fields: side, type (Smoke/Flash/Molotov/HE/Wall Spam), sections for both where it's thrown from and where it lands, and action icons set explicitly (jump, crouch, run, walk, left click, right click, both).
+3. Entry fields: side, type (Smoke/Flash/Molotov/HE/Spam), sections for both where it's thrown from and where it lands, and action icons set explicitly (jump, crouch, run, walk, left click, right click, both).
 4. No Notes box by default: the captions carry the lineup (stand caption names the spot, e.g. "Get in the corner of First Orange"; close-up says where the crosshair goes) and the action pills carry the throw. Add steps only when they say something the pictures can't, like run timing or a follow-up throw. Set the entry's actions explicitly.
 5. When Toshi sends a batch, show previews first and only add to the file after he approves.
 
