@@ -1,0 +1,39 @@
+idle 7 1 f1_0 f1_1 f1_2 f1_3 f1_4
+walk 4 1 f2_0 f2_1 f2_2 f2_3 f2_4 f2_5 f2_6 f2_7 f2_8 f2_9 f2_10 f2_11
+walk_back 4 1 f2_11 f2_10 f2_9 f2_8 f2_7 f2_6 f2_5 f2_4 f2_3 f2_2 f2_1 f2_0
+dash 3 loop1 f3_0 f3_1 f3_2 f3_3 f3_4 f3_5 f3_6
+crouch 6 0 f29_0
+block 3 0 f4_5 f4_6
+crouch_block 3 0 f16_1
+getup 6 0 f28_2 f27_6 f27_7
+intro 6 loop4 f0_4 f0_5 f0_6 f0_7 f0_8
+victory 6 0 f29_0 f29_1 f29_2 f29_3 f29_4
+taunt 6 0 f0_5 f0_6 f0_7 f0_8
+prejump 1 0 f29_0
+jump_up 5 0 f12_4
+jump 6 0 f12_4 f0_4
+fall 6 0 f0_4
+land 4 0 f29_0 f1_0
+punch_prep 2 0 f4_0 f4_1
+punch 3 0 f4_2
+punch_rec 3 0 f4_3 f4_4
+kick_prep 2 0 f4_7
+kick 3 0 f4_8 f4_9
+kick_rec 3 0 f4_10 f4_11
+hado_prep 3 0 f17_0 f17_1 f17_2 f17_3
+hado_fire 3 0 f17_4 f17_5 f17_6 f17_7 f17_8 f17_9 f17_10
+sho_crouch 2 0 f25_0 f25_1
+sho_rise 3 0 f25_2 f25_3
+sho_top 3 0 f25_4
+sho_fall 4 0 f25_5 f25_6
+leap_kick 3 0 f5_1 f5_2
+lariat_a 2 1 f5_0 f5_1 f5_2 f5_3 f5_4
+lariat_b 2 1 f25_2 f25_3 f25_4
+jkick_prep 2 0 f5_1
+jump_kick 3 0 f5_2
+hurt 3 0 f26_3 f26_4 f26_1 f26_0
+hurt_low 3 0 f26_5 f26_6
+launch 4 0 f26_8 f26_9 f26_10
+bounce 4 0 f27_0 f27_1
+down 5 0 f28_0 f28_1
+#projectile 8

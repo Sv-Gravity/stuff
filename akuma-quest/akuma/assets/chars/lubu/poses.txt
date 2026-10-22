@@ -1,0 +1,61 @@
+idle 6 1 f0_0 f0_1 f0_2 f0_3 f0_4 f0_5
+walk 5 1 f1_0 f1_1 f1_2 f1_3 f1_4 f1_5
+walk_back 5 1 f1_5 f1_4 f1_3 f1_2 f1_1 f1_0
+dash 3 1 f2_0 f2_1 f2_2 f2_3 f2_4 f2_5
+crouch 6 loop1 f23_0 f28_0 f28_1 f28_2 f28_1
+block 3 0 f42_4
+crouch_block 3 0 f42_5
+getup 6 0 f40_1 f40_2 f40_3 f40_4 f40_5
+prejump 1 0 f22_7
+jump_up 5 0 f22_0 f22_1 f22_2
+jump 6 0 f22_2 f22_3 f22_4
+fall 6 0 f22_5 f22_6
+land 4 0 f22_7 f23_0
+punch_prep 2 0 f3_5 f3_6
+punch 3 0 f3_7 f3_8
+punch_rec 3 0 f3_9 f3_5
+cr_punch_prep 2 0 f28_3
+crouch_jab 3 0 f28_4 f28_5
+cr_punch_rec 3 0 f28_6 f28_7
+front_kick_prep 2 0 f15_0 f15_1 f15_2
+front_kick 3 0 f15_3 f15_4 f15_5
+front_kick_rec 3 0 f15_6
+kick_prep 2 0 f10_0 f10_1 f10_2
+kick 3 0 f10_3 f10_4
+kick_rec 3 0 f10_5 f10_6 f10_7
+crkick_prep 2 0 f28_0
+crkick 3 0 f28_8 f28_9
+crkick_rec 3 0 f28_10
+sweep_prep 2 0 f12_0 f12_1
+sweep 3 0 f12_2 f12_3 f12_4
+sweep_rec 3 0 f12_5 f12_6 f12_7
+hado_prep 3 0 f34_0 f34_1 f34_2 f34_3 f34_4
+hado_fire 3 0 f34_5 f34_6 f34_7 f34_8 f34_9 f34_10
+sho_crouch 2 0 f30_0 f30_1 f30_2 f30_3
+sho_rise 3 0 f30_4 f30_5
+sho_top 3 0 f30_6 f30_7 f30_8
+sho_fall 4 0 f30_9 f30_10
+tatsu_start 2 0 f31_0 f31_1 f31_2 f31_3
+tatsu 3 1 f31_4 f31_5 f31_6 f31_7 f31_8
+tatsu_end 3 0 f33_0 f33_1 f33_2 f33_3 f33_4 f33_5 f33_6
+hammer_up 3 0 f6_1 f6_2 f6_3 f6_4 f6_5
+hammer_down 3 0 f6_6 f6_7 f7_0 f7_1 f7_2
+leap_kick 3 0 f13_1 f13_2 f13_3
+lariat_a 2 1 f31_4 f31_5 f31_6
+lariat_b 2 1 f31_7 f31_8 f33_0
+jpunch_prep 1 0 f27_0
+jump_jab 3 0 f27_1 f27_2 f27_3
+jkick_prep 2 0 f22_2
+jump_kick 3 0 f27_6 f27_7 f27_8
+hurt 3 0 f41_2 f41_3
+hurt_low 3 0 f41_4 f41_5
+launch 4 0 f41_6 f41_7 f41_8
+bounce 4 0 f41_9 f41_10
+down 5 0 f38_10 f40_0
+intro 6 loop5 f43_0 f43_1 f43_2 f43_3 f43_4 f43_5 f43_6 f43_7
+victory 6 0 f43_8 f43_9 f43_10 f43_11 f43_12 f43_13 f43_14
+taunt 6 0 f5_3 f5_4 f5_5 f5_6 f5_7 f5_8
+grab 2 0 f37_0 f37_1 f37_2
+grab_miss 3 0 f37_2 f37_1 f37_0
+toss 3 0 f37_3 f37_4 f37_5 f37_6 f37_7 f37_8 f37_9 f37_10 f40_3 f40_4 f40_5
+#projectile 8

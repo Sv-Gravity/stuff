@@ -1,0 +1,65 @@
+idle 6 1 f0_0 f0_1 f0_2 f0_3 f0_4 f0_5 f0_6 f0_7 f0_8 f0_9
+walk 5 1 f1_0 f1_1 f1_2 f1_3 f1_4 f1_5 f1_6 f1_7
+walk_back 5 1 f2_0 f2_1 f2_2 f2_3 f2_4 f2_5 f2_6 f2_7
+dash 3 1 f3_0 f3_1 f3_2 f3_3 f3_4 f3_5 f3_6
+crouch 6 loop2 f9_0 f9_1 f10_0 f10_1 f10_2 f10_3
+crouch_block 3 0 f5_10 f5_11
+block 3 0 f5_7 f5_8 f5_9
+getup 6 0 f85_0 f85_1 f12_0 f12_1
+prejump 1 0 f6_0
+jump_up 5 0 f6_1 f6_2 f6_3
+jump 6 0 f6_3 f6_4 f6_5 f6_6
+fall 6 0 f6_5 f6_6
+land 4 0 f6_7 f6_0
+hado_prep 3 0 f53_0 f53_1 f53_2 f53_3
+hado_fire 3 0 f53_4 f53_5 f53_6 f53_7 f53_8 f53_9 f53_10
+air_hado_prep 3 0 f16_0 f16_1
+air_hado 3 0 f53_5 f53_6 f53_7
+punch_prep 2 0 f14_0 f14_1
+punch 3 0 f14_2 f14_3
+punch_rec 3 0 f14_3 f14_1 f14_0
+cr_punch_prep 2 0 f17_0 f17_1
+crouch_jab 3 0 f17_2 f17_3
+cr_punch_rec 3 0 f17_1 f17_0
+jpunch_prep 1 0 f16_0
+jump_jab 3 0 f16_1 f16_2
+jkick_prep 2 0 f23_1 f23_2
+jump_kick 3 0 f23_3 f23_4
+front_kick_prep 2 0 f19_0 f19_1 f19_2
+front_kick 3 0 f19_3 f19_4
+front_kick_rec 3 0 f19_5 f19_6
+kick_prep 2 0 f20_0 f20_1 f20_2 f20_3 f20_4 f20_5
+kick 3 0 f20_6 f20_7
+kick_rec 3 0 f20_8 f19_6
+crkick_prep 2 0 f21_0 f21_1
+crkick 3 0 f21_2 f21_3
+crkick_rec 3 0 f21_4
+sweep_prep 2 0 f22_0 f22_1 f22_2
+sweep 3 0 f22_3 f22_4 f22_5
+sweep_rec 3 0 f22_6 f22_7 f22_8 f22_9
+sho_crouch 2 0 f65_0 f65_1 f65_2
+sho_rise 3 0 f65_3 f65_4
+sho_top 3 0 f65_5 f65_6
+sho_fall 4 0 f65_7 f65_8
+tatsu_start 2 0 f61_0 f61_1 f61_2
+tatsu 3 1 f61_3 f61_4 f61_5 f61_6 f61_7 f61_8 f61_9 f61_10
+tatsu_end 3 0 f61_11 f62_0 f62_1
+dive 4 1 f13_2 f13_3
+hurt 3 0 f82_0 f82_1 f82_2 f82_3
+hurt_low 3 0 f87_1 f87_2
+launch 4 0 f83_1 f83_2 f83_3
+bounce 4 0 f83_4 f83_5
+down 5 0 f83_6 f84_0 f84_1 f84_2
+victory 6 0 f89_0 f89_1 f89_2 f89_3 f89_4 f89_5 f89_6 f89_7 f89_8 f89_9 f89_10 f89_11 f89_12
+intro 6 1 f86_0 f86_1 f86_2 f86_3 f86_4 f86_5 f86_6 f86_7
+taunt 6 0 f73_2 f73_3 f73_4 f73_5 f73_6 f73_7 f73_8
+grab 2 0 f24_0 f24_1 f24_2
+grab_miss 3 0 f24_2 f24_1 f24_0
+toss 3 0 f24_3 f24_4 f24_5 f24_6 f24_7
+leap_kick 3 0 f23_3 f23_4
+hammer_up 3 0 f15_0 f15_1 f15_2 f15_3
+hammer_down 3 0 f15_4 f15_5 f15_6
+lariat_a 2 1 f61_3 f61_4 f61_5 f61_6
+lariat_b 2 1 f61_7 f61_8 f61_9 f61_10
+#projectile 8
+#air_projectile 7
