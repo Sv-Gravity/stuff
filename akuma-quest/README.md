@@ -1,5 +1,7 @@
 # Akuma Quest
 
+**Download:** [AkumaQuest.zip](AkumaQuest.zip) has the whole game. Unzip it and double-click `run.bat` (Windows, needs Python).
+
 A roguelike where every encounter turns into a Street Fighter–style duel, and every level after the first few turns into a different game. You play Akuma. There are thirteen levels:
 
 1. **The Caves of Gokuentou**: explore an overhead dungeon; touching an enemy (or being touched) switches to a side-view 1-on-1 fight. Boss: **Zangief**.
