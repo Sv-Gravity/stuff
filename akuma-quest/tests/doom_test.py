@@ -139,11 +139,25 @@ def test_hadouken_hits(game):
     assert sc.ki == ki0 - D.HADO_COST, (sc.ki, ki0)
     assert e.hp == hp0 - D.HADO_DMG * sc.power, ("hadouken did not hit", hp0, e.hp)
     assert not [s for s in sc.shots if s.owner == "akuma"], "hadouken flew through"
-    # a hadouken at a wall hits nothing and bursts
+    # the hit on a demon is the fx sheet's small hit
+    assert sc.effects and sc.effects[-1].frames is sc.hit_small, "no hit_small burst on the demon"
+    for _ in range(4):
+        _tick(game)
+    sc.draw(game.canvas)
+    shot(game, "doom_impact_demon.png")
+    # a hadouken at a wall hits nothing and splashes on the wall
     sc.ang = 0.0
     _tick(game, press=("special",))
-    for _ in range(60):
+    walled = False
+    for k in range(60):
         _tick(game)
+        if not walled and sc.effects and sc.effects[-1].frames is sc.hit_wall:
+            walled = True
+            for _ in range(3):
+                _tick(game)
+            sc.draw(game.canvas)
+            shot(game, "doom_impact_wall.png")
+    assert walled, "no hit_wall splash on the wall"
     assert e.hp == hp0 - D.HADO_DMG * sc.power
     # the shinku pierces and hits hard
     sc.ang = math.pi
@@ -255,6 +269,22 @@ def test_snacks(game):
     print("doom: %d snacks, %s" % (len(snacks), sc.msg))
 
 
+def test_hand_art(game):
+    """The first-person hands and the fireball / impact frames come from the
+    sprite sheets (assets/doom_hands, assets/fx), red, not the old blue."""
+    sc = _fresh(game)
+    for row, n in (("idle_a", 7), ("idle_b", 7), ("charge", 7), ("swipe", 6), ("release", 8)):
+        assert len(sc.hands[row]) == n, (row, len(sc.hands[row]))
+    for img, (ax, ay) in sc.hands["idle_a"]:
+        assert 0 <= ax <= img.get_width() and ay == img.get_height(), (ax, ay, img.get_size())
+    side = sc.hado_views["side"][0]
+    w, h = side.get_size()
+    r, g, b, _ = side.get_at((w * 3 // 4, h // 2))
+    assert r > b or (r > 200 and b > 200), ("hadouken not Akuma red", (r, g, b))
+    assert len(sc.hado_views["back"]) == len(sc.hado_views["front"]) == 4
+    print("doom: sheet hands (%s) and red fx fireballs loaded" % ", ".join(sorted(sc.hands)))
+
+
 def test_poses(game):
     """Screenshots of every first-person pose."""
     sc = _fresh(game)
@@ -262,10 +292,12 @@ def test_poses(game):
     sc.px, sc.py, sc.ang = 10.0, 14.0, -math.pi / 2
     sc.draw(game.canvas)
     shot(game, "doom_pose_idle.png")
-    for name, press, at in (("hado", ("special",), (4, 9)), ("punch", ("punch",), (5,)),
-                            ("kick", ("kick",), (8,)), ("shoryu", ("special", "punch"), (3, 10)),
-                            ("tatsu", ("special", "kick"), (16,))):
-        _tick(game, press=press)
+    sc.ki = D.KI_MAX
+    for name, held, press, at in (("hado", (), ("special",), (3, 6, 8, 12)), ("punch", (), ("punch",), (3, 5, 9)),
+                                  ("shinku", ("shield",), ("special",), (10, 17, 22)),
+                                  ("kick", (), ("kick",), (8,)), ("shoryu", (), ("special", "punch"), (3, 10)),
+                                  ("tatsu", (), ("special", "kick"), (16,))):
+        _tick(game, held=held, press=press)
         for k in range(max(at) + 1):
             if k in at:
                 shot(game, "doom_pose_%s_%d.png" % (name, k))
@@ -444,6 +476,7 @@ def test_doom(game):
     test_combos(game)
     test_views(game)
     test_snacks(game)
+    test_hand_art(game)
     test_poses(game)
     done = []
     old = game.level_done

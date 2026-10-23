@@ -16,7 +16,7 @@ A roguelike where every encounter turns into a Street Fighter–style duel, and 
 
 The main menu has **Start Game**, **Practice** (Akuma vs a sparring Ryu), **Level** (a debug shortcut: press left/right to pick a level and start there) and **Quit**.
 
-All the fighters use Toshi's sprite pack (`art_source/sprites/`): Akuma, and as enemies Ryu, Ken, Sakura, Felicia, Hsien-Ko, Zangief, Morrigan, Chun-Li and Dr. Doom (cut from Toshi's own Dr. Doom sheet by `tools/make_drdoom.py`). Each character's sheet is cut into frames in `akuma/assets/chars/<name>/`, with every engine pose mapped to a full animation (Akuma alone has about 200 drawings). Attack animations are stretched to fit each move's exact frame data, so every in-between drawing shows without changing the timing. The HUD shows both fighters' portraits. On the map everyone walks with their own walk cycle at half size, timed to the distance walked so feet never slide. Tiles, stages, cars, effects and sound are drawn or synthesized by code.
+All the fighters use Toshi's sprite pack (`art_source/sprites/`): Akuma, and as enemies Ryu, Ken, Sakura, Felicia, Hsien-Ko, Zangief, Morrigan, Chun-Li and Dr. Doom (cut from Toshi's own Dr. Doom sheet by `tools/make_drdoom.py`). Each character's sheet is cut into frames in `akuma/assets/chars/<name>/`, with every engine pose mapped to a full animation (Akuma alone has about 200 drawings). Attack animations are stretched to fit each move's exact frame data, so every in-between drawing shows without changing the timing. The HUD shows both fighters' portraits. On the map everyone walks with their own walk cycle at half size, timed to the distance walked so feet never slide. Cars, Doom's first-person hands and the red fireballs and explosions come from Toshi's sheets too (`tools/make_cars.py`, `tools/make_doom_hands.py`, `tools/make_fx.py`). Tiles, stages and sound are drawn or synthesized by code.
 
 ## Run it on Windows
 
@@ -112,7 +112,7 @@ Hits are pixel-exact. A fighter can be hit anywhere its current drawing has pixe
 A small parking garage with only **5 cars** driving around it instead of enemies. Touch a car to start a **bonus round** like Street Fighter II's car stage:
 
 - The car never fights back. Beat it up before the **30-second** timer runs out.
-- The five cars are a **Toyota AE86**, a first-gen **Toyota MR2**, a **'99 Mustang GT**, an **Eagle Talon TSi** and a **'65 Cougar XLR**. Each side of the car has its own gauge (L and R under its health bar) and takes about **5 kicks** to wreck. Once one side is scrap, hits there do nothing, so **jump over the car** and wreck the other side. Windows shatter, bumpers fall off, doors get torn away and it starts smoking as each side takes damage.
+- Five cars a run come from seven models drawn on Toshi's car sheet: **Toyota AE86**, **Toyota MR2 SW20**, **Mazda Miata NA**, **Honda S2000**, **VW GTI Mk2**, **Mazda RX-7 FC** and a **'65 Mercury Cougar**. Each has five damage stages, from pristine to a smoking wreck in a pile of debris, and blows up when it's finished. Each side of the car has its own gauge (L and R under its health bar) and takes about **5 kicks** to wreck. Once one side is scrap, hits there do nothing, so **jump over the car** and wreck the other side. Windows shatter, bumpers fall off, doors get torn away and it starts smoking as each side takes damage.
 - Cars are solid: you can't walk through one, but you can **jump on top and stand on the roof** (and attack from up there), then walk off either end. A **hurricane kick spins right through the car**, hitting it about ten times on the way.
 - If the timer runs out, the car drives off and Akuma loses 20 HP.
 - The boss, **The Block Cruiser**, is a car built from falling-block puzzle pieces. Blocks fly off whichever side you hit, about 9 kicks per side, with a 45-second timer. If its timer runs out Akuma loses 30 HP and the clock restarts.
@@ -121,7 +121,7 @@ A small parking garage with only **5 cars** driving around it instead of enemies
 
 ### Level 4: The Car Park
 
-A Bomberman level in a parking garage with concrete pillars, crates, oil drums and traffic cones. The five cars from level 3 cruise the lanes.
+A Bomberman level in a parking garage with concrete pillars, crates, oil drums and traffic cones. Five of the seven cars from level 3 cruise the lanes; each one you wreck explodes and shows up on the tally at the end.
 
 - Press **Punch, Kick or Special** to plant a **hadouken bomb**. It pulses, flashes faster and faster, then bursts in a **cross** that stops at pillars and blows up the first crate it reaches. Bombs set each other off.
 - Crates sometimes drop orbs: **B** lets you plant one more bomb at a time, **F** makes the blasts longer.
@@ -206,7 +206,8 @@ akuma/
   art.py           procedural pixel art: tiles, effects, stages
   akuma_sprites.py loads each character's frames and picks the image for every pose
   practice.py      practice mode vs a sparring Ryu
-  cars.py          level 3: car bonus rounds, the five car models, the block-car boss
+  cars.py          level 3: car bonus rounds, the seven car models, the block-car boss
+  fx.py            loads the fireball and explosion frames
   bomber.py        level 4: the Bomberman car park
   pacman.py        level 5: the fighter maze
   smash.py         level 6: Smash Bros on Hyrule Castle

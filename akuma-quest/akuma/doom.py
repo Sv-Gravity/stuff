@@ -11,10 +11,14 @@ light, distance fog and the glow of every flying hadouken, and blitted with
 pygame.surfarray. The wall distance of every column is kept as a z-buffer so
 billboard sprites (demons, fireballs, snacks) hide behind walls.
 
-The demons (imp, pinky, cacodemon, lost soul, zombieman) and Akuma's own
-first-person hands and feet (dark clawed hands, prayer beads, red ki flames)
-are drawn in code from shaded "capsules" (see rig_render). Fireballs pick a
-back / side / front view from their direction of flight relative to the camera.
+The demons (imp, pinky, cacodemon, lost soul, zombieman) are drawn in code
+from shaded "capsules" (see rig_render). Akuma's first-person hands (idle
+claws, the two-handed hadouken charge and release, the claw swipe) come from
+Toshi's sheet (assets/doom_hands/, tools/make_doom_hands.py); the kick foot
+and the shoryuken fist are still capsules, in the same colours. The red/purple
+hadouken, its impacts and explosions come from the fx sheet (akuma/fx.py).
+Fireballs pick a back / side / front view from their direction of flight
+relative to the camera.
 
 The map is a hand-laid hell fortress of green-grey stone under a red sky: a
 tech-base start room, a demon hall, a blue key room, a red key cavern (with a
@@ -22,14 +26,16 @@ secret wall), and a sky-lit arena
 where CYBER-GIEF waits in front of the sealed exit portal.
 """
 
+import json
 import math
+import os
 import random
 
 import numpy as np
 import pygame
 
-from . import audio
-from .akuma_sprites import CharArt, portrait
+from . import audio, fx
+from .akuma_sprites import CharArt, asset_dir, portrait
 from .config import W, H
 from .font import draw_text, text_surface
 from .pause import PauseMenu
@@ -817,10 +823,10 @@ def _tinted(img, mult, add):
 # outlined - a cheap way to get chunky, rounded, hand-shaded looking sprites.
 _BAYER = _BAYER_T
 PALETTES = {
-    "skin": [(34, 12, 12), (64, 26, 22), (98, 46, 34), (136, 70, 48), (174, 100, 68), (210, 136, 94)],
+    "skin": [(40, 14, 12), (88, 36, 30), (150, 62, 38), (190, 84, 46), (214, 102, 56), (234, 128, 68)],
     "claw": [(30, 6, 6), (70, 12, 12), (130, 24, 20), (190, 60, 50)],
     "nail": [(40, 16, 18), (86, 44, 42), (140, 92, 86)],
-    "bead": [(22, 8, 8), (46, 16, 14), (78, 30, 24), (116, 50, 38), (170, 96, 80), (236, 190, 170)],
+    "bead": [(22, 6, 6), (40, 14, 12), (62, 22, 20), (90, 34, 32), (140, 66, 60), (210, 150, 130)],
     "cord": [(20, 8, 8), (40, 16, 14), (60, 26, 20)],
     "gi": [(18, 14, 26), (34, 28, 48), (54, 44, 72), (78, 64, 100), (104, 88, 130)],
     "pink": [(62, 14, 30), (112, 34, 56), (162, 64, 86), (206, 104, 120), (238, 152, 160)],
@@ -1080,9 +1086,10 @@ def leg_parts():
 
 
 # ---- fireballs seen from behind / in front -------------------------------------------
-BLUE_KI = ((255, 255, 255), (200, 236, 255), (120, 190, 255), (60, 120, 250), (36, 70, 220), (24, 36, 150))
-PURPLE_KI = ((255, 240, 255), (240, 190, 255), (200, 120, 255), (150, 60, 240), (110, 30, 200), (70, 10, 130))
 FIRE_KI = ((255, 255, 220), (255, 236, 130), (255, 180, 60), (250, 110, 30), (220, 50, 16), (150, 16, 8))
+# Akuma's own ki, the colours of the fx sheet: white core, lilac, magenta, blood red
+AKUMA_KI = ((255, 255, 255), (250, 214, 250), (226, 120, 230), (240, 40, 96), (196, 14, 40), (120, 4, 24))
+SHINKU_KI = ((255, 255, 255), (246, 206, 255), (206, 120, 255), (196, 40, 170), (140, 12, 96), (76, 0, 52))
 
 
 def ball_view(cols, view, phase, r=11):
@@ -1114,6 +1121,56 @@ def ball_view(cols, view, phase, r=11):
     pygame.surfarray.blit_array(s, out)
     pygame.surfarray.pixels_alpha(s)[:] = np.where(inside, 255, 0).astype(np.uint8)
     return s
+
+
+def _ball_core(img, size):
+    """The round head of a side-view fireball frame (its right end), scaled
+    to size x size: the ball seen head-on, its tail hidden behind it."""
+    w, h = img.get_size()
+    side = min(w, h)
+    core = img.subsurface(pygame.Rect(w - side, (h - side) // 2, side, side)).copy()
+    return pygame.transform.smoothscale(core, (size, size))
+
+
+def fx_ball_views(row, height, ring, ring_r, core):
+    """Side / back / front views of a sheet fireball. side: the sheet's fly
+    frames; front: the round head of the ball, swirling; back: the flame
+    trail streaming toward the camera (ball_view in the sheet's colours)
+    round that same head."""
+    side = fx.fx_frames(row, height)
+    heads = [_ball_core(f, int(height * 0.9)) for f in fx.fx_frames(core)]
+    n = len(heads)
+    back, front = [], []
+    for k in range(4):
+        b = ball_view(ring, "back", k, ring_r)
+        h = pygame.transform.smoothscale(heads[(k * 2) % n], (ring_r * 2, ring_r * 2))
+        b.blit(h, ((b.get_width() - h.get_width()) // 2, (b.get_height() - h.get_height()) // 2))
+        back.append(b)
+        f = ball_view(ring, "front", k, ring_r)
+        h = heads[(k * 2 + 1) % n]
+        f.blit(h, ((f.get_width() - h.get_width()) // 2, (f.get_height() - h.get_height()) // 2))
+        front.append(f)
+    return {"side": side, "back": back, "front": front}
+
+
+def load_hands():
+    """Toshi's first-person hands: {row: [(surface, (ax, ay))]}, the anchor
+    being the centre of the arm's base on the sheet's bottom edge."""
+    d = os.path.join(asset_dir(), "doom_hands")
+    with open(os.path.join(d, "anchors.json")) as f:
+        anchors = json.load(f)
+    out = {}
+    for row, ancs in anchors.items():
+        frames = []
+        for i, (ax, ay) in enumerate(ancs):
+            img = pygame.image.load(os.path.join(d, "%s_%d.png" % (row, i)))
+            try:
+                img = img.convert_alpha()
+            except pygame.error:
+                pass
+            frames.append((img, (ax, ay)))
+        out[row] = frames
+    return out
 
 
 # ---- the demons -----------------------------------------------------------------
@@ -1470,17 +1527,17 @@ class DoomScene:
 
     # ---- assets --------------------------------------------------------
     def _art(self):
-        akuma = CharArt("akuma")
-        balls = akuma.projectile_frames()
-        self.hado = [balls[i] for i in range(1, len(balls), 2)] or balls
-        self.shinku = [_tinted(b, (255, 200, 255), (60, 0, 60)) for b in self.hado]
-        # every fireball has a side view (the sprite pack's), a back view (flying
-        # away: the flame trail streams toward the camera) and a front view
-        self.hado_views = {"side": self.hado, "back": [ball_view(BLUE_KI, "back", k, 10) for k in range(4)],
-                           "front": [ball_view(BLUE_KI, "front", k, 9) for k in range(4)]}
-        self.shinku_views = {"side": self.shinku, "back": [ball_view(PURPLE_KI, "back", k, 13) for k in range(4)],
-                             "front": [ball_view(PURPLE_KI, "front", k, 12) for k in range(4)]}
-        self.hado_burst = _burst_frames((230, 240, 255), (90, 120, 255))
+        # every fireball has a side view (the fx sheet's fly frames), a back view
+        # (flying away: the flame trail streams toward the camera) and a front view
+        self.hado_views = fx_ball_views("fly", 34, AKUMA_KI, 10, "fly_alt")
+        self.shinku_views = fx_ball_views("var_large", 30, SHINKU_KI, 13, "var_regular")
+        self.shinku_views["side"] = self.shinku_views["side"][:4]     # the lit frames, not the fade-out
+        self.hado = self.hado_views["side"]
+        # impacts: on a demon, on a wall, and the shinku's big blast
+        self.hit_small = fx.fx_frames("hit_small", 64)
+        self.hit_large = fx.fx_frames("hit_large", 72)
+        self.hit_wall = fx.fx_frames("hit_wall", 56)
+        self.hands = load_hands()
         self.fire_burst = _burst_frames((255, 230, 120), (255, 80, 20))
         self.ki_orb = pygame.transform.scale_by(self.hado_views["front"][0], 0.5)
         self.bigki = pygame.transform.scale_by(self.hado_views["front"][1], 0.8)
@@ -1608,9 +1665,9 @@ class DoomScene:
         self.flash *= 0.8
         self._lights()
         self._doors()
-        for fx in self.effects:
-            fx.t += 1
-        self.effects = [fx for fx in self.effects if fx.alive]
+        for ef in self.effects:
+            ef.t += 1
+        self.effects = [ef for ef in self.effects if ef.alive]
         if self.phase == "intro":
             self.end_t += 1
             if self.end_t == 20:
@@ -1842,13 +1899,13 @@ class DoomScene:
         x, y = self.px + dx * 0.45, self.py + dy * 0.45
         if big:
             s = Shot(x, y, self.ang, HADO_SPEED * 0.85, "akuma", SHINKU_DMG * self.power,
-                     SHINKU_SPLASH * self.power, 0.4, True, self.shinku_views, 0.016, (1.2, 0.6, 1.8), 0.45)
+                     SHINKU_SPLASH * self.power, 0.4, True, self.shinku_views, 0.016, (1.6, 0.4, 1.5), 0.45)
             self.flash = 1.6
             self.face_grin = 50
             self._play("doom_shinku", "hadouken")
         else:
             s = Shot(x, y, self.ang, HADO_SPEED, "akuma", HADO_DMG * self.power, HADO_SPLASH * self.power,
-                     0.2, False, self.hado_views, 0.0085, (0.5, 0.7, 1.5), 0.42)
+                     0.2, False, self.hado_views, 0.0085, (1.6, 0.45, 0.8), 0.42)
             self.flash = 1.0
             self._play("hadouken")
         self.shots.append(s)
@@ -1948,7 +2005,7 @@ class DoomScene:
                             if not s.big:
                                 self._explode(s, e)
                                 break
-                            self.effects.append(Effect(s.x, s.y, 0.45, self.hado_burst, 0.03, 2))
+                            self.effects.append(Effect(s.x, s.y, 0.45, self.hit_small, 0.014, 2))
                     if not s.alive:
                         break
                 elif (self.px - s.x) ** 2 + (self.py - s.y) ** 2 < (PLAYER_R + s.radius) ** 2:
@@ -1963,7 +2020,13 @@ class DoomScene:
         s.alive = False
         x, y = s.x - s.vx * 0.5, s.y - s.vy * 0.5
         if s.owner == "akuma":
-            self.effects.append(Effect(x, y, s.z, self.hado_burst, 0.05 if s.big else 0.03, 3))
+            if s.big:
+                frames, wpp = self.hit_large, 0.025
+            elif direct is None:
+                frames, wpp = self.hit_wall, 0.0125     # splashed on the wall
+            else:
+                frames, wpp = self.hit_small, 0.014
+            self.effects.append(Effect(x, y, s.z, frames, wpp, 3))
             rad = 1.8 if s.big else 1.0
             for e in self.enemies:
                 if e.alive and e is not direct and e not in s.hit and (e.x - x) ** 2 + (e.y - y) ** 2 < rad * rad:
@@ -2188,7 +2251,7 @@ class DoomScene:
                 lights.append((s.x, s.y, 0.6, s.tint))
         if self.flash > 0.05:
             dx, dy = math.cos(self.ang), math.sin(self.ang)
-            lights.insert(0, (self.px + dx * 0.6, self.py + dy * 0.6, self.flash * 0.9, (0.6, 0.8, 1.4)))
+            lights.insert(0, (self.px + dx * 0.6, self.py + dy * 0.6, self.flash * 0.9, (1.5, 0.5, 0.9)))
         lights.sort(key=lambda l: (l[0] - self.px) ** 2 + (l[1] - self.py) ** 2)
         import time
         c0 = time.perf_counter()
@@ -2349,7 +2412,7 @@ class DoomScene:
                         wpp, z, lit, t.x, t.y))
         for s in self.shots:
             p = self.project(s.x, s.y)
-            if p is None or (s.owner == "akuma" and s.t < 3):
+            if p is None or (s.owner == "akuma" and s.t < (6 if s.big else 3)):   # still in the hands
                 continue
             # pick the view from the direction of flight relative to the camera:
             # flying away shows the back (trail toward us), coming at us the front
@@ -2365,13 +2428,13 @@ class DoomScene:
             s.view = view
             h = fr.get_height()
             out.append((p[1], p[0], None, fr, (fr.get_width() // 2, h // 2), s.wpp, s.z, False, s.x, s.y))
-        for fx in self.effects:
-            p = self.project(fx.x, fx.y)
+        for ef in self.effects:
+            p = self.project(ef.x, ef.y)
             if p is None:
                 continue
-            fr = fx.frames[min(len(fx.frames) - 1, fx.t // fx.speed)]
-            out.append((p[1], p[0], None, fr, (fr.get_width() // 2, fr.get_height() // 2), fx.wpp, fx.z, False,
-                        fx.x, fx.y))
+            fr = ef.frames[min(len(ef.frames) - 1, ef.t // ef.speed)]
+            out.append((p[1], p[0], None, fr, (fr.get_width() // 2, fr.get_height() // 2), ef.wpp, ef.z, False,
+                        ef.x, ef.y))
         out.sort(key=lambda s: -s[0])
         return out
 
@@ -2408,19 +2471,18 @@ class DoomScene:
                 surf.blit(scaled, (ca, top), pygame.Rect(ca - left, 0, cb - ca, sh))
 
     # ---- first-person view -------------------------------------------------------------
-    # name: (rig, rig args, scale, turn, wrist bend, flames)
+    # Capsule-drawn poses the sheet has no drawing for (the kick's foot, the
+    # shoryuken fist). name: (rig, rig args, scale, turn, wrist bend, flames)
     FP_POSES = {
-        "claw": ("hand", dict(curl=0.45, spread=0.9), 0.92, -0.08, 0.0, "ki"),
-        "claw2": ("hand", dict(curl=0.8, spread=0.4), 0.92, -0.08, 0.0, "ki"),
-        "cup": ("hand", dict(curl=0.45, spread=0.4), 0.95, -0.25, -0.35, "ki"),
-        "thrust": ("hand", dict(curl=0.0, spread=1.0), 0.88, -0.3, 0.55, "ki"),
         "fist": ("hand", dict(fist=1.0), 1.05, 0.0, 0.0, "ki"),
-        "jab": ("hand", dict(fist=1.0), 0.78, -0.25, 0.1, "ki"),
         "upper": ("hand", dict(fist=1.0), 1.15, -0.12, 0.0, "fire"),
         "leg_up": ("leg", {}, 1.25, 0.22, 0.0, "ki"),
         "leg_out": ("leg", {}, 1.05, 0.1, 0.0, "ki"),
         "leg_side": ("leg", {}, 0.6, 1.15, 0.0, "ki"),
     }
+    IDLE_SEQ = (0, 1, 2, 3, 4, 3, 2, 1)       # the sheet's idle claws 0-4 drawn as a ping-pong loop
+    SWIPE_SEQ = (0, 0, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5)   # punch tick -> swipe frame
+    HAND_GAP = 46                             # idle claws: arm bases this far either side of centre
 
     def _fp_sprite(self, name, phase, left=False):
         """A first-person sprite with its flames, and where its wrist (or
@@ -2461,22 +2523,36 @@ class DoomScene:
         img, (ax, ay) = self._fp_sprite(name, (self.t // 5) % 4, left)
         surf.blit(img, (int(x - ax), int(y - ay)))
 
-    def _ki_ball(self, surf, x, y, size, big=False):
-        views = self.shinku_views if big else self.hado_views
-        b = views["back"][(self.t // 3) % 4]
-        bs = pygame.transform.scale_by(b, size)
-        surf.blit(bs, (int(x - bs.get_width() / 2), int(y - bs.get_height() / 2)))
+    def _hand(self, surf, row, i, x, y, left=False):
+        """Frame i of a hand-sheet row with its arm's base at (x, y); left
+        mirrors it (the sheet draws right hands)."""
+        key = ("sheet", row, i, left)
+        got = self.fp.get(key)
+        if got is None:
+            img, (ax, ay) = self.hands[row][i]
+            if left:
+                img = pygame.transform.flip(img, True, False)
+                ax = img.get_width() - ax
+            got = self.fp[key] = (img, (ax, ay))
+        img, (ax, ay) = got
+        surf.blit(img, (int(x - ax), int(y - ay)))
+
+    def _idle(self, surf, x, y, left=False):
+        """An idle claw (the sheet's loop; every third beat the other claw)."""
+        row = "idle_b" if (self.t // 50) % 3 == 2 else "idle_a"
+        k = self.IDLE_SEQ[(self.t // 7 + (3 if left else 0)) % len(self.IDLE_SEQ)]
+        self._hand(surf, row, k, x, y, left)
 
     def _draw_hands(self, surf):
         bobx = math.sin(self.walk * 3.0) * 5 * self.moving
         boby = abs(math.cos(self.walk * 3.0)) * 4 * self.moving
         cx, by = W // 2 + bobx, VIEW_H - 12 + boby
+        base = VIEW_H + 2 + boby                       # the sheet's arms are cut at the screen's bottom edge
         w, t = self.weapon, self.wt
-        idle = "claw2" if (self.t // 50) % 3 == 2 else "claw"
 
-        def pair(name, gap, y, lname=None):
-            self._put(surf, lname or name, cx - gap, y, left=True)
-            self._put(surf, name, cx + gap, y)
+        def pair(gap, y):
+            self._idle(surf, cx - gap, y, left=True)
+            self._idle(surf, cx + gap, y)
 
         def lerp(a, b, f):
             return a + (b - a) * max(0.0, min(1.0, f))
@@ -2484,31 +2560,31 @@ class DoomScene:
         if w in ("hado", "shinku"):
             fire = 7 if w == "hado" else 18
             big = w == "shinku"
+            rel = 6 if not big else 14                    # ticks the release row takes
             if t < fire:                                   # hands come together, the ki gathers
-                f = t / fire
-                pair("cup" if f > 0.25 else idle, lerp(58, 24, f * 1.6), by + 6 * f)
-                self._ki_ball(surf, cx, by - 30 + 4 * f, (0.25 + 0.5 * f) * (1.4 if big else 1.0), big)
-            elif t < fire + 6:                             # thrust: palms out, the ball leaves
-                pair("thrust", 15, by - 12)
-                if t < fire + 3:
-                    self._ki_ball(surf, cx, by - 40, 1.2 if big else 0.9, big)
+                n = 6 if not big else 5
+                k = min(5, t * n // fire) if not big or t < 12 else 4 + (t // 2) % 2
+                self._hand(surf, "charge", k, cx, base)
+                if big and t >= 6:                         # the shinku's ball keeps swelling
+                    key = ("glow", t, (t // 2) % 2)
+                    g = self.fp.get(key)
+                    if g is None:          # additive, so premultiply: transparent pixels add nothing
+                        g = self.fp[key] = fx.fx_frames("explode_small", 20 + (t - 6) * 3)[1 + (t // 2) % 2].premul_alpha()
+                    surf.blit(g, (int(cx - g.get_width() / 2), int(base - 66 - g.get_height() / 2)),
+                              special_flags=pygame.BLEND_RGB_ADD)
+            elif t < fire + rel:                           # palms out, the ball leaves
+                k = min(7, (t - fire) * 8 // rel)
+                self._hand(surf, "release", k, cx, base)
             else:                                          # back to the guard
-                f = (t - fire - 6) / (self.MOVE_LEN[w] - fire - 6)
-                pair(idle, lerp(15, 58, f), lerp(by - 12, by, f))
+                f = (t - fire - rel) / max(1, self.MOVE_LEN[w] - fire - rel)
+                pair(lerp(22, self.HAND_GAP, f), base + lerp(14, 0, f))
         elif w == "punch":
             s = self.punch_side
-            other = cx - s * 62
-            self._put(surf, idle, other, by + 10, left=s > 0)
-            if t < 3:
-                x, y, pose = cx + s * 54, by + 8, "fist"
-            elif t < 9:
-                x, y, pose = cx + s * 10, by - 26, "jab"
-            else:
-                f = (t - 9) / 7
-                x, y, pose = lerp(cx + s * 10, cx + s * 58, f), lerp(by - 26, by, f), "fist"
-            self._put(surf, pose, x, y, left=s < 0)
+            self._idle(surf, cx - s * (self.HAND_GAP + 14), base + 12, left=s > 0)
+            k = self.SWIPE_SEQ[min(t, len(self.SWIPE_SEQ) - 1)]
+            self._hand(surf, "swipe", k, cx + s * 18, base, left=s < 0)
         elif w == "shoryu":
-            self._put(surf, idle, cx - 70, by + 26, left=True)
+            self._idle(surf, cx - 64, base + 22, left=True)
             if t < 4:
                 self._put(surf, "fist", cx + 34, by + 18)
             else:
@@ -2516,7 +2592,7 @@ class DoomScene:
                 y = lerp(by + 10, by - 70, f) + max(0, t - 20) * 7
                 self._put(surf, "upper", lerp(cx + 30, cx + 8, f), y)
         elif w == "kick":
-            pair(idle, 74, by + 24)
+            pair(self.HAND_GAP + 22, base + 22)
             if t < 4:
                 self._put(surf, "leg_up", cx + 30, VIEW_H + 40 - t * 8)
             elif t < 13:
@@ -2526,17 +2602,17 @@ class DoomScene:
                 f = (t - 13) / 9
                 self._put(surf, "leg_up", lerp(cx + 14, cx + 34, f), lerp(VIEW_H - 30, VIEW_H + 70, f))
         elif w == "tatsu":
-            pair(idle, 80, by + 30)
+            pair(self.HAND_GAP + 28, base + 28)
             if 3 <= t < 37:
                 # the leg sticks straight out while the world whirls past; streaks
                 for k in range(5):
                     yy = 58 + k * 9
-                    pygame.draw.line(surf, (255, 255, 255) if k % 2 else (150, 190, 255),
+                    pygame.draw.line(surf, (255, 255, 255) if k % 2 else (255, 120, 160),
                                      (int(cx - 140 + (t * 23 + k * 40) % 120), yy),
                                      (int(cx - 90 + (t * 23 + k * 40) % 120), yy))
                 self._put(surf, "leg_side", W - 58, 90)
         else:
-            pair(idle, 58, by)
+            pair(self.HAND_GAP, base)
 
     # ---- status bar ------------------------------------------------------------------
     def _draw_bar(self, surf):

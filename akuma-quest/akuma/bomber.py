@@ -17,7 +17,7 @@ from . import audio
 from . import fight as F
 from .akuma_sprites import MapArt, hado_frames
 from .art import shade, _outlined, OUTLINE
-from .cars import CAR_MODELS, car_topdown
+from .cars import CAR_MODELS, car_topdown, car_sprite, explosion
 from .config import W, H, FPS
 from .font import draw_text
 from .pause import PauseMenu
@@ -37,6 +37,7 @@ HONK_WARN, HONK_ON, HONK_R = 54, 14, 26
 DMG_BEAM, DMG_HONK, DMG_BUMP, DMG_BLAST = 24, 20, 12, 32
 INVULN = 80
 CRATE_DENSITY = 0.36
+N_CARS = 5                      # cars on the lot, drawn from level 3's seven models
 
 EMPTY, WALL, PILLAR, CRATE = 0, 1, 2, 3
 DIRS = {"up": (0, -1), "down": (0, 1), "left": (-1, 0), "right": (1, 0)}
@@ -154,8 +155,7 @@ class Car:
     def __init__(self, model, cx, cy, rng):
         self.model = model
         self.name = model["name"]
-        roof = (24, 22, 26) if "vinyl" in model["extras"] else None
-        up = car_topdown(model["color"], roof)
+        up = car_topdown(model["color"], model.get("roof"))
         self.frames = {d: pygame.transform.rotate(up, ROT[d]) for d in DIRS}
         white = pygame.mask.from_surface(up).to_surface(setcolor=(255, 255, 255, 255),
                                                         unsetcolor=(0, 0, 0, 0))
@@ -209,6 +209,8 @@ class BomberScene:
         self.rings = []          # honk rings: [x, y, t]
         self.sparks = []
         self.debris = []
+        self.booms = []          # fx explosions over wrecked cars
+        self.wreck_card = None   # [car, frames left]: its side view, smashed, under the HUD
         self.phase = "intro"
         self.t = 0
         self.end_t = 0
@@ -233,7 +235,7 @@ class BomberScene:
         for c in far:
             if all(abs(c[0] - s[0]) + abs(c[1] - s[1]) >= 4 for s in spots):
                 spots.append(c)
-            if len(spots) == len(CAR_MODELS):
+            if len(spots) == N_CARS:
                 break
         keep = {(1, 1), (2, 1), (1, 2), (3, 1), (1, 3)}
         for sx, sy in spots:
@@ -244,7 +246,8 @@ class BomberScene:
         self.grid = g
         self.crate_kind = {(x, y): rng.randrange(3) for x, y in open_cells}
         self.floor_kind = [[rng.choice((0, 0, 0, 1, 2, 3)) for _ in range(COLS)] for _ in range(ROWS)]
-        self.cars = [Car(m, sx, sy, rng) for m, (sx, sy) in zip(CAR_MODELS, spots)]
+        models = rng.sample(CAR_MODELS, min(N_CARS, len(CAR_MODELS)))
+        self.cars = [Car(m, sx, sy, rng) for m, (sx, sy) in zip(models, spots)]
 
     # ---- grid queries ----------------------------------------------------
     def _cell(self, cx, cy):
@@ -357,6 +360,13 @@ class BomberScene:
         for r in self.rings:
             r[2] += 1
         self.rings = [r for r in self.rings if r[2] < 18]
+        for fx in self.booms:
+            fx.update()
+        self.booms = [fx for fx in self.booms if fx.alive]
+        if self.wreck_card:
+            self.wreck_card[1] -= 1
+            if self.wreck_card[1] <= 0:
+                self.wreck_card = None
         for b in self.burning:
             b[2] += 1
         self.burning = [b for b in self.burning if b[2] < 20]
@@ -524,6 +534,12 @@ class BomberScene:
             audio.play("ko")
             self.shake = 12
             self.banner = ["%s WRECKED!" % car.name, 70]
+            self.wreck_card = [car, 80]
+            for kind, dx, dy, h in (("explode_medium", 0, -4, 40), ("explode_small", -7, 2, 22),
+                                    ("explode_small", 7, 0, 20)):
+                fx = explosion(kind, OX + car.x + dx, OY + car.y + dy, h)
+                if fx is not None:
+                    self.booms.append(fx)
             for _ in range(18):
                 self.debris.append([car.x, car.y, self.rng.uniform(-2.5, 2.5), self.rng.uniform(-4, -1),
                                     60, self.rng.choice((car.model["color"], (60, 60, 64), (255, 200, 60)))])
@@ -702,6 +718,8 @@ class BomberScene:
             surf.fill(d[5], (round(ox + d[0]), round(oy + d[1]), 2, 2))
         for s in self.sparks:
             s.draw(surf, (0, 0))
+        for fx in self.booms:
+            fx.draw(surf, sh)
         self._hud(surf)
 
     def _draw_bomb(self, surf, b, ox, oy):
@@ -795,6 +813,50 @@ class BomberScene:
         pygame.draw.ellipse(surf, (16, 12, 20), (round(ox + self.px) - 6, round(oy + self.py) + 3, 12, 5))
         surf.blit(img, (x, y))
 
+    def _side(self, car, h):
+        """The car's painted side view, wrecked, scaled to h pixels tall (cached)."""
+        cache = self.__dict__.setdefault("_sides", {})
+        key = (car.model["name"], h)
+        if key not in cache:
+            img = car_sprite(car.model, 4)
+            if img is not None:
+                r = img.get_bounding_rect()
+                img = img.subsurface(r)
+                img = pygame.transform.smoothscale(img, (max(1, round(r.w * h / r.h)), h))
+            cache[key] = img
+        return cache[key]
+
+    def _wreck_card(self, surf, car, left):
+        """A little side-view card of the car just blown up, sliding in under the banner."""
+        img = self._side(car, 22)
+        if img is None:
+            return
+        cw = max(img.get_width(), 44) + 6
+        slide = max(0, 12 - (80 - left)) * 5
+        x = W - 4 - cw + slide
+        y = OY + 12
+        if left < 12 and left % 2:
+            return
+        box = (x, y, cw, img.get_height() + 14)
+        pygame.draw.rect(surf, (10, 8, 16), box)
+        pygame.draw.rect(surf, (255, 120, 40), box, 1)
+        surf.blit(img, (x + (cw - img.get_width()) // 2, y + 2))
+        draw_text(surf, "WRECKED", x + cw // 2, y + img.get_height() + 4, (255, 120, 40), align="center")
+
+    def _tally(self, surf):
+        """Level clear: every car blown up, by name, appearing one by one."""
+        rows = [c for c in self.cars if not c.alive]
+        shown = min(len(rows), max(0, (self.end_t - 20) // 12))
+        y0 = 62
+        for i, c in enumerate(rows[:shown]):
+            y = y0 + i * 20
+            pygame.draw.rect(surf, (10, 8, 16), (24, y - 1, W - 48, 19))
+            img = self._side(c, 16)
+            if img is not None:
+                surf.blit(img, (28, y + 1))
+            draw_text(surf, c.name, 82, y + 6, (255, 240, 200))
+            draw_text(surf, "WRECKED", W - 28, y + 6, (255, 120, 40), align="right")
+
     def _hud(self, surf):
         surf.fill((10, 8, 16), (0, 0, W, OY - 1))
         surf.blit(F._PORTRAIT, (3, 2))
@@ -827,8 +889,11 @@ class BomberScene:
                 draw_text(surf, "GO!", W // 2, 112, (255, 60, 40), scale=3, align="center")
         if self.banner and self.phase == "play":
             draw_text(surf, self.banner[0], W // 2, OY + 4, (255, 240, 200), align="center")
+        if self.wreck_card and self.phase == "play":
+            self._wreck_card(surf, *self.wreck_card)
         if self.phase == "won" and self.end_t > 10:
-            draw_text(surf, "LOT CLEARED!", W // 2, 70, (255, 220, 60), scale=3, align="center")
+            draw_text(surf, "LOT CLEARED!", W // 2, 36, (255, 220, 60), scale=3, align="center")
+            self._tally(surf)
         if self.phase == "lost" and self.end_t > 10:
             draw_text(surf, "AKUMA FALLS...", W // 2, 74, (255, 255, 255), scale=2, align="center")
         if self.menu.open:

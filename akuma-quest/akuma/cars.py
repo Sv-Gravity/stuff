@@ -10,6 +10,7 @@ car lock into place and repair it.
 """
 
 import math
+import os
 import random
 
 import pygame
@@ -21,10 +22,17 @@ from .config import W, H, FPS, GROUND_Y, HITSTOP, STAGE_LEFT, STAGE_RIGHT
 from .fighters import Fighter, overlap, contact, image_area, rect_area, CANCEL_WINDOW, HIT
 from .font import draw_text
 from .pause import PauseMenu
+from .akuma_sprites import asset_dir
 
-# Toshi's line-up. Side profiles are drawn facing right in a 108 x 50 box,
-# tyres touching y = 47.
-CAR_MODELS = [
+try:                    # Akuma's explosion frames (assets/fx); the old sparks if missing
+    from . import fx as _fx
+except Exception:       # pragma: no cover
+    _fx = None
+
+# The original code-drawn line-up. Side profiles are drawn facing right in a
+# 108 x 50 box, tyres touching y = 47. Only used now if the painted car sprites
+# (assets/cars, cut by tools/make_cars.py) are missing.
+DRAWN_MODELS = [
     dict(name="TOYOTA AE86", color=(236, 236, 232), lower=(30, 30, 34),     # panda Trueno
          body=[(4, 24), (14, 23), (78, 24), (101, 27), (103, 30), (103, 40), (4, 40)],
          cabin=[(14, 24), (36, 12), (64, 12), (78, 24)],
@@ -56,7 +64,68 @@ CAR_MODELS = [
          wheels=(24, 86, 8), popups=None, head=None, tail=(1, 27, 3, 4),
          extras=["chrome", "vinyl", "grille", "whitewall"]),
 ]
+
+# Toshi's line-up, painted (art_source/akuma_car_damage_sheet.png): one side
+# view per damage stage in assets/cars/<key>_<stage>.png, facing right.
+# color/roof: their top-down map sprite; drawn: the fallback drawn model.
+CAR_MODELS = [
+    dict(name="TOYOTA AE86", key="ae86", color=(236, 236, 232), roof=None, drawn=0),
+    dict(name="TOYOTA MR2 SW20", key="mr2", color=(206, 30, 36), roof=None, drawn=1),
+    dict(name="MAZDA MIATA NA", key="miata", color=(222, 40, 40), roof=(40, 34, 38), drawn=2),
+    dict(name="HONDA S2000 AP1", key="s2000", color=(240, 196, 30), roof=(28, 28, 32), drawn=3),
+    dict(name="VW GTI MK2", key="gti", color=(232, 232, 228), roof=None, drawn=0),
+    dict(name="MAZDA RX-7 FC35", key="rx7", color=(242, 240, 236), roof=None, drawn=3),
+    dict(name="'65 MERCURY COUGAR", key="cougar", color=(40, 130, 136), roof=None, drawn=4),
+]
 MODEL_BY_NAME = {m["name"]: m for m in CAR_MODELS}
+STAGES = 5          # pristine, light, medium, heavy, destroyed
+_SPRITES = {}
+
+
+def car_sprite(model, stage):
+    """The painted side view of a model at damage stage 0-4 (facing right), or None."""
+    key = (model.get("key"), stage)
+    if key not in _SPRITES:
+        img = None
+        if model.get("key"):
+            path = os.path.join(asset_dir(), "cars", "%s_%d.png" % key)
+            try:
+                img = pygame.image.load(path)
+                try:
+                    img = img.convert_alpha()
+                except pygame.error:        # no display yet
+                    pass
+            except (pygame.error, FileNotFoundError):
+                img = None
+        _SPRITES[key] = img
+    return _SPRITES[key]
+
+
+def car_anchor(model):
+    """Anchor of a model's sprites: centre of the pristine car, tyres on the ground."""
+    key = (model.get("key"), "anchor")
+    if key not in _SPRITES:
+        img = car_sprite(model, 0)
+        r = img.get_bounding_rect()
+        _SPRITES[key] = (r.centerx, r.bottom - 2, r.width // 2)
+    return _SPRITES[key]
+
+
+def sheet_stage(frac):
+    """Painted damage stage for the share of HP left: pristine .. destroyed."""
+    if frac <= 0:
+        return 4
+    return 0 if frac > 0.8 else 1 if frac > 0.6 else 2 if frac > 0.35 else 3
+
+
+def explosion(kind, x, y, height, rate=4):
+    """A fx explosion Effect centred on (x, y), or None without the fx frames."""
+    if _fx is None:
+        return None
+    try:
+        return F.Effect(_fx.fx_frames(kind, scale_height=height), x, y, rate)
+    except Exception:
+        return None
 
 CAR_SIDE_HITS = 5          # kicks (normal hits) to wreck one side of a car
 CAR_TIME = 30              # seconds
@@ -125,6 +194,8 @@ def _stage_of(frac):
 
 def car_side(model, ldmg, rdmg, seed=0):
     """A side-view car facing right. ldmg/rdmg: damage stage 0-3 of the rear/front half."""
+    if "drawn" in model:
+        model = DRAWN_MODELS[model["drawn"]]
     rng = random.Random(seed * 13 + ldmg * 4 + rdmg)
     s = pygame.Surface((CAR_W, CAR_H), pygame.SRCALPHA)
     color = model["color"]
@@ -232,6 +303,33 @@ def car_side(model, ldmg, rdmg, seed=0):
             s.fill((26, 22, 30), door)
             pygame.draw.rect(s, (60, 54, 64), door, 1)
     return _outlined(s)
+
+
+def scarred(img, ldmg, rdmg, seed=0):
+    """The painted car with fresh dents and scrapes on whichever half took the
+    beating (ldmg/rdmg: 0-3 for the rear/front half), so a one-sided pounding shows."""
+    if not ldmg and not rdmg:
+        return img
+    out = img.copy()
+    m = pygame.mask.from_surface(img, 127)
+    w, h = img.get_size()
+    r = img.get_bounding_rect()
+    mid = r.centerx
+    rng = random.Random(seed * 31 + ldmg * 5 + rdmg)
+    for half, d in ((0, ldmg), (1, rdmg)):
+        if d <= 0:
+            continue
+        x0, x1 = (r.left + 4, mid - 2) if half == 0 else (mid + 2, r.right - 5)
+        for _ in range(d * 6):
+            x, y = rng.randint(x0, x1), rng.randint(r.top + r.height // 3, r.bottom - 10)
+            if not m.get_at((x, y)):
+                continue
+            dx, dy = rng.randint(-3, 3), rng.randint(1, 2)
+            if not (0 <= x + dx < w and m.get_at((x + dx, min(h - 1, y + dy)))):
+                continue
+            pygame.draw.line(out, (30, 24, 30), (x, y), (x + dx, y + dy))
+            out.set_at((x, max(0, y - 1)), (235, 235, 240))       # bare metal glint
+    return out
 
 
 # --------------------------------------------------------------------------
@@ -490,6 +588,10 @@ class CarTarget:
             self.gone = set()
         else:
             self.half, self.height = CAR_W // 2 - 4, 36
+            if self.model and car_sprite(self.model, 0) is not None:
+                ax, ay, hw = car_anchor(self.model)
+                top = car_sprite(self.model, 0).get_bounding_rect().top
+                self.half, self.height = hw - 4, ay - top - 2
         self._cache = {}
 
     @property
@@ -551,11 +653,23 @@ class CarTarget:
                 self._cache = {key: img}
             return img, BOSS_ANCHOR
         st = self.stages()
-        img = self._cache.get(st)
+        painted = self.model is not None and car_sprite(self.model, 0) is not None
+        key = (self.sheet_stage(),) + st if painted else st
+        img = self._cache.get(key)
         if img is None:
-            img = car_side(self.model, st[0], st[1], self.seed)
-            self._cache[st] = img
+            if painted:
+                img = scarred(car_sprite(self.model, key[0]), st[0], st[1], self.seed)
+            else:
+                img = car_side(self.model, st[0], st[1], self.seed)
+            self._cache[key] = img
+        if painted:
+            ax, ay, _ = car_anchor(self.model)
+            return img, (ax, ay)
         return img, CAR_ANCHOR
+
+    def sheet_stage(self):
+        """The painted stage follows the HP left on the whole car."""
+        return sheet_stage(self.hp / self.max_hp)
 
 
 class Debris:
@@ -906,6 +1020,7 @@ class CarScene:
             self.hitstop = max(self.hitstop, 4)
             return
         before = car.stages()[side]
+        before_sheet = car.sheet_stage()
         car.side_hp[side] = max(0, car.side_hp[side] - round(dmg))
         car.flash = 6
         car.wobble = 8
@@ -930,9 +1045,16 @@ class CarScene:
                 away = -1 if side == 0 else 1
                 self.debris.append(Debris(img, x, y, away * self.rng.uniform(-0.5, 3.0),
                                           self.rng.uniform(-6, -2), 80))
-        elif car.stages()[side] != before:
+        elif car.stages()[side] != before or car.sheet_stage() != before_sheet:
             audio.play("sweep")
             self._shards(side)
+            if car.hp > 0:
+                self._boom("explode_small", at[0], at[1], 28)
+
+    def _boom(self, kind, x, y, height, rate=4):
+        fx = explosion(kind, x, y, height, rate)
+        if fx is not None:
+            self.effects.append(fx)
 
     def _shards(self, side, n=10):
         car = self.car
@@ -1035,6 +1157,11 @@ class CarScene:
         audio.play("ko")
         for side in (0, 1):
             self._shards(side, 16)
+        # the tank goes up: one big fireball over the car, a smaller one each end
+        top = car.y - car.height
+        self._boom("explode_large", car.x, top + 4, 76 if car.boss else 64, 5)
+        self._boom("explode_medium", car.x - car.half * 0.7, top + 14, 40)
+        self._boom("explode_medium", car.x + car.half * 0.7, top + 16, 36, 5)
         if car.boss:
             for i, (cells, color) in enumerate(car.pieces):
                 if i not in car.gone:
@@ -1072,7 +1199,9 @@ class CarScene:
             sh = (self.rng.choice((-2, -1, 1, 2)), self.rng.choice((-1, 0, 1)))
         surf.blit(self.stage, sh)
         car = self.car
-        if not (car.ko and not car.boss and self.end_t > 50):
+        # a painted car stays on the street as a smoking wreck; the old drawn ones vanish
+        painted = car.model is not None and car_sprite(car.model, 0) is not None
+        if not (car.ko and not car.boss and self.end_t > 50 and not painted):
             img, (ax, ay) = car.image()
             wob = (1 if car.wobble % 4 < 2 else -1) if car.wobble else 0
             x = round(car.x) - ax + sh[0] + wob
@@ -1129,9 +1258,9 @@ class CarScene:
                 r = 2 + ph // 12
                 c = (90, 90, 100) if st == 2 else (50, 46, 56)
                 pygame.draw.circle(surf, c, (round(bx + k * 4 - ph * 0.2) + sh[0],
-                                             round(car.y - 34 - ph * 0.8) + sh[1]), r)
+                                             round(car.y - car.height + 2 - ph * 0.8) + sh[1]), r)
             if st == 3 and (self.t // 3) % 2:
-                pygame.draw.circle(surf, (255, 150, 40), (round(bx) + sh[0], round(car.y - 30) + sh[1]), 3)
+                pygame.draw.circle(surf, (255, 150, 40), (round(bx) + sh[0], round(car.y - car.height + 6) + sh[1]), 3)
 
     def _bar(self, surf, x, y, w, val, lag, mx, right, col=(250, 210, 40)):
         pygame.draw.rect(surf, (10, 6, 14), (x - 1, y - 1, w + 2, 10))
@@ -1196,6 +1325,9 @@ class CarScene:
 # --------------------------------------------------------------------------
 # map side
 # --------------------------------------------------------------------------
+_MODEL_OFFSET = 0
+
+
 def setup_map_car(e, rng, boss, cfg, index=0):
     """Fill in a MapEnemy as a car (called from dungeon.MapEnemy)."""
     e.car = True
@@ -1208,12 +1340,14 @@ def setup_map_car(e, rng, boss, cfg, index=0):
         e.frames = boss_map_frames(e.pieces)
         e.speed = 0.0
     else:
-        e.model = CAR_MODELS[index % len(CAR_MODELS)]
+        global _MODEL_OFFSET
+        if index == 0:      # a new map: start the line-up somewhere new, so all seven turn up over runs
+            _MODEL_OFFSET = e.seed % len(CAR_MODELS)
+        e.model = CAR_MODELS[(index + _MODEL_OFFSET) % len(CAR_MODELS)]
         e.name = e.model["name"]
         e.color = e.model["color"]
         e.side_hp = HIT * CAR_SIDE_HITS
-        roof = (24, 22, 26) if "vinyl" in e.model["extras"] else None
-        e.frames = car_map_frames(e.color, roof)
+        e.frames = car_map_frames(e.color, e.model.get("roof"))
         e.speed = rng.uniform(0.7, 1.0)
     e.hp = e.side_hp * 2
     e.level = 0
