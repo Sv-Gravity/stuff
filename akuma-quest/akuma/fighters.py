@@ -50,6 +50,8 @@ MAX_CHAIN = 5          # moves in one string
 MAX_COMBO = 5          # the 5th hit of a combo always knocks down
 THROW_RANGE = 40       # feet-to-feet distance a grab reaches
 THROW_LINK = 3         # punch and kick count as "together" within this many frames
+SPECIAL_LINK = 4       # special + punch/kick count as "together" within this many frames
+SPECIAL_COMBOS = {"punch": "shoryuken", "kick": "tatsu"}
 
 # Akuma's hitboxes ("hitbox_px") are in real sprite pixels, measured from the
 # sheet frames: (x forward of the feet, y up from the feet, w, h).
@@ -112,9 +114,11 @@ AKUMA_MOVES = {
         name="Throw", cat="throw", grab=True, dmg=HIT * 2,
         phases=[("startup", 3, "grab"), ("active", 3, "grab"), ("recovery", 20, "grab_miss")],
         events={2: dict(sound="whiff")}),
+    # Third Strike style: grab, lift them up over the head, then fling them
     "toss": dict(
         name="Throw", cat="throw",
-        phases=[("recovery", 8, "grab"), ("recovery", 18, "toss")]),
+        phases=[("recovery", 5, "grab"), ("recovery", 11, "lift"),
+                ("recovery", 18, "fling")]),
     # ---- kick button: one hit, normal speed ----
     "front_kick": dict(
         name="Front Kick", cat="kick",
@@ -467,8 +471,9 @@ class Fighter:
         self.cancel = 0
         self.chain = 0
         self.throw_dir = 1
+        self.rot = 0             # degrees the drawing is turned (spinning through the air after a throw)
         self._clock = 0
-        self._pressed_at = {"punch": -99, "kick": -99}
+        self._pressed_at = {"punch": -99, "kick": -99, "special": -99}
 
     def _measure_hurtbox(self):
         """Hurtbox size comes from the actual standing and crouching sprites."""
@@ -532,7 +537,7 @@ class Fighter:
         return sum(n for _, n, _ in self.move["phases"])
 
     def hurtbox(self):
-        if self.state in ("down", "getup", "ko") or self.ko:
+        if self.state in ("down", "getup", "ko", "held") or self.ko:
             return None
         if self.state == "move":
             inv = self.move.get("invuln")
@@ -686,18 +691,17 @@ class Fighter:
                 return M["jump_jab"]
             if button == "kick":
                 return M["dive"] if down else M["jump_kick"]
-            if button == "special" and not self._own_projectile():
+            if button in ("special", "shoryuken", "tatsu") and not self._own_projectile():
                 return M["air_hado"]
             return None
         if button == "throw":
             # held direction picks where they get tossed (neutral = forward)
             self.throw_dir = -self.facing if back else self.facing
             return M["throw"]
+        # special + punch = shoryuken, special + kick = tatsu, special alone = fireball
+        if button in ("shoryuken", "tatsu"):
+            return M[button]
         if button == "special":
-            if down and (fwd or back):
-                return M["shoryuken"]
-            if down:
-                return M["tatsu"]
             if self._own_projectile():
                 return None
             return M["hadouken"]
@@ -713,11 +717,20 @@ class Fighter:
         return any(p.owner is self for p in self.projectiles or ())
 
     def _try_throw(self):
-        """Punch and kick a frame or two apart: the first button's normal is
-        still starting up, so turn it into the throw."""
-        if not (self.is_player and self.buffer and self.buffer_btn == "throw" and self.on_ground):
+        """Two buttons a frame or two apart: the first button's move is still
+        starting up, so turn it into the two-button move (punch+kick = throw,
+        special+punch = shoryuken, special+kick = tatsu)."""
+        if not (self.is_player and self.buffer and self.on_ground and self.move):
             return False
-        if not self.move or self.move.get("cat") not in ("punch", "kick") or self.move_t > THROW_LINK:
+        btn, cat = self.buffer_btn, self.move.get("cat")
+        if btn == "throw":
+            if cat not in ("punch", "kick") or self.move_t > THROW_LINK:
+                return False
+        elif btn in ("shoryuken", "tatsu"):
+            first = self.move is AKUMA_MOVES["hadouken"] or cat in ("punch", "kick")
+            if not first or self.move_t > SPECIAL_LINK:
+                return False
+        else:
             return False
         self.buffer = 0
         self.start_move(self.choose_player_move(*self._buffered()))
@@ -749,12 +762,19 @@ class Fighter:
             if intent.get(b):
                 self.buffer = 8
                 self.buffer_btn = b
+                self._pressed_at[b] = self._clock
                 if b in ("punch", "kick"):
-                    self._pressed_at[b] = self._clock
                     other = "kick" if b == "punch" else "punch"
                     # punch + kick together (or a couple of frames apart) = throw
                     if self._clock - self._pressed_at[other] <= THROW_LINK:
                         self.buffer_btn = "throw"
+                    # special + punch / kick together = shoryuken / tatsu
+                    elif self._clock - self._pressed_at["special"] <= SPECIAL_LINK:
+                        self.buffer_btn = SPECIAL_COMBOS[b]
+                elif b == "special":
+                    for o in ("punch", "kick"):
+                        if self._clock - self._pressed_at[o] <= SPECIAL_LINK:
+                            self.buffer_btn = SPECIAL_COMBOS[o]
                 # directions are read when the button is pressed, like an arcade
                 # input buffer, so a press made during hitstop keeps its direction
                 self.buffer_dirs = (intent.get("left", False), intent.get("right", False),
@@ -778,6 +798,11 @@ class Fighter:
         """intent: dict with left/right/up/down (held), punch/kick/special (pressed) or
         move (a move dict chosen by AI)."""
         self.anim += 1
+        if self.state == "held":
+            # being carried by a thrower: the scene places us each frame
+            self.buffer = 0
+            self.pose_t += 1
+            return
         fwd_key = "right" if self.facing > 0 else "left"
         back_key = "left" if self.facing > 0 else "right"
         fwd = intent.get(fwd_key, False)
@@ -1094,6 +1119,14 @@ class Fighter:
         sw = int(self.hurt_w * 2.2)
         pygame.draw.ellipse(surf, (20, 14, 24),
                             (round(self.x) - sw // 2 + shake[0], round(self._ground()) - 2 + shake[1], sw, 5))
+        if self.rot:
+            # spun while being thrown: turn the drawing about its middle
+            w, h = img.get_size()
+            img = pygame.transform.rotate(img, self.rot)
+            x += (w - img.get_width()) // 2
+            y += (h - img.get_height()) // 2
+            surf.blit(img, (x, y))
+            return
         if self.tint:
             aura = self.art.frame(pose, flip, flash=True).copy()
             aura.fill(self.tint + (255,), special_flags=pygame.BLEND_RGBA_MULT)

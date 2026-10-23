@@ -90,13 +90,13 @@ def bot_fight(game, rng, max_frames=60 * 120, label=""):
                 if choice == "dive":
                     inp.virtual = {"down", fwd}
         elif press:
-            held, btn = {"hado": (set(), "special"), "sho": ({"down", rng.choice([fwd, back])}, "special"),
+            held, btn = {"hado": (set(), "special"), "sho": (set(), ("special", "punch")),
                          "ckick": ({"down", fwd}, "kick"),
-                         "tatsu": ({"down"}, "special"), "jab": (set(), "punch"),
+                         "tatsu": (set(), ("special", "kick")), "jab": (set(), "punch"),
                          "cjab": ({"down"}, "punch"), "front": ({fwd}, "kick"),
                          "round": ({back}, "kick"), "sweep": ({"down"}, "kick")}[choice]
             inp.virtual = held
-            inp.virtual_pressed = {btn}
+            inp.virtual_pressed = {btn} if isinstance(btn, str) else set(btn)
         if p.state == "move" and p.move:
             used.add(p.move["name"])
         if fs.phase == "fight" and frames % 7 == 0:
@@ -169,17 +169,37 @@ def _akuma():
 def test_move_mapping():
     """Every button + direction combo comes out as the requested move."""
     D, F, B = {"down": True}, {"right": True}, {"left": True}
+    # special alone is always the fireball; special + punch / kick are the dragon punch / hurricane kick
     cases = [({}, "special", "Gou Hadouken"), (F, "special", "Gou Hadouken"),
-             (B, "special", "Gou Hadouken"), (D, "special", "Tatsumaki"),
-             (dict(D, **F), "special", "Goshoryuken"), (dict(D, **B), "special", "Goshoryuken"),
+             (B, "special", "Gou Hadouken"), (D, "special", "Gou Hadouken"),
+             (dict(D, **F), "special", "Gou Hadouken"),
+             ({}, ("special", "punch"), "Goshoryuken"), ({}, ("special", "kick"), "Tatsumaki"),
+             (D, ("special", "kick"), "Tatsumaki"),
              ({}, "punch", "Jab"), (F, "punch", "Jab"), (B, "punch", "Jab"),
              (D, "punch", "Crouching Jab"), (D, "kick", "Sweep"), (dict(D, **B), "kick", "Sweep"),
              (dict(D, **F), "kick", "Crouching Kick"), ({}, "kick", "Front Kick"),
              (F, "kick", "Front Kick"), (B, "kick", "Roundhouse")]
     for held, btn, want in cases:
         p = _akuma()
-        p.update(dict(held, **{btn: True}))
+        btns = (btn,) if isinstance(btn, str) else btn
+        p.update(dict(held, **{b: True for b in btns}))
         assert p.move and p.move["name"] == want, (held, btn, p.move and p.move["name"], want)
+    # pressed a few frames apart, in either order, still counts as together
+    for first, second, want in (("special", "punch", "Goshoryuken"), ("punch", "special", "Goshoryuken"),
+                                ("special", "kick", "Tatsumaki"), ("kick", "special", "Tatsumaki")):
+        for gap in (1, 3):
+            p = _akuma()
+            p.update({first: True})
+            for _ in range(gap - 1):
+                p.update({})
+            p.update({second: True})
+            assert p.move and p.move["name"] == want, (first, second, gap, p.move and p.move["name"])
+    p = _akuma()
+    p.update({"special": True})
+    for _ in range(8):
+        p.update({})
+    p.update({"punch": True})
+    assert p.move["name"] == "Gou Hadouken", "a late punch must not turn the fireball into a shoryuken"
     for held, btn, want in (({}, "punch", "Jumping Jab"), ({}, "kick", "Jumping Kick"),
                             ({"down": True}, "kick", "Dive Kick"),
                             ({}, "special", "Zanku Hadouken")):
@@ -424,7 +444,7 @@ def test_car_platform(game):
     p.x, p.facing = car.x + car.half + 14, -1
     run(5)
     hp = car.hp
-    run(1, {"down"}, press={"special"})
+    run(1, press={"special", "kick"})
     run(150)
     hits = (hp - car.hp) / 4
     assert p.x < car.x - car.half and hits >= 8, ("tatsu through the car", p.x, hits)
@@ -595,43 +615,32 @@ def main():
     test_level_starts(game)
     # every later level's own test: rules plus a bot that clears it
     from tests.smash_test import test_smash
-    from tests.musou_test import test_musou
     from tests.stealth_test import test_stealth
     from tests.skate_test import test_skate
     from tests.connect4_test import test_connect4
-    from tests.nidhogg_test import test_nidhogg
     from tests.metroid_test import test_metroid
     from tests.doom_test import test_doom
-    for t in (test_smash, test_musou, test_stealth, test_skate, test_connect4, test_nidhogg,
-              test_metroid, test_doom):
+    for t in (test_smash, test_stealth, test_skate, test_connect4, test_metroid, test_doom):
         game.to_title()
         t(game)
     print("OK")
 
 
 def test_level_starts(game):
-    """Each of levels 6-13 starts as its own kind of scene and survives a few frames;
+    """Each of levels 6-11 starts as its own kind of scene and survives a few frames;
     the last one's clear is the ending."""
     import importlib
     for level in range(6, max(LEVELS) + 1):
         game.new_run(seed=50 + level, start=level)
         cfg = LEVELS[level]
-        if cfg.get("mode"):
-            mod, cls = Game.SCENES[cfg["mode"]]
-            want = getattr(importlib.import_module("akuma." + mod), cls)
-            assert isinstance(game.scene, want), (level, game.scene)
-        else:
-            ow = game.overworld
-            assert isinstance(game.scene, Overworld)
-            e = next(e for e in ow.enemies if not e.boss)
-            game.start_fight(e, ow.hp, False)
-            kind = "MusouScene" if cfg.get("musou") else "NidhoggScene"
-            assert type(game.scene).__name__ == kind, (level, game.scene)
+        mod, cls = Game.SCENES[cfg["mode"]]
+        want = getattr(importlib.import_module("akuma." + mod), cls)
+        assert isinstance(game.scene, want), (level, game.scene)
         for _ in range(30):
             game.tick()
         print("level %d (%s) starts: %s" % (level, cfg["name"], type(game.scene).__name__))
     game.level_done(game.scene, 100)
-    assert isinstance(game.scene, EndScreen) and game.scene.won, "level 13 is not the last"
+    assert isinstance(game.scene, EndScreen) and game.scene.won, "level 11 is not the last"
     game.to_title()
 
 

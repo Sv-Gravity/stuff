@@ -24,13 +24,13 @@ BOSS_SCALE = 1.15
 
 
 CONTROLS = ["J PUNCH  K KICK  L SPECIAL",
-            "SPECIAL: HADOUKEN  DOWN = HURRICANE KICK",
-            "  DOWN-FWD / DOWN-BACK = SHORYUKEN",
+            "SPECIAL = HADOUKEN (AIR: AIR FIREBALL)",
+            "SPECIAL + PUNCH = SHORYUKEN",
+            "SPECIAL + KICK = HURRICANE KICK",
             "PUNCH: JAB / DOWN = CROUCH JAB",
             "KICK: FRONT / BACK ROUNDHOUSE / DOWN SWEEP",
             "  DOWN-FWD = LOW KICK",
             "AIR: PUNCH, KICK, DOWN+KICK = DIVE KICK",
-            "  SPECIAL = AIR FIREBALL",
             "PUNCH + KICK UP CLOSE = THROW (HOLD A DIRECTION)",
             "HOLD BACK TO BLOCK, DOWN-BACK FOR LOWS"]
 
@@ -102,6 +102,7 @@ class FightScene:
         self._place()
         p.opponent = e
         self.projectiles = []
+        self.carries = []           # throws in progress: who is carrying whom
         self.effects = []
         for f in self.fighters:
             f.projectiles = self.projectiles
@@ -306,6 +307,7 @@ class FightScene:
                 break
         self.projectiles[:] = [pr for pr in self.projectiles if pr.alive]
         self._throws()
+        self._carry()
         # melee: an attack lands where its drawn fist or foot touches the target's drawing
         hits = []
         for att, dfn in self._pairs():
@@ -340,8 +342,9 @@ class FightScene:
         return [(self.p, f) for f in live] + [(f, self.p) for f in live]
 
     def _throws(self):
-        """A grab that is close enough to a grounded opponent becomes a throw:
-        unblockable, 2x damage, tossed the way the thrower chose."""
+        """A grab that is close enough to a grounded opponent becomes a throw,
+        Third Strike style: the thrower picks them up, lifts them over his head
+        and flings them the way he chose. Unblockable, 2x damage."""
         for att, dfn in [(self.p, self.p.opponent)] + [(f, self.p) for f in self.live_foes()]:
             if dfn is None:
                 continue
@@ -352,17 +355,82 @@ class FightScene:
                 continue
             if dfn.hurtbox() is None or abs(dfn.x - att.x) > THROW_RANGE:
                 continue
-            d = att.throw_dir
             att.start_move(AKUMA_MOVES["toss"], chained=True)
-            att.facing = d
-            dfn.x = max(STAGE_LEFT, min(STAGE_RIGHT, att.x + d * 16))
+            dfn.state, dfn.move, dfn.vx, dfn.vy, dfn.t = "held", None, 0, 0, 0
+            dfn.y = dfn._ground()
+            dfn.crouching = False
+            dfn.pose = "launch"
+            dfn.facing = -att.facing
             dmg = m["dmg"] * (self.power if att is self.p else 1)
-            self._resolve(att, dfn, dict(dmg=round(dmg), hitstun=30, blockstun=0, height="mid",
-                                         knockdown=True, launch=-5.0, push=0, throw=True),
-                          dfn.x - d * 4, (dfn.x, dfn.y - 30))
-            if not dfn.ko:
-                dfn.vx = 3.2 * d
-            dfn.facing = -d
+            self.carries.append(dict(att=att, dfn=dfn, t=0, f=att.facing, d=att.throw_dir,
+                                     dmg=round(dmg), flying=False))
+            audio.play("whiff")
+
+    LIFT_AT, TOP_AT = 5, 15        # carry frames: grabbed, then up over the head
+
+    def _carry(self):
+        """Move every carried fighter along the throw: off the floor, up over
+        the thrower's head (and over to the far side for a back throw), then
+        let go so they fly and slam into the ground."""
+        for c in list(self.carries):
+            att, dfn, f, d = c["att"], c["dfn"], c["f"], c["d"]
+            if c["flying"]:
+                if dfn.state == "launched":
+                    dfn.rot = (dfn.rot + 22 * d) % 360
+                    continue
+                # hit the floor: the slam
+                dfn.rot = 0
+                self.carries.remove(c)
+                if dfn.state in ("down", "ko"):
+                    self.shake = max(self.shake, 10)
+                    audio.play("heavy")
+                    self._fx("dust", dfn.x, dfn.y)
+                continue
+            c["t"] += 1
+            t = c["t"]
+            floor = dfn._ground()
+            if att.state != "move" or att.move is not AKUMA_MOVES["toss"]:
+                # the thrower got hit: drop them
+                dfn.state, dfn.vy, dfn.vx, dfn.t, dfn.rot = "launched", 0, 0, 0, 0
+                self.carries.remove(c)
+                continue
+            back = d != f
+            release = self.TOP_AT + (5 if back else 1)
+            if t <= self.LIFT_AT:
+                # grabbed by the collar, feet leaving the floor
+                k = t / self.LIFT_AT
+                dfn.x, dfn.y = att.x + f * 18, floor - 6 * k
+                dfn.rot = -f * 20 * k
+            elif t <= self.TOP_AT:
+                # hoisted up and laid across his raised arm, high over his head
+                k = (t - self.LIFT_AT) / (self.TOP_AT - self.LIFT_AT)
+                dfn.x = att.x + f * (18 - 10 * k)
+                dfn.y = floor - 6 - 66 * k
+                dfn.rot = -f * (20 + 70 * k)
+            else:
+                # back throw: swung over his head to the other side, and he turns with it
+                k = (t - self.TOP_AT) / max(1, release - self.TOP_AT)
+                if back:
+                    att.facing = d
+                    dfn.x = att.x + f * (8 - 22 * k)
+                    dfn.rot = -f * (90 + 90 * k)
+                else:
+                    dfn.x = att.x + f * 8
+            dfn.x = max(STAGE_LEFT, min(STAGE_RIGHT, dfn.x))
+            if t >= release:
+                c["flying"] = True
+                dfn.state = "stand"        # so the hit below lands as a knockdown
+                self._resolve(att, dfn, dict(dmg=c["dmg"], hitstun=30, blockstun=0, height="mid",
+                                             knockdown=True, launch=-3.0, push=0, throw=True),
+                              dfn.x - d * 4, (dfn.x, dfn.y - 20))
+                dfn.state = "launched"
+                dfn.vx = 4.4 * d
+                dfn.vy = -3.0 if not dfn.ko else -4.0
+                dfn.facing = -d
+
+    def _fx(self, kind, x, y):
+        if kind == "dust" and DUST:
+            self.effects.append(Effect(DUST, x, y, 3))
 
     def _resolve(self, att, dfn, info, from_x, at, projectile=False):
         if not info.get("throw") and dfn.can_block(info["height"]):
@@ -403,7 +471,7 @@ class FightScene:
             att.vx = -att.facing * push
 
     def _push_apart(self):
-        fs = [f for f in self.fighters if f.state not in ("down", "ko") and not f.ko]
+        fs = [f for f in self.fighters if f.state not in ("down", "ko", "held") and not f.ko]
         for i, a in enumerate(fs):
             for b in fs[i + 1:]:
                 self._separate(a, b)
@@ -450,8 +518,8 @@ class FightScene:
         surf.blit(self.stage, sh)
         for em in self.embers:
             surf.set_at((int(em[0]), int(em[1])), (255, 140 + (em[4] % 3) * 40, 40))
-        # whoever is attacking draws on top
-        order = sorted(self.fighters, key=lambda f: (not f.ko, f.state == "move", f is self.p))
+        # whoever is attacking draws on top, and anyone held up in a throw above that
+        order = sorted(self.fighters, key=lambda f: (f.state == "held", not f.ko, f.state == "move", f is self.p))
         for f in order:
             f.draw(surf, sh)
         for pr in self.projectiles:

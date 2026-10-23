@@ -15,6 +15,7 @@ from .font import draw_text
 from .fight import CONTROLS
 from .pause import PauseMenu, MAP_LINE
 from . import cars
+from .snacks import SNACKS, random_snack, heal_amount, snack_image
 
 WALL, FLOOR = 0, 1
 
@@ -24,12 +25,12 @@ WALL, FLOOR = 0, 1
 LEVELS = {
     1: dict(name="THE CAVES OF GOKUENTOU", ambient=(150, 136, 170), enemies=12,
             weights=[35, 30, 22, 13], grunt_hits=5, boss_name="ZANGIEF", boss_look=BOSS_LOOK,
-            grunts=["ryu", "ken", "sakura", "felicia"], boss="zangief",
+            grunts=["ryu", "ken", "sakura", "felicia", "drdoom"], boss="zangief",
             boss_hits=15, boss_dmg=3.0, boss_ai=dict(aggression=0.7, block=0.3, jumpiness=0.15, reaction=3)),
     # every level 2 grunt brings a partner: two on one (the boss still fights alone)
     2: dict(name="THE BURNING TEMPLE", ambient=(175, 130, 120), enemies=10, squad=(2, 2),
             weights=[10, 25, 35, 30], grunt_hits=4, boss_name="MORRIGAN", boss_look=BOSS2_LOOK,
-            grunts=["ryu", "ken", "sakura", "felicia", "hsienko"], boss="morrigan",
+            grunts=["ryu", "ken", "sakura", "felicia", "hsienko", "drdoom"], boss="morrigan",
             boss_hits=18, boss_dmg=3.5, boss_ai=dict(aggression=0.85, block=0.35, jumpiness=0.3, reaction=2)),
     # bonus-stage level: a few cars drive around a small garage; smash them before the timer
     3: dict(name="THE WRECKING YARD", ambient=(150, 150, 178), enemies=5, cars=True,
@@ -38,32 +39,17 @@ LEVELS = {
     4: dict(name="THE CAR PARK", mode="bomber", boss_name="EVERY CAR IN THE LOT"),
     5: dict(name="THE FIGHTER MAZE", mode="pacman", boss_name="THE FIGHTER SQUAD"),
     6: dict(name="HYRULE CASTLE", mode="smash", boss_name="THREE CHALLENGERS"),
-    # Dynasty Warriors: whole armies of one- or two-hit soldiers, then Lu Bu
-    7: dict(name="HU LAO GATE", ambient=(185, 150, 110), enemies=9, musou=True, squad=(5, 10),
-            weights=[40, 35, 20, 5], grunt_hits=0, boss_name="LU BU", boss_look=BOSS_LOOK,
-            grunts=["ryu", "ken", "sakura", "chunli", "felicia", "hsienko"], boss="lubu",
-            boss_hits=24, boss_dmg=4.5, boss_ai=dict(aggression=0.95, block=0.45, jumpiness=0.25, reaction=2)),
-    8: dict(name="THE FROZEN COMPOUND", mode="stealth", boss_name="THE GENOME SQUAD"),
-    9: dict(name="SKATE OR DIE", mode="skate", boss_name="100 POINTS"),
-    10: dict(name="CONNECT FOUR", mode="connect4", boss_name="RYU"),
-    # Nidhogg: every battle is a one-hit sabre duel; Akuma has 5 hearts for the level
-    11: dict(name="THE HALL OF BLADES", ambient=(130, 140, 160), enemies=8, nidhogg=True,
-             weights=[30, 30, 25, 15], grunt_hits=1, boss_name="THE SWORD SAINT RYU", boss_look=BOSS_LOOK,
-             grunts=["ryu", "ken", "sakura", "chunli", "felicia", "hsienko", "morrigan"], boss="ryu",
-             boss_hits=1, boss_dmg=1.0, boss_ai=dict(aggression=0.9, block=0.6, jumpiness=0.3, reaction=2)),
-    12: dict(name="THE PRISONERS' QUARTERS", mode="metroid", boss_name="THE WARDEN"),
-    13: dict(name="KNEE-DEEP IN THE DEMON", mode="doom", boss_name="CYBER-GIEF"),
+    7: dict(name="THE FROZEN COMPOUND", mode="stealth", boss_name="REVOLVER KEN"),
+    8: dict(name="SKATE OR DIE", mode="skate", boss_name="100 POINTS"),
+    9: dict(name="CONNECT FOUR", mode="connect4", boss_name="RYU"),
+    10: dict(name="THE PRISONERS' QUARTERS", mode="metroid", boss_name="THE WARDEN"),
+    11: dict(name="KNEE-DEEP IN THE DEMON", mode="doom", boss_name="CYBER-GIEF"),
 }
-
-HEARTS = 5      # level 11: Akuma's hits for the whole level
 
 # fighters from Toshi's sprite pack (akuma/assets/chars/<id>)
 CHAR_NAMES = {"ryu": "RYU", "ken": "KEN", "sakura": "SAKURA", "felicia": "FELICIA",
-              "hsienko": "HSIEN-KO", "morrigan": "MORRIGAN", "zangief": "ZANGIEF", "chunli": "CHUN-LI", "lubu": "LU BU"}
-
-# Three Kingdoms rank and file for Hu Lao Gate
-MUSOU_PREFIX = ["YELLOW TURBAN", "WEI", "SHU", "WU", "DONG ZHUO'S", "YUAN SHAO'S", "LU BU'S"]
-MUSOU_RANK = ["FOOT SOLDIER", "SPEARMAN", "ARCHER", "GUARD", "BANNERMAN", "CAPTAIN"]
+              "hsienko": "HSIEN-KO", "morrigan": "MORRIGAN", "zangief": "ZANGIEF", "chunli": "CHUN-LI", "lubu": "LU BU",
+              "drdoom": "DR. DOOM"}
 
 PREFIX = ["Mad", "Iron", "Red", "Wild", "Shadow", "Crazy", "Big", "Silent", "Dirty",
           "Stone", "Lucky", "Steel", "Mean", "Swift", "Rabid", "Grim"]
@@ -72,20 +58,14 @@ def make_grunt(rng, cfg, stage, level=None):
     """One rank-and-file fighter: character, name, moves, health."""
     g = SimpleNamespace(boss=False, car=False)
     g.cid = rng.choice(cfg["grunts"])
-    if cfg.get("musou"):
-        g.name = "%s %s" % (rng.choice(MUSOU_PREFIX), rng.choice(MUSOU_RANK))
-    else:
-        g.name = ("%s %s" % (rng.choice(PREFIX), CHAR_NAMES[g.cid])).upper()
+    g.name = ("%s %s" % (rng.choice(PREFIX), CHAR_NAMES[g.cid])).upper()
     g.look = random_look(rng)
     # level 1-4 shown on the map: tougher and harder hitting
     g.level = level or rng.choices([1, 2, 3, 4], weights=cfg["weights"])[0]
     n = 1 if g.level == 1 else 2 if g.level == 4 else rng.choice([1, 2])
     g.moves = scale_damage(random_moveset(rng, n), 0.55 + 0.15 * g.level + 0.2 * min(stage, 2))
     size = {"small": 0.85, "slim": 0.9, "normal": 1.0, "big": 1.15, "huge": 1.3}[g.look["build"]]
-    if cfg.get("musou"):
-        g.hp = HIT if rng.random() < 0.5 else HIT * 2   # one or two hits
-    else:
-        g.hp = HIT * (cfg["grunt_hits"] + g.level)
+    g.hp = HIT * (cfg["grunt_hits"] + g.level)
     g.walk = round(rng.uniform(1.1, 1.8) / size ** 0.5, 2)
     g.ai = dict(aggression=rng.uniform(0.2, 0.7), block=rng.uniform(0.1, 0.5),
                 jumpiness=rng.uniform(0.0, 0.4), reaction=rng.randint(4, 10))
@@ -120,12 +100,6 @@ class MapEnemy:
             self.walk = 1.35 if stage == 1 else 1.55
             self.ai = dict(cfg["boss_ai"], boss=True)
             self.speed = 0.7 if stage == 1 else 0.85
-            if cfg.get("musou"):
-                # Lu Bu never rides out alone: his bodyguards come first
-                self.allies = [make_grunt(rng, cfg, 2, 4) for _ in range(4)]
-                for g in self.allies:
-                    g.name = "LU BU'S BODYGUARD"
-                    g.hp = HIT * 2
         else:
             self.__dict__.update(make_grunt(rng, cfg, stage).__dict__)
             # the rest of the squad this one leads into the fight
@@ -275,10 +249,15 @@ class Overworld:
         self.enemies.append(self.boss)
         self.throne = ((br.centerx - 0.5) * TILE, (br.top + 0.6) * TILE)
         # pickups
+        # two satsui orbs, then Japanese snacks scattered all over (some rooms get two)
         self.pickups = []
-        for k, r in enumerate(rooms[:7]):
+        for k, r in enumerate(rooms[:2]):
             x, y = self.dg.random_floor_in(r)
-            self.pickups.append(["orb" if k < 2 else "onigiri", x, y])
+            self.pickups.append(["orb", x, y])
+        for r in rooms[2:] + rng.sample(rooms, min(len(rooms), 4)):
+            if rng.random() < 0.8:
+                x, y = self.dg.random_floor_in(r)
+                self.pickups.append([random_snack(rng), x, y])
         # explored map
         self.seen = [[False] * MAP_W for _ in range(MAP_H)]
         self._render_map()
@@ -289,10 +268,6 @@ class Overworld:
         self.messages = []
         self.message("LEVEL %d: %s" % (level, cfg["name"]), 150)
         self.message(("WRECK %s" if cfg.get("cars") else "DEFEAT %s") % cfg["boss_name"], 150)
-        if cfg.get("musou"):
-            self.message("DON'T PURSUE LU BU!", 150)
-            game.musou_kos = 0
-            game.musou_gauge = 0.0
         self.menu = PauseMenu(game, [MAP_LINE] + CONTROLS)
         self.steps = 0
 
@@ -391,14 +366,10 @@ class Overworld:
             if prect.colliderect(pygame.Rect(pk[1] - 6, pk[2] - 6, 12, 12)):
                 self.pickups.remove(pk)
                 audio.play("pickup")
-                if pk[0] == "onigiri" and self.cfg.get("nidhogg"):
-                    heart = self.game.akuma_max / HEARTS
-                    self.hp = min(self.game.akuma_max, self.hp + heart)
-                    self.message("ONIGIRI! +1 HEART", 90)
-                elif pk[0] == "onigiri":
-                    heal = min(40, self.game.akuma_max - self.hp)
+                if pk[0] in SNACKS:
+                    heal = min(heal_amount(pk[0], self.game.akuma_max), self.game.akuma_max - self.hp)
                     self.hp += heal
-                    self.message("ONIGIRI! +%d HP" % heal, 90)
+                    self.message("%s! +%d HP" % (pk[0], heal), 90)
                 else:
                     self.game.akuma_max += 15
                     self.hp = min(self.game.akuma_max, self.hp + 15)
@@ -509,8 +480,8 @@ class Overworld:
             self.invuln = 90
         if result == "win":
             enemy.alive = False
-            # fights are longer now; heal a bit more (level 11's hearts only come from onigiri)
-            heal = 0 if self.cfg.get("nidhogg") else int(self.game.akuma_max * 0.25)
+            # fights are longer now; heal a bit more
+            heal = int(self.game.akuma_max * 0.25)
             self.hp = min(self.game.akuma_max, self.hp + heal)
             left = sum(1 for e in self.enemies if e.alive and not e.boss)
             self.message("%s %s" % (enemy.name, "WRECKED" if enemy.car else "DEFEATED"), 100)
@@ -536,7 +507,7 @@ class Overworld:
                 surf.blit(fl, (tx - cx, ty - cy))
         for kind, x, y in self.pickups:
             if view.collidepoint(x, y):
-                img = self.tiles["orb"][(self.anim // 8) % 4] if kind == "orb" else self.tiles["onigiri"]
+                img = self.tiles["orb"][(self.anim // 8) % 4] if kind == "orb" else snack_image(kind)
                 bob = int(math.sin(self.anim / 10) * 2)
                 surf.blit(img, (round(x - 6 - cx), round(y - 8 - cy + bob)))
         # y-sorted actors
@@ -590,17 +561,10 @@ class Overworld:
 
     def _hud(self, surf):
         mx = self.game.akuma_max
-        if self.cfg.get("nidhogg"):
-            from .nidhogg import draw_heart
-            hearts = math.ceil(self.hp / (mx / HEARTS) - 1e-6)
-            for i in range(HEARTS):
-                draw_heart(surf, 6 + i * 10, 6, i < hearts)
-            draw_text(surf, "AKUMA", 6, 15, (255, 120, 120))
-        else:
-            pygame.draw.rect(surf, (10, 6, 14), (5, 5, 82, 8))
-            pygame.draw.rect(surf, (90, 16, 20), (6, 6, 80, 6))
-            pygame.draw.rect(surf, (250, 210, 40), (6, 6, int(80 * self.hp / mx), 6))
-            draw_text(surf, "AKUMA %d/%d" % (self.hp, mx), 6, 15, (255, 120, 120))
+        pygame.draw.rect(surf, (10, 6, 14), (5, 5, 82, 8))
+        pygame.draw.rect(surf, (90, 16, 20), (6, 6, 80, 6))
+        pygame.draw.rect(surf, (250, 210, 40), (6, 6, int(80 * self.hp / mx), 6))
+        draw_text(surf, "AKUMA %d/%d" % (self.hp, mx), 6, 15, (255, 120, 120))
         left = sum(1 for e in self.enemies if e.alive and not e.boss)
         draw_text(surf, "%s %d" % ("CARS" if self.cfg.get("cars") else "FOES", left), 6, 24, (200, 200, 220))
         if self.game.power > 1.0:

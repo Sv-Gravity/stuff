@@ -54,6 +54,8 @@ victory 6 0 f89_0 f89_1 f89_2 f89_3 f89_4 f89_5 f89_6 f89_7 f89_8 f89_9 f89_10 f
 intro 6 1 f86_0 f86_1 f86_2 f86_3 f86_4 f86_5 f86_6 f86_7
 taunt 6 0 f73_2 f73_3 f73_4 f73_5 f73_6 f73_7 f73_8
 grab 2 0 f24_0 f24_1 f24_2
+lift 4 0 f15_3 f15_4 f15_5 f15_6
+fling 3 0 f53_4 f53_6 f53_8 f53_10
 grab_miss 3 0 f24_2 f24_1 f24_0
 toss 3 0 f24_3 f24_4 f24_5 f24_6 f24_7
 leap_kick 3 0 f23_3 f23_4

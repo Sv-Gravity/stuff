@@ -221,14 +221,7 @@ class Game:
             return
         cfg = LEVELS[self.level]
         seed = self.seed + self.fights
-        if cfg.get("nidhogg"):
-            from .nidhogg import NidhoggScene
-            self.scene = NidhoggScene(self, enemy, hp, self.akuma_max, seed=seed)
-        elif cfg.get("musou"):
-            from .musou import MusouScene
-            self.scene = MusouScene(self, enemy, hp, self.akuma_max, self.power, ambush, seed=seed)
-        else:
-            self.scene = FightScene(self, enemy, hp, self.akuma_max, self.power, ambush, seed=seed)
+        self.scene = FightScene(self, enemy, hp, self.akuma_max, self.power, ambush, seed=seed)
 
     def end_fight(self, fight, result, hp):
         enemy = fight.enemy_ref

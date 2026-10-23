@@ -29,6 +29,7 @@ from .config import W, H
 from .fighters import touches, rect_area, image_area
 from .font import draw_text, text_width
 from .pause import PauseMenu
+from .snacks import random_snack, heal_amount, snack_image
 
 # ---------------------------------------------------------------------------
 # tuning
@@ -65,6 +66,7 @@ INTRO = 170
 SHOP_COST = (25, 40, 60, 85)
 STR_UP, VIT_UP = 0.2, 30
 CAM_LOOK = 46
+SNACK_COUNT = 8              # Japanese snacks lying around the quarters (health pickups)
 
 DMG = dict(grunt=22, shield=32, bolt=18, bat=14, swing=38, charge=30, slam=34, wave=24, fire=20)
 TELEGRAPH = dict(grunt=28, shield=36, caster=40, bat=26, boss=34)
@@ -76,8 +78,10 @@ CONTROLS = [
     "UP / DOWN ON A LADDER: CLIMB",
     "DOWN + UP ON A PLANK: DROP THROUGH",
     "J PUNCH: 3-HIT STRING   K KICK: HEAVY, BREAKS SHIELDS",
-    "L SPECIAL: HADOUKEN (USES KI)   DOWN + L: DRINK FLASK",
+    "L SPECIAL: HADOUKEN (KI) - IN THE AIR IT AIMS DOWN",
+    "L + J TOGETHER: SHORYUKEN   L + K: HURRICANE KICK",
     "IN THE AIR: J / K, DOWN + K = DIVE KICK",
+    "DOWN + L: DRINK FLASK   SNACKS ON THE FLOOR HEAL",
     "I: DODGE ROLL - INVINCIBLE WHILE ROLLING",
     "SHRINES REFILL FLASKS. DEATH COSTS A LIFE",
     "SPEND CELLS AT THE ALTARS: STAND + DOWN",
@@ -871,48 +875,30 @@ def _door(open_):
 
 
 def _far_layer(rng):
+    """The far backdrop: a plain, dark, desaturated gradient with one faint
+    row of low rooftops. Kept quiet so nothing competes with the action."""
     s = pygame.Surface((W, H))
     for y in range(H):
         k = y / H
-        s.fill((int(10 + 22 * k), int(8 + 10 * k), int(22 + 22 * k)), (0, y, W, 1))
-    for _ in range(40):
-        s.set_at((rng.randrange(W), rng.randrange(H // 2)), (90, 80, 120))
-    pygame.draw.circle(s, (40, 34, 58), (248, 36), 22)
-    pygame.draw.circle(s, (206, 196, 176), (248, 36), 13)
-    pygame.draw.circle(s, (176, 166, 150), (252, 32), 4)
-    sil = (24, 18, 36)
+        s.fill((int(12 + 8 * k), int(11 + 7 * k), int(16 + 9 * k)), (0, y, W, 1))
+    sil = (22, 20, 27)
     x = 0
     while x < W:
-        w = rng.randrange(14, 34)
-        top = rng.randrange(70, 120)
-        for xx in range(x, x + w):
-            s.fill(sil, (xx % W, top, 1, H - top))
-        for cx in range(x, x + w, 4):
-            s.fill(sil, (cx % W, top - 3, 2, 3))
-        if rng.random() < 0.4:
-            s.fill(sil, ((x + w // 2 - 4) % W, top - 18, 8, 18))
-            pygame.draw.polygon(s, sil, [((x + w // 2 - 6) % W, top - 18), ((x + w // 2) % W, top - 30),
-                                         ((x + w // 2 + 6) % W, top - 18)])
-        for _ in range(rng.randrange(0, 3)):
-            s.fill((150, 110, 50), ((x + rng.randrange(2, max(3, w - 2))) % W, top + rng.randrange(6, 30), 1, 2))
-        x += w + rng.randrange(0, 10)
+        w = rng.randrange(30, 60)
+        top = rng.randrange(110, 135)
+        s.fill(sil, (x, top, min(w, W - x), H - top))
+        x += w
     return s
 
 
 def _mid_layer(rng):
+    """A few broad, soft pillars, barely lighter than the far layer."""
     w = 480
     s = pygame.Surface((w, H + 60), pygame.SRCALPHA)
-    col, hi = (30, 24, 42, 255), (44, 36, 58, 255)
-    for i in range(4):
-        px = i * 120 + 10
-        s.fill(col, (px, 0, 22, H + 60))
-        s.fill(hi, (px, 0, 3, H + 60))
-        for y in range(0, H + 60, 12):
-            s.fill((24, 18, 34, 255), (px, y, 22, 1))
-        pygame.draw.arc(s, col, (px + 11, -40, 120, 120), 0, math.pi, 10)
-        cx = px + 70
-        for y in range(0, rng.randrange(40, 90), 4):
-            s.fill((50, 46, 60, 255), (cx + (y // 4) % 2, y, 2, 3))
+    col = (24, 22, 30, 255)
+    for i in range(3):
+        px = i * 160 + 30
+        s.fill(col, (px, 0, 26, H + 60))
     return s
 
 
@@ -925,30 +911,27 @@ def _vignette():
 
 
 def _level_surface(lv, rng):
-    """Every tile drawn once: back wall, stone, planks, ladders, spikes."""
+    """Every tile drawn once: back wall, stone, planks, ladders, spikes.
+    The back wall is dark, flat and low-contrast; solid stone is clearly
+    lighter with a bright top edge, so platforms read at a glance."""
     s = pygame.Surface((LW, LH), pygame.SRCALPHA)
-    brick, mortar = (30, 24, 40, 205), (20, 16, 28, 225)
+    brick, mortar = (22, 20, 28, 240), (19, 17, 24, 240)
     for r in range(ROWS):
         for c in range(COLS):
             if lv.grid[r][c] == "#":
                 continue
             x, y = c * T, r * T
             s.fill(brick, (x, y, T, T))
-            s.fill(mortar, (x, y + 7, T, 1))
             s.fill(mortar, (x, y + 15, T, 1))
-            s.fill(mortar, (x + (0 if (r % 2) else 8), y, 1, 7))
-            s.fill(mortar, (x + (8 if (r % 2) else 0), y + 8, 1, 7))
-            if rng.random() < 0.06:
-                s.fill((36, 44, 34, 200), (x + rng.randrange(12), y + rng.randrange(12), 3, 2))
+            s.fill(mortar, (x + (0 if (r % 2) else 8), y, 1, 15))
     for c, r in lv.windows:
         if lv.grid[r][c] != "#" and lv.grid[r + 1][c] != "#":
             x, y = c * T + 2, r * T + 2
-            s.fill((0, 0, 0, 0), (x, y, 12, 22))
-            pygame.draw.rect(s, (60, 52, 70, 255), (x - 1, y - 1, 14, 24), 1)
+            s.fill((14, 13, 18, 255), (x, y, 12, 22))
             for bx in (x + 3, x + 7):
-                s.fill((50, 44, 60, 255), (bx, y, 2, 22))
-    stone, stone2, mort = (52, 46, 64), (60, 54, 72), (30, 26, 38)
-    deep = (20, 16, 26)
+                s.fill((28, 26, 34, 255), (bx, y, 2, 22))
+    stone, mort = (66, 62, 80), (52, 48, 64)
+    deep = (10, 9, 13)
     for r in range(ROWS):
         for c in range(COLS):
             t = lv.grid[r][c]
@@ -959,31 +942,19 @@ def _level_surface(lv, rng):
                 near = any(lv.tile(c + dx, r + dy) != "#" for dx in (-1, 0, 1) for dy in (-1, 0, 1))
                 if not near:
                     s.fill(deep, (x, y, T, T))
-                    if rng.random() < 0.05:
-                        s.fill((26, 22, 34), (x + rng.randrange(10), y + rng.randrange(10), 4, 3))
                     continue
-                s.fill(stone if (c + r) % 3 else stone2, (x, y, T, T))
-                s.fill(mort, (x, y + 7, T, 1))
+                s.fill(stone, (x, y, T, T))
                 s.fill(mort, (x, y + 15, T, 1))
-                s.fill(mort, (x + (4 if r % 2 else 12), y, 1, 7))
-                s.fill(mort, (x + (12 if r % 2 else 4), y + 8, 1, 7))
-                if rng.random() < 0.3:
-                    s.fill((44, 38, 54), (x + 1, y + 1 + 8 * rng.randrange(2), 6, 5))
+                s.fill(mort, (x + (4 if r % 2 else 12), y, 1, 15))
                 if exposed[0]:
-                    s.fill((104, 96, 118), (x, y, T, 2))
-                    s.fill((76, 70, 90), (x, y + 2, T, 1))
-                    for _ in range(3):
-                        if rng.random() < 0.6:
-                            mx = x + rng.randrange(T - 2)
-                            s.fill((58, 100, 60), (mx, y, rng.randrange(2, 5), 1))
-                            if rng.random() < 0.3:
-                                s.fill((48, 84, 52), (mx + 1, y + 1, 1, rng.randrange(2, 5)))
+                    s.fill((150, 142, 166), (x, y, T, 2))
+                    s.fill((96, 90, 112), (x, y + 2, T, 1))
                 if exposed[1]:
-                    s.fill((18, 14, 22), (x, y + T - 2, T, 2))
+                    s.fill((34, 30, 42), (x, y + T - 2, T, 2))
                 if exposed[2]:
-                    s.fill((80, 72, 94), (x, y, 1, T))
+                    s.fill((90, 84, 106), (x, y, 1, T))
                 if exposed[3]:
-                    s.fill((28, 22, 34), (x + T - 1, y, 1, T))
+                    s.fill((40, 36, 50), (x + T - 1, y, 1, T))
             elif t == "=":
                 s.fill((112, 74, 44), (x, y, T, 4))
                 s.fill((150, 104, 62), (x, y, T, 1))
@@ -1022,7 +993,7 @@ def _art():
         a["scroll"] = {"str": _scroll("str"), "vit": _scroll("vit")}
         a["flask"] = (_flask(False), _flask(True))
         a["cell"] = _cell()
-        a["glow"] = [_glow(r, (120, 64, 22)) for r in (34, 37, 40)]
+        a["glow"] = [_glow(r, (80, 44, 16)) for r in (34, 37, 40)]
         a["glow_blue"] = _glow(22, (20, 60, 110))
         a["glow_red"] = _glow(30, (120, 20, 20))
         a["gate"] = _gate_tile()
@@ -1054,6 +1025,8 @@ def _build_sounds():
         S.setdefault("mv_slam", audio._sound(add(noise(0.35, 0.7, 1.8, 0.2), tone(80, 30, 0.3, 0.5, "square", 0.2))))
         S.setdefault("mv_tell", audio._sound(tone(1200, 1250, 0.05, 0.1, "square", 0, 0.5)))
         S.setdefault("mv_buy", audio._sound(add(tone(660, 660, 0.08, 0.2), tone(990, 990, 0.2, 0.2, "tri"))))
+        S.setdefault("mv_tatsu", audio._sound(add(noise(0.3, 0.3, 1.0, 0.1), tone(300, 520, 0.3, 0.15, "tri"))))
+        S.setdefault("mv_snack", audio._sound(add(tone(700, 1100, 0.1, 0.18, "tri"), tone(1050, 1500, 0.16, 0.12, "tri"))))
         S.setdefault("mv_bolt", audio._sound(tone(700, 300, 0.2, 0.15, "tri", 0.2)))
     except Exception:       # never let a sound break the level
         pass
@@ -1075,10 +1048,19 @@ MOVES = {
     "akick": dict(ph=[("s", 3, "jkick_prep"), ("a", 12, "jump_kick"), ("r", 4, "jump")], dmg=16, kb=2.4, air=True),
     "dive": dict(ph=[("s", 5, "jump"), ("a", 90, "dive"), ("r", 10, "land")], dmg=22, kb=2.0, air=True, dive=True,
                  guard_break=True),
-    "hado": dict(ph=[("s", 10, "hado_prep"), ("a", 4, "hado_fire"), ("r", 14, "hado_fire")], dmg=20, proj=True),
-    "ahado": dict(ph=[("s", 6, "air_hado_prep"), ("a", 4, "air_hado"), ("r", 10, "jump")], dmg=18, proj=True,
-                  air=True),
+    "hado": dict(ph=[("s", 10, "hado_prep"), ("a", 4, "hado_fire"), ("r", 14, "hado_fire")], dmg=20, kb=1.6,
+                 proj=True),
+    "ahado": dict(ph=[("s", 6, "air_hado_prep"), ("a", 4, "air_hado"), ("r", 10, "jump")], dmg=18, kb=1.6,
+                  proj=True, air=True),
+    # special + punch: rising dragon punch, invincible on the way up
+    "shoryu": dict(ph=[("s", 3, "sho_crouch"), ("a", 14, "sho_rise"), ("r", 18, "sho_fall")], dmg=30, kb=3.2,
+                   lunge=1.6, hop=-6.4, heavy=True, inv=(0, 10)),
+    # special + kick: hurricane kick, travels forward hitting both sides
+    "tatsu": dict(ph=[("s", 5, "tatsu_start"), ("a", 32, "tatsu"), ("r", 10, "tatsu_end")], dmg=9, kb=1.8,
+                  spin=True, rehit=8),
 }
+SPECIAL_WINDOW = 4             # frames: special + punch/kick this close together = shoryuken / tatsu
+DIAG = 2.7                     # air hadouken speed on each axis (45 degrees down, like SF2's air fireball)
 COMBO = {"jab1": "jab2", "jab2": "jab3"}
 
 
@@ -1108,6 +1090,7 @@ class Hero:
         self.climbed = 0.0
         self.down_tap = 0
         self.safe = (x, y)
+        self.since = {"punch": 99, "kick": 99, "special": 99}   # frames since each button was pressed
 
     @property
     def h(self):
@@ -1301,7 +1284,7 @@ class Enemy:
         else:
             self.state, self.t = "hurt", 0
             self.vx = kb
-            if move and MOVES[move].get("hop"):
+            if move and MOVES.get(move, {}).get("hop"):
                 self.vy = -2.0
         return dmg
 
@@ -1799,10 +1782,14 @@ ENEMY_TYPES = {"grunt": Grunt, "shield": Shield, "caster": Caster, "bat": Bat}
 GRUNT_CIDS = ("ryu", "ken", "sakura", "chunli")
 
 
+_ROT_HADO = {}
+
+
 class Proj:
-    def __init__(self, x, y, vx, vy, kind, dmg, friendly, owner):
+    def __init__(self, x, y, vx, vy, kind, dmg, friendly, owner, move=None):
         self.x, self.y, self.vx, self.vy = x, y, vx, vy
         self.kind, self.dmg, self.friendly, self.owner = kind, dmg, friendly, owner
+        self.move = move            # Akuma's move that threw it ("hado" / "ahado")
         self.t = 0
         self.dead = False
         self.life = {"wave": 90, "hado": 90}.get(kind, 220)
@@ -1811,7 +1798,18 @@ class Proj:
         a = _art()
         if self.kind == "hado":
             fr = a["hado"]
-            img = fr[min(len(fr) - 1, 2 + (self.t // 3) % (len(fr) - 2))]
+            i = min(len(fr) - 1, 2 + (self.t // 3) % (len(fr) - 2))
+            if self.vy:                 # the air fireball: turned to point along its diagonal
+                ang = round(-math.degrees(math.atan2(self.vy, abs(self.vx) or 0.001)))
+                key = (i, ang, self.vx < 0)
+                img = _ROT_HADO.get(key)
+                if img is None:
+                    img = pygame.transform.rotate(fr[i], ang)
+                    if self.vx < 0:
+                        img = pygame.transform.flip(img, True, False)
+                    _ROT_HADO[key] = img
+                return img
+            img = fr[i]
             return pygame.transform.flip(img, True, False) if self.vx < 0 else img
         if self.kind == "fire":
             fr = a["fire"]
@@ -1892,6 +1890,7 @@ class MetroidScene:
         self.enemies = []
         for kind, (x, y) in self.lv.spawns:
             self.enemies.append(self.make_enemy(kind, x, y))
+        self.snacks = self._place_snacks(random.Random(self.seed * 13 + 5))
         self.boss = Warden(self, *self.lv.boss_pos)
         self.boss_on = False
         self.boss_dealt = 0         # damage Akuma's hits did to the Warden (tests)
@@ -1900,6 +1899,32 @@ class MetroidScene:
         self.cam_look = CAM_LOOK
         self.camx, self.camy = self._cam_target()
         self._touch_shrines()
+
+    def _place_snacks(self, rng):
+        """Health snacks on random floor spots Akuma can walk to: at most one
+        per room, never in the start room or the Warden's arena."""
+        lv = self.lv
+        taken = {tuple(s["tile"]) for s in lv.shrines} | {tuple(a["tile"]) for a in lv.altars} | \
+            {tuple(w["tile"]) for w in lv.rewards}
+        spots = {}
+        for c, r in sorted(lv.reachable(lv.start_cell)):
+            room = (c // RW, r // RH)
+            if room[0] >= GW or room == lv.room_of(*lv.start) or (c, r) in taken:
+                continue
+            if lv.ladder(c, r) or not lv.support(c, r + 1):
+                continue
+            spots.setdefault(room, []).append((c, r))
+        rooms = sorted(spots)
+        rng.shuffle(rooms)
+        out = []
+        for room in rooms[:SNACK_COUNT]:
+            c, r = rng.choice(spots[room])
+            out.append(dict(name=random_snack(rng), x=c * T + T / 2, y=(r + 1) * T, taken=False))
+        return out
+
+    def drop_snack(self, x, y):
+        """A snack hops out of a chest and lands beside it (y: the floor)."""
+        self.snacks.append(dict(name=random_snack(self.rng), x=x, y=y, taken=False, pop=24))
 
     def make_enemy(self, kind, x, y):
         if kind == "grunt":
@@ -1950,8 +1975,8 @@ class MetroidScene:
         img, (ax, ay) = self.akuma.entry(key, flip)
         return self.akuma.mask(key, flip), round(p.x - ax), round(p.y - ay)
 
-    def spawn_proj(self, x, y, vx, vy, kind, dmg, friendly, owner):
-        self.projs.append(Proj(x, y, vx, vy, kind, dmg, friendly, owner))
+    def spawn_proj(self, x, y, vx, vy, kind, dmg, friendly, owner, move=None):
+        self.projs.append(Proj(x, y, vx, vy, kind, dmg, friendly, owner, move))
 
     # ---- update -----------------------------------------------------------
     def update(self, inp):
@@ -2036,9 +2061,34 @@ class MetroidScene:
             p.jbuf = JUMP_BUFFER
         elif p.jbuf:
             p.jbuf -= 1
+        chord = None
+        for a in ("punch", "kick", "special"):
+            p.since[a] = min(99, p.since[a] + 1)
         for a in ("punch", "kick", "special"):
             if pressed(a):
-                p.abuf = [a, 8, down]
+                p.since[a] = 0
+        if pressed("special"):
+            # special + punch / kick within a few frames of each other, either order
+            if p.since["punch"] <= SPECIAL_WINDOW:
+                chord = "shoryu"
+            elif p.since["kick"] <= SPECIAL_WINDOW:
+                chord = "tatsu"
+            else:
+                p.abuf = ["special", 8, down]
+        for a in ("punch", "kick"):
+            if pressed(a) and not chord:
+                if p.since["special"] <= SPECIAL_WINDOW and not pressed("special"):
+                    chord = "shoryu" if a == "punch" else "tatsu"
+                elif not pressed("special"):
+                    p.abuf = [a, 8, down]
+        if chord:
+            p.abuf = [chord, 8, down]
+            # the fireball / punch / kick that started a frame or two ago turns into the special
+            if p.state == "attack" and p.t <= SPECIAL_WINDOW + 1 and p.ph == 0 and \
+                    p.move in ("hado", "ahado", "jab1", "jab2", "jab3", "ajab", "kick", "sweep", "akick", "dive"):
+                if p.move in ("hado", "ahado"):
+                    self.ki = min(KI_MAX, self.ki + HADO_COST)
+                p.state, p.t = "move", 0
         if p.abuf:
             p.abuf[1] -= 1
             if p.abuf[1] <= 0:
@@ -2128,6 +2178,8 @@ class MetroidScene:
             pass                                    # fixed dive velocity
         elif p.state == "attack" and p.move == "ahado" and p.ph < 2:
             p.vy = min(p.vy + GRAV * 0.3, 1.0)
+        elif p.state == "attack" and MOVES[p.move].get("spin") and p.ph == 1:
+            p.vy = min(p.vy + GRAV * 0.25, 0.6)     # the hurricane kick floats
         else:
             g = GRAV * (0.6 if (abs(p.vy) < 1.2 and up and p.state == "move") else 1)
             p.vy = min(MAX_FALL, p.vy + g)
@@ -2214,7 +2266,9 @@ class MetroidScene:
     def _start_attack(self, p, btn, n, down):
         air = not p.on_ground
         name = None
-        if btn == "punch":
+        if btn in ("shoryu", "tatsu"):
+            name = btn
+        elif btn == "punch":
             if air:
                 name = "ajab"
             else:
@@ -2222,13 +2276,13 @@ class MetroidScene:
         elif btn == "kick":
             name = ("dive" if down else "akick") if air else ("sweep" if down else "kick")
         else:
+            if down and not air and self.flasks > 0 and self.hp < self.max_hp:
+                self.flasks -= 1
+                p.state, p.t = "drink", 0
+                p.abuf = None
+                self.event("drink", p)
+                return
             if down and not air:
-                if self.flasks > 0 and self.hp < self.max_hp:
-                    self.flasks -= 1
-                    p.state, p.t = "drink", 0
-                    p.abuf = None
-                    self.event("drink", p)
-                    return
                 p.abuf = None
                 return
             if self.ki < HADO_COST:
@@ -2247,6 +2301,10 @@ class MetroidScene:
             p.vx *= 0.4
         if p.move == "dive":
             p.vx, p.vy = 0.0, -1.0
+        if name in ("shoryu", "tatsu"):
+            self.event("special", p, name)
+            if name == "shoryu":
+                p.vx *= 0.3
 
     def _attack_update(self, p, dirx):
         mv = MOVES[p.move]
@@ -2266,25 +2324,41 @@ class MetroidScene:
             elif kind == "r" and p.move in COMBO:
                 p.combo_t = mv["ph"][p.ph][1] + 12
         if mv["ph"][p.ph][0] == "a":
+            if mv.get("spin"):
+                p.vx = p.face * 2.2
+            if mv.get("rehit") and p.ph_t % mv["rehit"] == 0:
+                p.hit_set = set()
             self._hero_strikes(p, mv)
 
     def _active_start(self, p, mv):
         if mv.get("lunge") and p.on_ground:
             p.vx = p.face * mv["lunge"]
-        if mv.get("hop") and p.on_ground:
-            p.vy = mv["hop"]
+        if mv.get("hop") and (p.on_ground or p.move == "shoryu"):
+            p.vy = mv["hop"] * (1 if p.on_ground else 0.75)
+            p.on_ground = False
+        if mv.get("spin") and p.on_ground:
+            p.vy = -2.0
             p.on_ground = False
         if mv.get("dive"):
             p.vy, p.vx = 6.0, p.face * 2.8
             audio.play("dive")
         elif mv.get("proj"):
-            k = self.dmg_mult
-            self.spawn_proj(p.x + p.face * 16, p.y - 17, p.face * 3.6, 0, "hado", round(mv["dmg"] * k), True, p)
+            dmg = round(mv.get("dmg", 20) * self.dmg_mult)
+            if p.move == "ahado":       # SF2's air fireball: 45 degrees down
+                self.spawn_proj(p.x + p.face * 12, p.y - 14, p.face * DIAG, DIAG, "hado", dmg, True, p, "ahado")
+            else:
+                self.spawn_proj(p.x + p.face * 16, p.y - 17, p.face * 3.6, 0, "hado", dmg, True, p, "hado")
             audio.play("hadouken")
+        elif p.move == "shoryu":
+            audio.play("shoryu")
+        elif p.move == "tatsu":
+            audio.play("mv_tatsu")
         else:
             audio.play("whiff", 0.5)
 
     def _strike_area(self, p):
+        if p.state == "attack" and MOVES[p.move].get("spin"):
+            return rect_area((p.x - 22, p.y - 28, 44, 16))     # the spinning legs reach both sides
         key, deg = self._hero_pose()
         flip = p.face < 0
         m = self.akuma.strike(key, flip)
@@ -2310,8 +2384,8 @@ class MetroidScene:
                 p.hit_set.add(e)
                 self._hit_enemy(e, p.move, p.x, area)
 
-    def _hit_enemy(self, e, move, src_x, area=None):
-        mv = MOVES[move]
+    def _hit_enemy(self, e, move, src_x, area=None, dmg=None):
+        mv = MOVES.get(move, {})
         d = 1 if e.x > src_x else -1
         hx, hy = (e.x + self.p.x) / 2, e.y - 18
         if isinstance(e, Shield) and e.guarding() and (src_x - e.x) * e.face > 0 \
@@ -2319,7 +2393,7 @@ class MetroidScene:
             audio.play("block")
             self.sparks(e.x + e.face * 8, e.y - 18, (140, 190, 255), 6)
             self.popup("BLOCKED", e.x, e.y - 40, (150, 190, 255), 30)
-            if move != "hado" and move != "ahado":
+            if not mv.get("proj"):
                 self.p.vx = -d * 2.0
             self.hitstop = 3
             self.event("blocked", e, move)
@@ -2327,11 +2401,12 @@ class MetroidScene:
         if isinstance(e, Shield) and e.guarding() and mv.get("guard_break") and (src_x - e.x) * e.face > 0:
             e.broken = 70
             self.popup("GUARD BREAK", e.x, e.y - 44, (255, 220, 90), 40)
-        dmg = round(mv["dmg"] * self.dmg_mult)
+        if dmg is None:
+            dmg = round(mv.get("dmg", 10) * self.dmg_mult)
         if isinstance(e, Warden):
             kb = 0.0
         else:
-            kb = d * mv["kb"]
+            kb = d * mv.get("kb", 1.5)
         dealt = e.hurt(dmg, kb, move)
         if dealt:
             self.event("dealt", e, move, dealt)
@@ -2363,6 +2438,10 @@ class MetroidScene:
             return False
         if p.inv or self.god:
             return False
+        if p.state == "attack" and MOVES.get(p.move, {}).get("inv"):
+            a, b = MOVES[p.move]["inv"]
+            if a <= p.t <= b:
+                return False                # the dragon punch's invincible rise
         self.hp -= dmg
         self.event("hurt", src, dmg)
         p.inv = INVULN
@@ -2490,22 +2569,40 @@ class MetroidScene:
                     pr.dead = True
                 if pr.t % 3 == 0:
                     self.particles.append([pr.x, pr.y + 6, -pr.vx * 0.1, -0.6, 14, (255, 150, 80), 2, 0.05])
-            elif lv.solid_px(pr.x, pr.y) or pr.t > pr.life:
+            elif self._proj_blocked(pr) or pr.t > pr.life:
                 pr.dead = True
                 self.sparks(pr.x, pr.y, (200, 140, 255) if pr.kind == "bolt" else (255, 180, 80), 5)
+                if pr.vy > 0 and pr.friendly:
+                    self.dust(pr.x, pr.y, 4)
             if pr.dead:
                 continue
             area = pr.area(self.t)
             if pr.friendly:
                 for e in self._targets():
                     if touches(area, e.body_area()):
-                        self._hit_enemy(e, "hado" if self.p.on_ground else "ahado", pr.x - pr.vx * 10)
+                        self._hit_enemy(e, pr.move if pr.move in MOVES else "hado", pr.x - pr.vx * 10, dmg=pr.dmg)
                         pr.dead = True
                         break
             elif touches(area, self.hero_area()):
                 if self.hurt_player(pr.dmg, pr.owner) and pr.kind != "wave":
                     pr.dead = True
         self.projs = [pr for pr in self.projs if not pr.dead]
+
+    def _proj_blocked(self, pr):
+        """A shot dies on walls; the diagonal air fireball also dies on the
+        floor and on planks (checked at its leading lower edge)."""
+        lv = self.lv
+        if lv.solid_px(pr.x, pr.y):
+            return True
+        if pr.vy > 0:
+            fx = pr.x + (4 if pr.vx > 0 else -4 if pr.vx < 0 else 0)
+            fy = pr.y + 5
+            if lv.solid_px(fx, fy):
+                return True
+            c, r = int(fx // T), int(fy // T)
+            if lv.tile(c, r) in "=h" and fy - r * T < 6:
+                return True
+        return False
 
     # ---- pickups & objects ----------------------------------------------------
     def _update_pickups(self):
@@ -2534,6 +2631,27 @@ class MetroidScene:
             self.cells += got
             audio.play("mv_cell", 0.6)
         self.pickups = [c for c in self.pickups if not c.taken]
+        for sn in self.snacks:
+            if sn.get("pop"):                       # just popped out of a chest
+                sn["pop"] -= 1
+                continue
+            if p.state in ("dead",) or self.hp >= self.max_hp:
+                continue
+            if abs(p.x - sn["x"]) < 10 and abs(p.y - sn["y"]) < 20:
+                self.eat_snack(sn)
+        self.snacks = [sn for sn in self.snacks if not sn["taken"]]
+
+    def eat_snack(self, sn):
+        sn["taken"] = True
+        heal = heal_amount(sn["name"], self.max_hp)
+        heal = min(heal, self.max_hp - self.hp)
+        self.hp = min(self.max_hp, self.hp + heal)
+        self.popup("%s +%d" % (sn["name"], heal), sn["x"], sn["y"] - 24, (120, 255, 140), 60)
+        audio.play("mv_snack")
+        self.event("snack", self.p, sn["name"], heal)
+        for _ in range(8):
+            self.particles.append([sn["x"] + self.rng.uniform(-6, 6), sn["y"] - self.rng.uniform(0, 12), 0,
+                                   -self.rng.uniform(0.3, 0.8), 24, (110, 255, 140), 1, 0])
 
     def _touch_shrines(self):
         p = self.p
@@ -2574,6 +2692,7 @@ class MetroidScene:
                 rw["open"] = True
                 if rw["kind"] == "chest":
                     self.drop_cells(x, y - 12, 15)
+                    self.drop_snack(x + 16 if not self.lv.solid_px(x + 16, y - 8) else x - 16, y)
                     self.popup("TREASURE!", x, y - 30, (255, 220, 90), 60)
                     audio.play("pickup")
                 else:
@@ -2717,6 +2836,14 @@ class MetroidScene:
                 surf.fill((255, 140, 40), (sx - 1, sy - 4 - fl // 2, 3, 4 + fl // 2))
                 surf.fill((255, 230, 140), (sx, sy - 2, 1, 2))
         self._draw_objects(surf, ox, oy)
+        for sn in self.snacks:
+            img = snack_image(sn["name"])
+            k = sn.get("pop", 0)
+            bob = -round(math.sin(k / 24 * math.pi) * 18) if k else round(math.sin((self.t + sn["x"]) / 14) * 1.5)
+            sx, sy = round(sn["x"] - ox), round(sn["y"] - oy)
+            if -20 < sx < W + 20 and -20 < sy < H + 20:
+                surf.fill((8, 6, 12), (sx - 5, sy - 1, 10, 2))
+                surf.blit(img, (sx - 6, sy - 14 + bob))
         for c in self.pickups:
             img = self.art["cell"]
             surf.blit(img, (round(c.x - 3 - ox), round(c.y - 3 - oy + math.sin((self.t + c.t) / 5))))

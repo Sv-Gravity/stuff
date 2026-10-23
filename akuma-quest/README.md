@@ -1,8 +1,6 @@
 # Akuma Quest
 
-**Download:** [AkumaQuest.zip](AkumaQuest.zip) has the whole game. Unzip it and double-click `run.bat` (Windows, needs Python).
-
-A roguelike where every encounter turns into a Street Fighter–style duel, and every level after the first few turns into a different game. You play Akuma. There are thirteen levels:
+A roguelike where every encounter turns into a Street Fighter–style duel, and every level after the first few turns into a different game. You play Akuma. There are eleven levels:
 
 1. **The Caves of Gokuentou**: explore an overhead dungeon; touching an enemy (or being touched) switches to a side-view 1-on-1 fight. Boss: **Zangief**.
 2. **The Burning Temple**: the same, but every grunt brings a partner: **2-on-1** fights. Boss (alone): **Morrigan**.
@@ -10,17 +8,15 @@ A roguelike where every encounter turns into a Street Fighter–style duel, and 
 4. **The Car Park**: Bomberman. Plant hadouken bombs; one blast wrecks a car.
 5. **The Fighter Maze**: Pac-Man, chased by four of the cast (it changes every run).
 6. **Hyrule Castle**: Smash Bros 64. Akuma vs three CPUs, damage %, bubble shield, 3 stocks.
-7. **Hu Lao Gate**: Dynasty Warriors. Every fight is Akuma vs 5–10 one- or two-hit soldiers, with a KO counter, a Musou attack and **Lu Bu**.
-8. **The Frozen Compound**: Metal Gear Solid. Sneak past guards and cameras; get spotted and their rifles nearly one-shot you. There's a cardboard box.
-9. **Skate or Die**: 720° skateboarding. 100 trick points in a minute or the ghost comes.
-10. **Connect Four**: against Ryu, with fireballs for pieces.
-11. **The Hall of Blades**: a dungeon where every fight is a Nidhogg sabre duel. One touch kills; Akuma has 5 hearts for the whole level.
-12. **The Prisoners' Quarters**: a Dead Cells style side-scrolling metroidvania with a boss, the Warden.
-13. **Knee-Deep in the Demon**: Doom, shooting hadoukens. Boss: **Cyber-Gief**.
+7. **The Frozen Compound**: Metal Gear Solid. Sneak past guards and cameras; get spotted and their rifles nearly one-shot you. There's a cardboard box.
+8. **Skate or Die**: 720° skateboarding. 100 trick points in a minute or the ghost comes.
+9. **Connect Four**: against Ryu, with fireballs for pieces.
+10. **The Prisoners' Quarters**: a Dead Cells style side-scrolling metroidvania with a boss, the Warden.
+11. **Knee-Deep in the Demon**: Doom, shooting hadoukens. Boss: **Cyber-Gief**.
 
 The main menu has **Start Game**, **Practice** (Akuma vs a sparring Ryu), **Level** (a debug shortcut: press left/right to pick a level and start there) and **Quit**.
 
-All the fighters use Toshi's sprite pack (`art_source/sprites/`): Akuma, and as enemies Ryu, Ken, Sakura, Felicia, Hsien-Ko, Zangief, Morrigan and Chun-Li. Each character's sheet is cut into frames in `akuma/assets/chars/<name>/`, with every engine pose mapped to a full animation (Akuma alone has about 200 drawings). Attack animations are stretched to fit each move's exact frame data, so every in-between drawing shows without changing the timing. The HUD shows both fighters' portraits. On the map everyone walks with their own walk cycle at half size, timed to the distance walked so feet never slide. Tiles, stages, cars, effects and sound are drawn or synthesized by code.
+All the fighters use Toshi's sprite pack (`art_source/sprites/`): Akuma, and as enemies Ryu, Ken, Sakura, Felicia, Hsien-Ko, Zangief, Morrigan, Chun-Li and Dr. Doom (cut from Toshi's own Dr. Doom sheet by `tools/make_drdoom.py`). Each character's sheet is cut into frames in `akuma/assets/chars/<name>/`, with every engine pose mapped to a full animation (Akuma alone has about 200 drawings). Attack animations are stretched to fit each move's exact frame data, so every in-between drawing shows without changing the timing. The HUD shows both fighters' portraits. On the map everyone walks with their own walk cycle at half size, timed to the distance walked so feet never slide. Tiles, stages, cars, effects and sound are drawn or synthesized by code.
 
 ## Run it on Windows
 
@@ -49,7 +45,7 @@ Double-click **`build_exe.bat`**. It installs PyInstaller and produces `dist\Aku
 | Punch | J or Z | X (or LB) |
 | Kick | K or X | A (or RB) |
 | Special | L, C or Space | B or Y |
-| Shield / block (Smash), Musou (level 7), roll (level 12), strafe (level 13) | I | left stick click |
+| Shield / block (Smash), roll (level 10), strafe (level 11) | I | left stick click |
 | Pause menu (resume, controls, back to main menu) | Enter or Esc | Start |
 | Controls page | F1 or Tab | |
 | Fullscreen | F11 | |
@@ -59,13 +55,15 @@ Double-click **`build_exe.bat`**. It installs PyInstaller and produces `dist\Aku
 
 | Button | Standing | Forward | Back | Down | In the air |
 |---|---|---|---|---|---|
-| **Special** | Gou Hadouken (fireball) | Gou Hadouken | Gou Hadouken | Tatsumaki (hurricane kick, multi-hit) | Zanku Hadouken (air fireball, angled down) |
+| **Special** | Gou Hadouken (fireball) | Gou Hadouken | Gou Hadouken | Gou Hadouken | Zanku Hadouken (air fireball, angled down) |
 | **Punch** | Jab | Jab | Jab | Crouching jab | Jumping punch |
 | **Kick** | Front kick (medium reach) | Front kick | Roundhouse (long reach, slower windup) | Sweep (low, knocks down) | Jumping kick, or dive kick with down held |
 
-**Punch + Kick together** up close is a **throw**: Akuma grabs the enemy and tosses them the way you are holding (left or right; neutral throws forward). It does double damage and can't be blocked.
+**Special + Punch** together is the **Goshoryuken** (dragon punch). **Special + Kick** together is the **Tatsumaki** (hurricane kick). "Together" means within 4 frames of each other, in either order, so a fireball that has only just started turns into the dragon punch or hurricane kick. Directions no longer change specials.
 
-Diagonals: **down-forward or down-back + Special** is the Goshoryuken (dragon punch). **Down-forward + Kick** is a small, fast crouching kick that hits low and combos. **Down-back + Kick** is the sweep.
+**Punch + Kick together** up close is a **throw**, Third Strike style: Akuma grabs the enemy, lifts them up over his head and flings them the way you are holding (left or right; neutral throws forward, back swings them over his head to the other side). They spin through the air and slam into the floor. It does double damage and can't be blocked.
+
+**Down-forward + Kick** is a small, fast crouching kick that hits low and combos. **Down-back + Kick** is the sweep.
 
 Moving works like Street Fighter. Forward walks, back walks away or **blocks** when an attack or fireball is coming, down crouches (down-back blocks low), and up jumps (hold forward or back to jump that way). Overheads (dive kicks, jump-ins, hammer fists) must be blocked standing; sweeps must be blocked crouching. Button presses are buffered for a few frames, so an early press still comes out. Only one fireball (ground or air) can be on screen at a time. The dragon punch is invincible on startup.
 
@@ -101,9 +99,9 @@ Practice puts Akuma against a sparring Ryu that never dies. Its health refills w
 - Grunts usually take about **7 hits** to beat. On level 2 they come in twos: one on each side of Akuma, two health bars on the right, and he turns to face whichever is closer. Only the boss fights alone. Every grunt also has a **level from 1 to 4**, shown above its head on the map; higher levels take a little more and hit harder.
 - Enemies notice you (a red **!**) and give chase. If you touch one before it notices you, you get a **Sneak Attack** and it starts the fight with 20% less health.
 - Fights start and end quickly: a short flash, a quick "FIGHT!", and straight back to the map after the K.O. (press any attack button to skip it).
-- Akuma's health carries over between fights. You heal 25% after each win, **onigiri** (rice balls) on the floor heal 40 HP, and **Satsui orbs** raise max HP and damage.
+- Akuma's health carries over between fights. You heal 25% after each win, **Japanese snacks** are scattered all over the map (ramen, mochi, onigiri, dango, taiyaki, takoyaki, Pocky, melon pan, dorayaki and the rare bento; bigger meals heal more), and **Satsui orbs** raise max HP and damage.
 - Each level's **boss** waits on a throne in the biggest room. **Zangief** (level 1) takes **15 hits** and hits three times as hard as a grunt. He has 7 attacks, including a big energy push, a rush punch and a multi-hit Double Lariat. **Morrigan** (level 2) takes 18 hits, is faster and more aggressive, adds a leap kick, and hits even harder. Both get **enraged** at half health.
-- Beating a level restores Akuma's health and opens the next one. Clear level 13 to win the run.
+- Beating a level restores Akuma's health and opens the next one. Clear level 11 to win the run.
 
 ### Hitboxes
 
@@ -140,67 +138,55 @@ Pac-Man with Akuma. Four fighters picked from Chun-Li, Zangief, Morrigan, Felici
 
 ### Level 6: Hyrule Castle
 
-Smash Bros 64 on a pixel Hyrule Castle: a main floor, the tower, and ledges you can drop through. Akuma vs three random CPUs, each with their own moveset (Ryu's shoryuken, Chun-Li's spinning bird kick, Zangief's piledriver and lariat, Hsien-Ko's thrown axes, and so on).
+Smash Bros 64 on a pixel Hyrule Castle: a wide main floor, the tower, and pass-through ledges spread out across a bigger stage; the camera pans and zooms to keep everyone in view. Akuma vs three random CPUs, each with their own moveset (Ryu's shoryuken, Chun-Li's spinning bird kick, Zangief's piledriver and lariat, Hsien-Ko's thrown axes, Dr. Doom's green fireball and hellfire, and so on).
 
 - **Left/right** move and face that way. **Up** jumps, up again double-jumps. **Down** drops through ledges.
-- **J** jab / air attack, **K** kick (down+K sweep, air down+K dive kick), **L** hadouken, **up+L** shoryuken to recover, **down+L** tatsu.
-- **Hold I** for the bubble shield. It shrinks as it takes hits and breaks if you hold it too long (you're dizzy). I+left/right rolls, I+J grabs.
-- Damage goes from **0% to 200%**. The higher it is, the further hits send you, and a big hit at high % can one-shot you off the screen. **3 stocks** each; knock the other three out to win.
+- **J** jab / air attack, **K** kick (down+K sweep, air down+K dive kick), **L** hadouken, **L+J** shoryuken (also your recovery), **L+K** hurricane kick.
+- **Hold I** for the bubble shield. It shrinks as it takes hits and breaks if you hold it too long (you're dizzy). I+left/right rolls, J+K grabs.
+- **Items** drop from the sky: Home-Run Bat, Beam Sword, Bob-omb, Hammer, Star, Heart Container and Japanese snacks. Stand on one and press **J** to pick it up, **J** to use it, **J+K** to throw it. Touching a star, heart or snack uses it at once. The CPUs go for items too.
+- Damage goes from **0% to 200%**. The higher it is, the further hits send you. **Two rounds of 3 stock**; win at least one round to clear the level.
 
-### Level 7: Hu Lao Gate
+### Level 7: The Frozen Compound
 
-A Dynasty Warriors dungeon. Every enemy on the map leads a squad of **5 to 10** Yellow Turbans, Wei spearmen, Wu archers and the like, and each soldier goes down in **one or two hits**. Up to five fight at once; the rest charge in from the edges as they fall.
+Metal Gear Solid. A snowy base full of guards, most of them standing on post staring one way (and glancing around now and then); a few walk short routes. Three of them are smoking, and everyone has something to say ("I REALLY NEED TO PEE.", "MUST'VE BEEN THE WIND... IT'S ALWAYS THE WIND.").
 
-- The **KO counter** runs for the whole level. Hits fill the **Musou gauge**; when it's full press **I** for Akuma's own Musou, the **Shun Goku Satsu**, which hits every soldier on screen.
-- The boss is **Lu Bu** (pheasant plumes and all) with four bodyguards. Don't pursue Lu Bu.
+- Guards see in a cone (drawn on the floor) and hear running nearby. **Shadows** shrink how far they see you; smokers barely notice anything. Hold **K** to sneak silently; **J** against a wall knocks to lure a guard.
+- Sneak up behind an unaware guard and press **J** to **snap his neck**. A body left out in view puts the base on caution.
+- Hide in the **bushes** (you're invisible unless a guard walks into you) or the **cardboard box** hidden in a storage room.
+- Two rooms are guarded by tougher **red berets**: the barracks (keycard, C4, a max-life boost) and the armory (damage up).
+- **Missions** (shown top-left and on the radar, with a codec call for each): get the keycard and C4, blow the three generators (the power dies, cameras and lasers go dark), free the prisoner, then **Revolver Ken** comes up the elevator. Beat him to clear the level.
+- If a guard catches you, it's a side-view fight against soldiers with **rifles** that kill in a few shots. Japanese snacks heal. The sounds are sound-alikes made in code (the game can't ship Konami's audio).
 
-### Level 8: The Frozen Compound
+### Level 8: Skate or Die
 
-Metal Gear Solid. A snowy base with a hangar, six patrolling soldiers, three security cameras and an infrared laser.
+720° on a skateboard in a big open park. Find the board ("SKATE OR DIEEEE!") and the one-minute clock starts.
 
-- Guards see in a cone (drawn on the floor) and hear running nearby. **Shadows** shrink how far they see you. Hold **K** to sneak silently; **J** against a wall knocks to lure a guard.
-- Half-seen: **?** and they come to look. Spotted: **!**, the **ALERT** countdown, and every guard converges, then **EVASION** and **CAUTION** before things calm down.
-- If a guard catches you, it's a side-view fight against soldiers with **rifles** that kill in a few shots. Beatable, but hard.
-- A **cardboard box** is hidden in a storage room. Pick it up and you wear it: stand still and guards can't see you; move in view and they come over to investigate. **L** takes it off and on.
-- Reach the elevator to clear the level. The sounds are sound-alikes made in code (the game can't ship Konami's audio).
-
-### Level 9: Skate or Die
-
-720° on a skateboard. Find the board ("SKATE OR DIEEEE!") and the one-minute clock starts.
-
-- **Left/right** turn (and spin in the air), **up** ollies, **K** pushes, **down** brakes, **L** in the air kickflips.
+- **J** ollies, **K** pushes, **L** kickflips (in the air, or straight off the ground), **left/right** turn (and spin in the air), **down** brakes.
 - Each clean trick is **25 points**: spins in 180s (180, 360, 540, 720!!) and kickflips. Land crooked or mid-flip and you bail.
+- **Grind** by ollieing onto a rail, or onto the edge of a grind box, bench, planter or barrier, while heading along it: sparks fly and longer grinds score more (the long rail is worth about 34). Press J or L to pop off early.
+- Ollie clean over a fire hydrant for a **HYDRANT HOP** (+15); cones and trash cans are worth +10.
 - Reach **100 points** to clear it. If the clock runs out a **ghost** chases you; if it touches you, you die.
 
-### Level 10: Connect Four
+### Level 9: Connect Four
 
 Akuma and Ryu stand on either side of a Connect Four board. Pick a column with left/right and press an attack: Akuma throws a **red** hadouken that drops into the column and stays there as his piece; Ryu answers in **blue**. You always go first. Ryu searches 10 to 20 moves ahead and is hard to beat. A draw replays; Ryu winning ends the run.
 
-### Level 11: The Hall of Blades
-
-A dungeon where every fight is a **Nidhogg** sabre duel. One touch kills either way, but Akuma has **5 hearts** for the whole level (each death costs one and the duel restarts); onigiri give a heart back.
-
-- **Tap up/down** to hold the sabre high, middle or low. Blades at the same height clink and push apart; hold yours at the height of a lunge to parry it, and cross past theirs to **disarm** them.
-- **J**: lunge (or dive-kick in the air, punch when disarmed, snap the neck of a downed foe). **K**: throw the sabre (or trip when ducking or rolling). Up at the top holds it aloft; J then throws it.
-- Thrown sabres fly straight until something stops them. Move + down rolls under a high guard; a low sabre stops rollers. Disarmed fighters run faster.
-
-### Level 12: The Prisoners' Quarters
+### Level 10: The Prisoners' Quarters
 
 A Dead Cells style side-scroller: a castle prison laid out differently every run, with shrines, altars, hidden scrolls of power and the **Warden** at the end.
 
-- **Up** jumps (hold for higher), **J** a three-hit string, **K** a heavy kick that breaks shields (down+K sweep, air down+K stomp), **L** hadouken (uses ki), **down+L** drinks a flask, **I** dodge-rolls through attacks.
+- **Up** jumps (hold for higher), **J** a three-hit string, **K** a heavy kick that breaks shields (down+K sweep, air down+K stomp), **L** hadouken (uses ki; in the air it shoots 45° down), **L+J** shoryuken, **L+K** hurricane kick, **down+L** drinks a flask, **I** dodge-rolls through attacks.
+- Japanese snacks lie around the castle and drop from chests.
 - Enemies flash before they swing and hit hard. Grunts, shield bearers, witches and bats.
 - 3 flasks, refilled at shrines. Dying costs one of 3 lives and sends you back to the last shrine. Spend cells at the altars for damage or health.
 
-### Level 13: Knee-Deep in the Demon
+### Level 11: Knee-Deep in the Demon
 
-Doom with hadoukens. A hell fortress in first person: keycards, doors, a secret wall, demon versions of the cast, and **Cyber-Gief** guarding the exit portal.
+Doom with hadoukens. A hell fortress in first person under a blood-red sky: green-grey stone, keycards, doors, a secret wall, imps, pinkies, cacodemons, lost souls and zombiemen, and **Cyber-Gief** guarding the exit portal. Akuma's own clawed hands (prayer beads, red ki) and bare foot fill the bottom of the screen, above a Doom-style status bar.
 
 - **Up/down** walk, **left/right** turn, **hold I** + left/right to strafe.
-- **J** fires a hadouken (1 ki), **L** a piercing Shinku Hadouken (8 ki), **K** kicks and opens doors.
-- Ki orbs refill ki, onigiri heal. Kill Cyber-Gief and step into the portal to finish the quest.
-
-There's no music, only sound effects.
+- **L** fires a hadouken (hold to keep firing), **L+J** shoryuken, **L+K** spinning tatsumaki, **I+L** a piercing Shinku Hadouken, **J** punches, **K** kicks and opens doors.
+- Ki orbs refill ki, Japanese snacks heal. Kill Cyber-Gief and step into the portal to finish the quest.
 
 ## Smoothness
 
@@ -224,13 +210,12 @@ akuma/
   bomber.py        level 4: the Bomberman car park
   pacman.py        level 5: the fighter maze
   smash.py         level 6: Smash Bros on Hyrule Castle
-  musou.py         level 7: Dynasty Warriors squads, Musou, Lu Bu's gate stage
-  stealth.py       level 8: the Metal Gear base
-  skate.py         level 9: the 720 skate park
-  connect4.py      level 10: Connect Four and Ryu's search
-  nidhogg.py       level 11: the sabre duels
-  metroid.py       level 12: the Dead Cells style castle
-  doom.py          level 13: the raycaster
+  stealth.py       level 7: the Metal Gear base
+  skate.py         level 8: the 720 skate park
+  connect4.py      level 9: Connect Four and Ryu's search
+  metroid.py       level 10: the Dead Cells style castle
+  doom.py          level 11: the raycaster
+  snacks.py        the Japanese snack health pickups (pixel art and how much each heals)
   pause.py         the pause menu and controls page
   assets/chars/    every character's frames, feet points, pose lists and HUD portrait
   audio.py         synthesized sound effects
@@ -243,14 +228,14 @@ tools/pocket_rows.py         shows chosen rows of a sheet bigger, for picking fr
 tools/extract_pocket.py      Akuma's frame list; cuts every character into akuma/assets/chars
 tools/specs/<name>.py        the other characters' frame lists
 tools/preview_chars.py       every pose of a character on one image, anchored on the feet
-tools/make_lubu.py           Lu Bu: Ryu recoloured with armour and pheasant plumes
+tools/make_lubu.py           the Warden (level 10 boss): Ryu recoloured with armour and plumes
+tools/make_drdoom.py         Dr. Doom: cuts Toshi's Dr. Doom sheet into frames
 art_source/retired/          the earlier Akuma sheets' cut sprites and their tools (no longer used)
                              (the tools need pillow + numpy; not needed to play)
 tests/smoke_test.py         headless tests: move mapping, damage tiers, a 5-hit combo, jump-in
                             combos, throws, practice menu, car roofs, Tetris repairs, bots that
                             play levels 1-5, every later level starting, and each level's test below
-tests/<level>_test.py       bomber, pacman, smash, musou, stealth, skate, connect4, nidhogg,
-                            metroid, doom: each level's rules plus a bot that clears it
+tests/<level>_test.py       bomber, pacman, smash, stealth, skate, connect4, metroid, doom: each level's rules plus a bot that clears it
 ```
 
 Run the test with `python tests/smoke_test.py`. It needs no window and no sound. The game needs pygame and numpy (`run.bat` installs both).

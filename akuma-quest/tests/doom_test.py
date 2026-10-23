@@ -93,7 +93,7 @@ def test_frame_time(game):
 def test_zbuffer(game):
     """An enemy behind a closed door is hidden; open the door and he shows."""
     sc = _fresh(game)
-    e = next(e for e in sc.enemies if e.kind == "ryu")
+    e = next(e for e in sc.enemies if e.kind == "zombie")
     _quiet(sc, (e,))
     sc.px, sc.py, sc.ang = 6.5, 26.5, -math.pi / 2
     e.x, e.y, e.state, e.alert = 6.5, 20.5, "idle", False
@@ -105,7 +105,7 @@ def test_zbuffer(game):
         return pygame.image.tobytes(game.canvas.subsurface(view), "RGB")
 
     with_enemy = grab()
-    drawn = [k for k in sc.drawn if k[0] and k[0][0] == "ryu"]
+    drawn = [k for k in sc.drawn if k[0] and k[0][0] == "zombie"]
     e.x = 0.5
     without = grab()
     assert with_enemy == without, "enemy drawn through a closed door"
@@ -123,7 +123,7 @@ def test_zbuffer(game):
 
 def test_hadouken_hits(game):
     sc = _fresh(game)
-    e = next(e for e in sc.enemies if e.kind == "zangief")
+    e = next(e for e in sc.enemies if e.kind == "pinky")
     _quiet(sc, (e,))
     sc.px, sc.py, sc.ang = 9.5, 13.5, math.pi
     e.x, e.y = 6.0, 13.5
@@ -131,7 +131,7 @@ def test_hadouken_hits(game):
     e.spec = dict(e.spec, pain=0.0, melee=0)
     e.speed = 0
     hp0, ki0 = e.hp, sc.ki
-    _tick(game, press=("punch",))
+    _tick(game, press=("special",))
     for _ in range(40):
         _tick(game)
         if e.hp < hp0:
@@ -141,14 +141,14 @@ def test_hadouken_hits(game):
     assert not [s for s in sc.shots if s.owner == "akuma"], "hadouken flew through"
     # a hadouken at a wall hits nothing and bursts
     sc.ang = 0.0
-    _tick(game, press=("punch",))
+    _tick(game, press=("special",))
     for _ in range(60):
         _tick(game)
     assert e.hp == hp0 - D.HADO_DMG * sc.power
     # the shinku pierces and hits hard
     sc.ang = math.pi
     sc.ki = 20
-    _tick(game, press=("special",))
+    _tick(game, held=("shield",), press=("special",))
     for _ in range(60):
         _tick(game)
     assert e.hp <= hp0 - (D.HADO_DMG + D.SHINKU_DMG) * sc.power + 1e-6 or not e.alive, e.hp
@@ -197,6 +197,81 @@ def test_exit(game):
             break
     assert sc.result == "win" and done, (sc.result, sc.phase, sc.px, sc.py)
     print("doom: killing CYBER-GIEF opens the seal; the portal ends the level")
+
+
+def test_combos(game):
+    """special + punch = shoryuken, special + kick = tatsumaki (within the
+    window, either order); the tatsumaki spins the view a full turn."""
+    sc = _fresh(game)
+    _quiet(sc)
+    sc.px, sc.py, sc.ang = 10.0, 12.0, 0.0
+    ki0 = sc.ki
+    _tick(game, press=("special",))
+    _tick(game)
+    _tick(game, press=("punch",))
+    assert sc.weapon == "shoryu" and sc.ki == ki0, (sc.weapon, sc.ki, ki0)
+    for _ in range(40):
+        _tick(game)
+    _tick(game, press=("kick",))
+    _tick(game, press=("special",))
+    assert sc.weapon == "tatsu", sc.weapon
+    a0, seen = sc.ang, set()
+    for _ in range(45):
+        _tick(game)
+        seen.add(int(((sc.ang - a0) % (2 * math.pi)) / (math.pi / 2)))
+    assert seen == {0, 1, 2, 3} and abs(_angdiff(sc.ang, a0)) < 1e-6, (seen, sc.ang, a0)
+    _tick(game, press=("punch",))
+    assert sc.weapon == "punch"
+    print("doom: shoryuken / tatsumaki combos and the plain punch work")
+
+
+def test_views(game):
+    """A hadouken flying away is drawn from behind; one coming at you from the front."""
+    sc = _fresh(game)
+    _quiet(sc)
+    sc.px, sc.py, sc.ang = 10.0, 12.0, 0.0
+    _tick(game, press=("special",))
+    for _ in range(14):
+        _tick(game)
+    s = [s for s in sc.shots if s.owner == "akuma"][0]
+    sc.draw(game.canvas)
+    assert s.view == "back", s.view
+    shot(game, "doom_hado_back.png")
+    s.vx, s.vy = -s.vx, -s.vy
+    sc.draw(game.canvas)
+    assert s.view == "front", s.view
+    print("doom: fireballs show their back flying away, their front coming at you")
+
+
+def test_snacks(game):
+    sc = _fresh(game)
+    snacks = [t for t in sc.things if t.kind == "snack"]
+    assert len(snacks) >= D.EXTRA_SNACKS, len(snacks)
+    t = snacks[0]
+    sc.hp = 10
+    sc.px, sc.py = t.x, t.y
+    _tick(game)
+    assert t.taken and sc.hp > 10 and t.snack in sc.msg, (t.taken, sc.hp, sc.msg)
+    print("doom: %d snacks, %s" % (len(snacks), sc.msg))
+
+
+def test_poses(game):
+    """Screenshots of every first-person pose."""
+    sc = _fresh(game)
+    _quiet(sc)
+    sc.px, sc.py, sc.ang = 10.0, 14.0, -math.pi / 2
+    sc.draw(game.canvas)
+    shot(game, "doom_pose_idle.png")
+    for name, press, at in (("hado", ("special",), (4, 9)), ("punch", ("punch",), (5,)),
+                            ("kick", ("kick",), (8,)), ("shoryu", ("special", "punch"), (3, 10)),
+                            ("tatsu", ("special", "kick"), (16,))):
+        _tick(game, press=press)
+        for k in range(max(at) + 1):
+            if k in at:
+                shot(game, "doom_pose_%s_%d.png" % (name, k))
+            _tick(game)
+        while sc.weapon:
+            _tick(game)
 
 
 # ---- the bot -----------------------------------------------------------------
@@ -299,9 +374,10 @@ def bot_doom(game):
                     sc.ang = want          # auto-aim snaps the last sliver
             else:
                 if e.boss and sc.ki >= D.SHINKU_COST and sc.weapon is None and frames % 3 == 0:
+                    held.add("shield")
                     press.add("special")
                 else:
-                    held.add("punch")
+                    held.add("special")
                 if d > 4 and not e.boss:
                     held.add("up")
             if d < 1.2 and kick_cool <= 0:
@@ -365,6 +441,10 @@ def test_doom(game):
     test_hadouken_hits(game)
     test_locked_door(game)
     test_exit(game)
+    test_combos(game)
+    test_views(game)
+    test_snacks(game)
+    test_poses(game)
     done = []
     old = game.level_done
     game.level_done = lambda scene, hp: done.append(hp)

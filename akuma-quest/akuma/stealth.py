@@ -1,25 +1,33 @@
-"""Level 8: the frozen compound, a top-down sneaking level.
+"""The frozen compound, a top-down sneaking level.
 
-Akuma has to cross a snowy yard and a hangar to the elevator without being
-seen. Genome soldiers patrol with vision cones (much shorter when Akuma is in
-a shadow), hear him walking nearby, and look around at their patrol stops;
-security cameras sweep the hangar and a laser fence guards the elevator.
+Akuma infiltrates a snowy yard and a hangar on a chain of missions:
+  1) raid the barracks (a red beret guards it) for the keycard and the C4,
+  2) plant the C4 on the three generators: the blast cuts the power, so the
+     cameras and the laser fence die, the hangar goes dark and the magnetic
+     lock on the prisoner's cell drops,
+  3) free the prisoner, who tells him where the commander is,
+  4) the commander, REVOLVER KEN, rides the elevator up with two soldiers:
+     beat them (a normal boss fight) and the level is clear.
+The current objective is on the HUD and every step is a codec call.
 
-A soldier who half sees him (far end of the cone, or a cardboard box moving)
-goes "?" and walks over to look. Seen properly: "!", the ALERT phase starts
-with its countdown (reset whenever someone sees him again), every soldier
-converges, then EVASION (searching), then CAUTION, then back to normal.
-A soldier who catches him starts a side-view fight against rifles
-(game.start_fight); a soldier touched from behind before he knows Akuma is
-there is a sneak attack instead.
+Genome soldiers mostly stand on post staring one way (glancing left and right
+now and then); a few walk short beats with long pauses. Smokers have a short,
+narrow cone. Red berets guard the rooms with power-ups, see further and are
+tougher in a fight. Soldiers chat in speech bubbles.
 
-A cardboard box is hidden in the dark storage room in the west wing: picked
-up it is worn at once, and standing still in it Akuma cannot be seen at all.
+Seeing: vision cones (much shorter when Akuma is in a shadow). A soldier who
+half sees him goes "?" and walks over to look; seen properly: "!", ALERT ->
+EVASION -> CAUTION -> normal. Caught: a side-view fight against rifles
+(game.start_fight). Hidden: still in the cardboard box, or inside a bush
+(only a soldier bumping into him finds him). Behind an unaware soldier, punch
+snaps his neck: no fight, but a body left in view puts the base on CAUTION.
+Health pickups are random Japanese snacks (akuma/snacks.py).
 """
 
 import math
 import random
 from collections import deque
+from types import SimpleNamespace
 
 import pygame
 
@@ -28,73 +36,93 @@ from . import fight as F
 from .akuma_sprites import MapArt, MAP_SCALE, portrait
 from .art import random_look, shade
 from .config import W, H
-from .fighters import HIT
+from .fighters import HIT, boss_moveset, scale_damage
 from .font import draw_text, wrap
 from .pause import PauseMenu
+from .snacks import heal_amount, random_snack, snack_image
 
 T = 16
 # ---------------------------------------------------------------------------
 # the map: # wall  . floor  : floor in shadow  , snow  ; snow in shadow
-#          C crate  T truck  E elevator (the goal)  B cardboard box  P start
+#          C crate  T truck  E elevator  B cardboard box  P start  b bush
+#          G generator  D cell door (magnetic lock)  K keycard door
 # ---------------------------------------------------------------------------
 MAP = """
 ########################################################
-#::::::::######::::..........................#....EEE..#
-#::::::::######::::..........................#.........#
-#:::B::::######::::..CC...........CC...................#
-#::::::::######::::..CC...........CC...................#
+#::::::::######::::...........G..............#....EEE..#
+#::::::::#::::#::::..........................#.........#
+#:::B::::#::::D::::..CC...........CC...................#
+#::::::::#::::#::::..CC...........CC...................#
 #::::::::######::::.::::.........::::........###########
 #::::::::######::::.::::.........::::..................#
 #####::########::::....................................#
-#:::::::::::::#::::........CC..........................#
-#:::::::::::::#::::........CC..........CC.......CC.....#
-#::::::::::::::::::.......::::.........CC.......CC.....#
-#::::::::::::::::::.......::::........::::.....::::....#
-#:::::::::::::#::::...................::::.....::::....#
+#:::::::::::::#::::........CC.................##########
+#:::::::::::::#::::........CC..........CC.....#......CC#
+#G:::::::::::::::::.......::::.........CC.....K........#
+#::::::::::::::::::.......::::........::::....#........#
+#:::::::::::::#::::...................::::....#:::...CC#
 ######::######################..########################
-#;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;#
-#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#
-#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,CC,,,,,,,,,#
-#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,CC,,,,,,,,,#
-#,,,,,,,,,,,TTTT,,,,,,,,,,,,,,,,,,,,,,,,,,,;;;;,,,,,,,,#
-#,,,,,,,,,,,TTTT,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#
+#;;;;;;;;;;;;;;;;;;;;;;;G;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;#
+#,,,,,,,C,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,C,,,,,,,,,bb,,,#
+#,,,,,,,;,,,,,,,,,,,,,,,,,bb,,,,,,,,,,,,;,,,CC,,,,,,,,,#
+#,,bb,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,CC,,,,,,,,,#
+#,,b,,,,,,,,TTTT,,,,,,,,,,,,,,,,,,,,,,,,,,,,;;,,,,,,,,,#
+#,,,,,,,,,,,TTTT,,,,,,,,,,,,,bb,,,,,,,,,,,,,,,,,,,,,,,,#
 #,,,,,,,,,,;;;;;;,,,,,,,,,,,,,,,,,,,TTTT,,,,,,,,,,,CC,,#
-#,,,,,,,,,,;;;;;;,,C,,,,,,,,,,,,,,,,TTTT,,,,,,,,,,;;;;,#
-#,,,,,,,C,,,,,,,,,,C,,,,,,,,,,,,,,,;;;;;;,,,,,,,,,,,,,,#
-#,,,,,,;;;,,,,,,,,;;;,,,,,,,,,,,,,,;;;;;;,,,,,,,,,,,,,,#
-#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#
-#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#
-#,,,,,,,,,,,,,,,,,,,,,,,TTTT,,,,,,,,,,,,,,,,,,,,,,,,,,,#
-#,,,,,,,,,,,,,,,,,,,,,,,TTTT,,,,,,,,,,,,,,,,,,CC,,,,,,,#
-#,,,,,,,,,,,,,,,,,,,,,,;;;;;;,,,,,,,,,,,,,,,,,CC,,,,,,,#
-#,,,,,,P,,,,,,,,,,,,,,,;;;;;;,,,,C,,,,,,,,,,,;;;;,,,,,,#
-#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,;;;,,,,,,,,,,,,,,,,,,,,#
-#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#
-#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#
+#,,,,,,,,,,;;;;;;,,C,,,,,,,,,,,,,,,,TTTT,,,,,,,,,,,;;,,#
+#,,,,,,C,,,,,,,,,,,C,,,,,,,,,,,,,,,;;;;;;,,,,,,,,,,,,,,#
+#,,,,,,;,,,,,,,,,,,,,,,,,,,,,,,,,,,;;;;;;,,,,,,,,,,,,,,#
+#,,,,,,,,,,,,,bb,,,,,,,,,,,,,,,,,,,b,,,,,,,,,,,,,,,,,,,#
+#,,,,,,,,,,,,,b,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,##########
+#,,,,,,,,,,,,,,,,,,,,,,,TTTT,,,,,,,,,,,,,,,,,,#.....:::#
+#,,,,,,,bb,,,,,,,,,,,,,,TTTT,,,,,,,,,,,,,,,,,,#.....:::#
+#,,,,,,,,,,,,,,,,,,,,,,;;;;;;,,,,,,,,,,,,b,,,,#........#
+#,,,,,,,,,,,,,,,,,,,,,,;;;;;;,,,C,,,,,,,,bb,,,.........#
+#,,,,,P,,,,,,,,,,,,,bb,,,,,,,,,,;,,,,,,,,,,,,,#........#
+#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#.......C#
+#,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,#.......C#
 ########################################################
 """
-SOLID = set("#CT")
+SOLID = set("#CTGDK")
 SHADOW = set(":;B")
-SNOW = set(",;P")
+SNOW = set(",;Pb")
+INDOOR = set(".:BE")
 HELIPAD = (7, 28)            # tile the painted H sits on
 
-# patrol routes in tiles: (tx, ty, frames to stand and look around there)
-ROUTES = [
-    [(4, 22, 100), (33, 23, 100)],                                     # yard, west-east
-    [(42, 16, 70), (51, 24, 60), (42, 31, 70), (32, 31, 60)],          # yard, east loop
-    [(29, 16, 200), (34, 16, 200)],                                    # outside the main door
-    [(20, 7, 60), (43, 7, 60), (43, 12, 40), (24, 12, 60)],            # hangar hall loop
-    [(44, 2, 220), (44, 9, 120)],                                      # by the elevator room
-    [(2, 10, 140), (12, 10, 140)],                                     # dark west corridor
+# the soldiers: kind, and a beat of stops (tx, ty, frames to stand there, facing in
+# degrees, 0 = right, 90 = down; None keeps the way he walked in). One stop = a post.
+GUARDS = [
+    dict(kind="guard", route=[(4, 22, 450, None), (13, 22, 450, None)]),       # yard, west beat
+    dict(kind="guard", route=[(43, 20, 420, None), (51, 23, 420, None)]),      # yard, east beat
+    dict(kind="smoker", route=[(17, 18, 0, 0)]),                               # smoking by the truck
+    dict(kind="guard", route=[(29, 15, 0, 90)]),                               # main door
+    dict(kind="smoker", route=[(32, 15, 0, 180)]),                             # ...and his smoking buddy
+    dict(kind="guard", route=[(21, 15, 0, 0)]),                                # watches generator 3
+    dict(kind="elite", route=[(44, 29, 0, 180)]),                              # barracks door
+    dict(kind="guard", route=[(38, 26, 480, 0), (38, 31, 480, 0)]),            # by the barracks
+    dict(kind="smoker", route=[(17, 9, 0, 90)]),                               # dark corridor
+    dict(kind="guard", route=[(26, 7, 480, None), (37, 7, 480, None)]),        # hangar hall beat
+    dict(kind="guard", route=[(33, 2, 0, 180)]),                               # watches generator 1
+    dict(kind="elite", route=[(44, 10, 0, 180)]),                              # armory door
+    dict(kind="guard", route=[(48, 2, 0, 180)]),                               # elevator room
+    dict(kind="guard", route=[(4, 11, 450, None), (12, 11, 450, None)]),       # west corridor, generator 2
 ]
 # security cameras: wall tile, direction looked at (degrees, 90 = down), sweep +-, period
 CAMERAS = [((36, 13), 90, 50, 400), ((25, 0), 90, 55, 460), ((17, 13), 90, 45, 360)]
 # laser fence across the elevator room door: tile column, rows, frames on, frames off
 LASERS = [((45, 3), (45, 4), 150, 80)]
+# the rooms the red berets guard
+KEYCARD_AT = (50, 29)
+PICKUPS = [("lifeup", (53, 30)), ("snack", (48, 32)), ("powup", (51, 10)), ("bento", (48, 11))]
+PRISONER_AT = (11, 3)
+BOSS_FROM, BOSS_POST = (51, 1), (49, 3)
+N_SNACKS = 7                 # extra snacks lying around the base
 
 # ---- tuning ----------------------------------------------------------------
 WALK, SNEAK, BOX_SPEED = 1.35, 0.6, 0.8        # Akuma, px / frame
 VIEW_RANGE, VIEW_HALF = 84, math.radians(32)    # a soldier's cone
+SMOKE_RANGE, SMOKE_HALF = 52, math.radians(22)  # a smoker's (busy with his cigarette)
+ELITE_RANGE, ELITE_HALF = 96, math.radians(38)  # a red beret's
 CAM_RANGE, CAM_HALF = 82, math.radians(20)
 SHADOW_K = 0.33              # cone reach on a target standing in a shadow
 CAUTION_K = 1.15             # longer looks while on CAUTION
@@ -107,40 +135,136 @@ G_WALK, G_CAUTION, G_RUN, G_SEARCH = 0.5, 0.7, 1.25, 0.85
 ALERT_T, EVASION_T, CAUTION_T = 60 * 15, 60 * 20, 60 * 25
 FREEZE = 26                  # the world stops for the "!" sting
 INVULN = 120                 # after a fight, before another can start
+SNAP_RANGE = 20              # px: close enough to grab
+SNAP_BEHIND = math.radians(100)   # this far off where he looks counts as behind him
+SNAP_T, SNAP_KILL = 34, 20   # grab length, frame of the crack
+DETONATE_T = 100             # frames from the last charge to the blast
+HUD_RADAR = pygame.Rect(W - 72, 0, 72, 68)   # screen areas speech bubbles keep out of
+HUD_LIFE = pygame.Rect(0, 0, 156, 40)
+CHAT_GAP = 150               # frames between two soldiers' idle chatter
 
 # ---- the soldiers in a fight -------------------------------------------------
 GUARD_HITS = 5               # normal hits a soldier takes
+ELITE_HITS = 9
+BOSS_HITS = 16
 SHOT_DMG, BURST_DMG, LOW_DMG, BUTT_DMG = 34, 20, 28, 22
 BULLET_SPEED = 7.5
 GUARD_AI = dict(aggression=0.85, block=0.3, jumpiness=0.1, reaction=4)
+ELITE_AI = dict(aggression=0.9, block=0.45, jumpiness=0.15, reaction=3)
+BOSS_AI = dict(aggression=0.85, block=0.45, jumpiness=0.25, reaction=2, boss=True)
 
 CONTROLS = [
     "ARROWS / WASD: MOVE",
     "HOLD K: SNEAK (SLOW AND SILENT)",
+    "J BEHIND A GUARD: SNAP HIS NECK",
     "J BY A WALL: KNOCK TO LURE A GUARD",
+    "J BY A GENERATOR: PLANT C4",
     "L / SPACE: CARDBOARD BOX ON / OFF",
-    "STAND STILL IN THE BOX: INVISIBLE",
-    "SHADOWS HIDE YOU, CONES SHOW WHERE THEY LOOK",
+    "STILL IN THE BOX, OR IN A BUSH: UNSEEN",
     "CAUGHT: FIGHT RIFLES. JUMP OR BLOCK THE SHOTS",
-    "REACH THE ELEVATOR (TOP RIGHT)",
+    "FOLLOW THE OBJECTIVE (TOP LEFT, RADAR)",
 ]
 
-CODEC = [
-    ("CHUN-LI", "AKUMA, DO YOU READ ME? YOU'RE INSIDE THE FROZEN COMPOUND."),
-    ("AKUMA", "..."),
-    ("CHUN-LI", "GENOME SOLDIERS GUARD EVERY YARD AND CORRIDOR. THEIR RIFLES WILL TEAR YOU APART."),
-    ("CHUN-LI", "STAY IN THE SHADOWS, WATCH WHERE THEY LOOK, AND GET TO THE ELEVATOR."),
-    ("AKUMA", "A DEMON DOES NOT HIDE."),
-    ("CHUN-LI", "THIS ONE DOES. OH, AND SOMEONE LEFT A CARDBOARD BOX IN STORAGE. DON'T ASK."),
-]
-CALLER = "chunli"
+# codec calls: who talks; the right-hand portrait is the last non-Akuma speaker
+CODEC = {
+    "intro": [
+        ("CHUN-LI", "AKUMA, DO YOU READ ME? YOU'RE INSIDE THE FROZEN COMPOUND."),
+        ("AKUMA", "..."),
+        ("CHUN-LI", "THE COMMANDER, REVOLVER KEN, HIDES BELOW. WE HAVE TO DRAW HIM OUT."),
+        ("CHUN-LI", "FIRST RAID THE BARRACKS IN THE SOUTH-EAST. A RED BERET GUARDS THE DOOR."),
+        ("CHUN-LI", "GET BEHIND A GUARD AND PRESS PUNCH. QUIETLY. BUSHES AND SHADOWS HIDE YOU."),
+        ("AKUMA", "A DEMON DOES NOT HIDE."),
+        ("CHUN-LI", "THIS ONE DOES. OH, AND SOMEONE LEFT A CARDBOARD BOX IN STORAGE. DON'T ASK."),
+    ],
+    "keycard": [
+        ("CHUN-LI", "THE KEYCARD AND THREE C4 CHARGES. GOOD WORK."),
+        ("CHUN-LI", "PLANT THE C4 ON THE THREE GENERATORS. CHECK YOUR RADAR."),
+        ("CHUN-LI", "NO POWER, NO CAMERAS, NO LASERS. AND THE KEYCARD OPENS THE ARMORY."),
+    ],
+    "power": [
+        ("CHUN-LI", "THE POWER'S OUT! THE CAMERAS AND THE LASER FENCE ARE DEAD."),
+        ("CHUN-LI", "THE PRISON CELL IN THE WEST WING HAD A MAGNETIC LOCK. IT JUST DROPPED."),
+        ("AKUMA", "A PRISONER?"),
+        ("CHUN-LI", "SHE KNOWS WHERE KEN IS. GET HER OUT."),
+    ],
+    "rescue": [
+        ("SAKURA", "AKUMA-SAN?! I CAME HERE LOOKING FOR RYU AND THEY LOCKED ME UP!"),
+        ("AKUMA", "..."),
+        ("SAKURA", "THEIR COMMANDER IS COMING UP THE ELEVATOR. HE SPINS HIS GUN A LOT. IT'S WEIRD."),
+        ("REVOLVER KEN", "YOU'RE PRETTY GOOD... FOR A DEMON. I'LL BE WAITING AT THE ELEVATOR."),
+    ],
+}
+PORTRAITS = {"CHUN-LI": "chunli", "SAKURA": "sakura", "REVOLVER KEN": "ken", "AKUMA": "akuma"}
 FREQ = "140.85"
+
+OBJECTIVES = ["RAID THE BARRACKS (SE)", "PLANT C4: GENERATORS %d/3", "FREE THE PRISONER (W)",
+              "BEAT REVOLVER KEN (NE)"]
+
+# ---- what the soldiers say ---------------------------------------------------
+CHATTER = {
+    "guard": [
+        "I REALLY NEED TO PEE.",
+        "WHEN I GET OFF SHIFT I'M GETTING RAMEN.",
+        "WHO KEEPS LEAVING CARDBOARD BOXES AROUND?",
+        "MY FEET ARE FROZEN TO THE FLOOR.",
+        "I JOINED FOR THE DENTAL PLAN.",
+        "*YAWN*... WHAT TIME IS IT?",
+        "SNOW AGAIN. GREAT.",
+        "THEY SAY A DEMON IS LOOSE. HA. DEMONS.",
+        "I HEARD THE COMMANDER SLEEPS IN A BOX.",
+        "ONE DAY I'LL GET A RED BERET.",
+        "THESE GOGGLES ARE JUST FOR SHOW.",
+        "STARE AT THE WALL, THEY SAID. IT'LL BE FUN.",
+        "LA LA LA... GUARDING... LA LA...",
+    ],
+    "smoker": [
+        "JUST ONE MORE. THEN I QUIT.",
+        "DON'T TELL THE SERGEANT.",
+        "SMOKING IS BAD FOR YOU. SO IS THIS JOB.",
+        "AH... THAT HITS THE SPOT.",
+        "IS IT SMOKE OR IS IT MY BREATH? BOTH?",
+    ],
+    "elite": [
+        "NOBODY GETS PAST ME.",
+        "I DID 500 PUSH-UPS TODAY.",
+        "THIS BERET IS NOT A FASHION STATEMENT.",
+        "I CAN SMELL FEAR. AND RAMEN.",
+    ],
+}
+HUH = {"noise": "WHAT WAS THAT NOISE?", "box": "IS THAT BOX... MOVING?",
+       "seen": "HUH? WHO'S THERE?", "body": "HEY! WAKE UP! ...OH NO."}
+GIVE_UP = {"noise": ["MUST'VE BEEN THE WIND... IT'S ALWAYS THE WIND.", "HUH. I NEED MORE SLEEP."],
+           "box": ["JUST A BOX. NICE BOX, THOUGH.", "BOXES DON'T MOVE. RIGHT?"],
+           "seen": ["I'M SEEING THINGS AGAIN.", "MUST'VE BEEN A RABBIT."],
+           "body": ["SOMEONE CALL A MEDIC... LATER."]}
+CAUTION_OVER = ["I GUESS IT WAS NOTHING.", "BACK TO STARING AT WALLS."]
+BOSS_LINES = ["SIX BULLETS. MORE THAN ENOUGH.", "COME ON, DEMON!", "YOU'RE PRETTY GOOD.",
+              "*SPINS REVOLVER*"]
+PRISONER_LINES = ["HELLO? ANYONE?", "I JUST WANTED TO FIND RYU...", "THIS CELL SMELLS LIKE SOCKS."]
 
 DIRS8 = [(1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1), (-1, -1)]
 
 
 def _rows():
     return [r for r in MAP.strip("\n").split("\n")]
+
+
+def _angdiff(a, b):
+    return abs((a - b + math.pi) % math.tau - math.pi)
+
+
+def _sounds():
+    """This level's own little sounds, built once into audio's table."""
+    if not getattr(audio, "_ok", False) or "neck_snap" in audio._sfx:
+        return
+    S = audio._sfx
+    S["neck_snap"] = audio._sound(audio._add(audio._noise(0.06, 0.7, 4.0, 0.95),
+                                             audio._tone(320, 70, 0.07, 0.35, "square", 0.5)))
+    S["grab"] = audio._sound(audio._add(audio._noise(0.1, 0.35, 2.0, 0.2), audio._tone(180, 120, 0.08, 0.2, "tri")))
+    S["rustle"] = audio._sound(audio._noise(0.14, 0.12, 1.4, 0.7))
+    S["c4_beep"] = audio._sound(audio._tone(1400, 1400, 0.05, 0.1, "square", 0, 0.5))
+    S["door_open"] = audio._sound(audio._seq(audio._tone(600, 900, 0.06, 0.15, "tri"),
+                                             audio._noise(0.25, 0.25, 1.0, 0.1)))
 
 
 # ---------------------------------------------------------------------------
@@ -169,8 +293,8 @@ def tracer_frames():
     return _TRACER
 
 
-def _bullet(dmg, y, chip, x=24):
-    return dict(speed=BULLET_SPEED, dmg=dmg, hitstun=22, blockstun=12, chip=chip,
+def _bullet(dmg, y, chip, x=24, speed=BULLET_SPEED):
+    return dict(speed=speed, dmg=dmg, hitstun=22, blockstun=12, chip=chip,
                 colors=((255, 255, 230), (255, 220, 120), (230, 120, 40)),
                 y=y, px=True, x=x, tracer=True, frames=tracer_frames(), size=(12, 5))
 
@@ -209,28 +333,53 @@ def guard_moveset(rng):
     return [m_rifle(rng), m_burst(rng), m_low_shot(rng), m_butt(rng)]
 
 
+def m_revolver(rng):
+    """Six quick shots, high and low: the commander showing off."""
+    evs = {}
+    for k in range(6):
+        y = -44 if k % 2 == 0 else -22
+        evs[10 + k * 6] = dict(sound="gunshot", proj=_bullet(18, y, 3, x=22, speed=8.5))
+    return dict(name="Six Shooter", range=(40, 400), gun=True,
+                phases=[("startup", 10, "hado_prep"), ("startup", 36, "hado_fire"), ("recovery", 24, "hado_prep")],
+                events=evs)
+
+
+def boss_moves(rng):
+    return [m_revolver(rng), m_rifle(rng)] + scale_damage(boss_moveset(rng), 3.2)
+
+
 _ART = {}
 
 
-def _map_art(cid):
-    if cid not in _ART:
-        _ART[cid] = MapArt(cid, MAP_SCALE)
-    return _ART[cid]
+def _map_art(cid, k=1.0):
+    key = (cid, k)
+    if key not in _ART:
+        _ART[key] = MapArt(cid, MAP_SCALE * k)
+    return _ART[key]
 
 
 class Guard:
-    """A patrolling soldier, and the enemy namespace handed to game.start_fight."""
+    """A soldier on post or on a short beat, and the enemy namespace handed
+    to game.start_fight."""
 
-    def __init__(self, rng, route, index):
-        self.route = [((tx + 0.5) * T, (ty + 0.5) * T, wait) for tx, ty, wait in route]
+    def __init__(self, rng, spec, index):
+        self.kind = spec.get("kind", "guard")
+        self.route = [((tx + 0.5) * T, (ty + 0.5) * T, wait, None if f is None else math.radians(f))
+                      for tx, ty, wait, f in spec["route"]]
         self.x, self.y = self.route[0][0], self.route[0][1]
         self.ri = 0
-        self.wait = self.route[0][2] // 2
-        self.angle = rng.uniform(0, math.tau)
+        self.post = len(self.route) == 1
+        f0 = self.route[0][3]
+        self.angle = f0 if f0 is not None else rng.uniform(0, math.tau)
         self.look_base = self.angle
-        self.look_t = rng.randrange(200)
+        # glance left and right once a cycle; smokers less, red berets more often
+        lo, hi = {"smoker": (520, 820), "elite": (220, 340)}.get(self.kind, (300, 520))
+        self.cycle = rng.randint(lo, hi)
+        self.look_t = rng.randrange(self.cycle)
+        self.wait = 10 ** 9 if self.post else max(1, self.route[0][2] // 2)
         self.state = "patrol"        # patrol, suspicious, alert, search
         self.sub = None
+        self.why = "noise"
         self.t = 0
         self.stim = None
         self.notice = 0
@@ -240,24 +389,57 @@ class Guard:
         self.alive = True
         self.moving = False
         self.walked = 0.0
-        self.face = 1
+        self.face = 1 if math.cos(self.angle) >= 0 else -1
         self.anim = rng.randrange(60)
+        self.say = None              # [text, frames left]
+        self.chat_cd = rng.randint(240, 1200)
+        self.puffs = []
+        self.range, self.half = {"smoker": (SMOKE_RANGE, SMOKE_HALF),
+                                 "elite": (ELITE_RANGE, ELITE_HALF)}.get(self.kind, (VIEW_RANGE, VIEW_HALF))
         # --- fight namespace (like dungeon.MapEnemy) ---
-        self.name = "GENOME SOLDIER"
-        self.cid = "ryu" if index % 2 == 0 else "ken"
-        self.look = random_look(rng)
         self.boss = False
         self.car = False
-        self.level = 4
-        self.hp = HIT * GUARD_HITS
-        self.walk = 1.5
-        self.moves = guard_moveset(rng)
-        self.ai = dict(GUARD_AI)
+        self.look = random_look(rng)
         self.allies = []
-        self.map_art = _map_art(self.cid)
+        if self.kind == "elite":
+            self.name = "RED BERET"
+            self.cid = "zangief"
+            self.level = 5
+            self.hp = HIT * ELITE_HITS
+            self.walk = 1.35
+            self.moves = scale_damage(guard_moveset(rng), 1.3)
+            self.ai = dict(ELITE_AI)
+            self.map_art = _map_art(self.cid, 1.12)
+        else:
+            self.name = "GENOME SOLDIER"
+            self.cid = "ryu" if index % 2 == 0 else "ken"
+            self.level = 4
+            self.hp = HIT * GUARD_HITS
+            self.walk = 1.5
+            self.moves = guard_moveset(rng)
+            self.ai = dict(GUARD_AI)
+            self.map_art = _map_art(self.cid)
 
     def rect(self):
         return pygame.Rect(round(self.x) - 5, round(self.y) - 4, 10, 8)
+
+
+def make_boss(rng):
+    """REVOLVER KEN and the two soldiers he brings up the elevator."""
+    b = Guard(rng, dict(kind="guard", route=[(BOSS_FROM[0], BOSS_FROM[1], 0, 90)]), 1)
+    b.kind = "boss"
+    b.name = "REVOLVER KEN"
+    b.cid = "ken"
+    b.boss = True
+    b.level = 6
+    b.hp = HIT * BOSS_HITS
+    b.walk = 1.5
+    b.moves = boss_moves(rng)
+    b.ai = dict(BOSS_AI)
+    b.map_art = _map_art("ken", 1.15)
+    b.allies = [Guard(rng, dict(kind="guard", route=[(BOSS_FROM[0], BOSS_FROM[1], 0, 90)]), i) for i in range(2)]
+    b.chat_cd = 60
+    return b
 
 
 # ---------------------------------------------------------------------------
@@ -267,6 +449,55 @@ SNOW_C = (206, 214, 230)
 METAL_C = (74, 82, 98)
 WALL_TOP_C = (30, 34, 48)
 PANEL_C = (92, 100, 120)
+
+
+def _px(rows, colors):
+    """A little sprite from a character map: one char per pixel, '.' empty."""
+    s = pygame.Surface((len(rows[0]), len(rows)), pygame.SRCALPHA)
+    for y, row in enumerate(rows):
+        for x, c in enumerate(row):
+            if c != ".":
+                s.set_at((x, y), colors[c])
+    return s
+
+
+def _icons():
+    o = (24, 16, 20)
+    return {
+        "keycard": _px(["kkkkkkkkkkk",
+                        "kwwwwwwwwwk",
+                        "kbbbbbbbbbk",
+                        "kwwwwwwyywk",
+                        "kwggwwwyywk",
+                        "kwwwwwwwwwk",
+                        "kkkkkkkkkkk"], dict(k=o, w=(230, 236, 246), b=(40, 60, 120), y=(230, 200, 70),
+                                             g=(120, 130, 150))),
+        "c4": _px(["..rrr......",
+                   ".r...r.....",
+                   "kkkkkkkkkkk",
+                   "kccccccccck",
+                   "kcwwwccgcck",
+                   "kccccccccck",
+                   "kkkkkkkkkkk"], dict(k=o, c=(196, 186, 140), w=(240, 240, 230), g=(60, 220, 80),
+                                         r=(220, 40, 40))),
+        "lifeup": _px([".kk...kk..",
+                       "krrk.krrk.",
+                       "krwrkrrrk.",
+                       "krrrrrrrk.",
+                       ".krrrrrk..",
+                       "..krrrk...",
+                       "...krk....",
+                       "....k....."], dict(k=o, r=(230, 50, 60), w=(255, 220, 220))),
+        "powup": _px(["..kkkkk...",
+                      ".kyyyyyk..",
+                      "kyykkkyyk.",
+                      "kyykyyyyk.",
+                      "kyykkkyyk.",
+                      "kyyyyykyk.",
+                      "kyykkkyyk.",
+                      ".kyyyyyk..",
+                      "..kkkkk..."], dict(k=o, y=(255, 200, 40))),
+    }
 
 
 def _make_tiles(rng):
@@ -326,7 +557,48 @@ def _make_tiles(rng):
     crate.fill((220, 220, 200), (6, 13, 4, 1))
     t["crate"] = crate
     t["truck"] = _truck()
+    # a generator: a yellow-and-grey box with a fan grille and warning stripes
+    gen = pygame.Surface((T, T), pygame.SRCALPHA)
+    gen.fill((120, 124, 110), (1, 1, 14, 11))
+    gen.fill((84, 88, 76), (1, 12, 14, 4))
+    pygame.draw.rect(gen, (40, 42, 36), (1, 1, 14, 15), 1)
+    pygame.draw.circle(gen, (50, 54, 48), (6, 6), 4)
+    pygame.draw.line(gen, (150, 154, 140), (3, 6), (9, 6))
+    pygame.draw.line(gen, (150, 154, 140), (6, 3), (6, 9))
+    for k in range(0, 12, 4):
+        gen.fill((230, 190, 40), (2 + k, 13, 2, 2))
+    gen.fill((40, 220, 80), (12, 3, 2, 2))
+    t["gen"] = gen
+    # cell bars
+    bars = pygame.Surface((T, T), pygame.SRCALPHA)
+    for x in range(1, T, 4):
+        bars.fill((150, 156, 170), (x, 0, 2, T))
+        bars.fill((210, 216, 230), (x, 0, 1, T))
+    bars.fill((90, 96, 110), (0, 7, T, 2))
+    t["bars"] = bars
+    # keycard door
+    door = pygame.Surface((T, T))
+    door.fill((70, 76, 92))
+    pygame.draw.rect(door, (40, 44, 56), (0, 0, T, T), 1)
+    pygame.draw.line(door, (50, 54, 66), (8, 1), (8, 14))
+    door.fill((230, 190, 40), (2, 13, 12, 2))
+    t["door"] = door
+    t["bush"] = _bush(rng)
     return t
+
+
+def _bush(rng):
+    """A snowy shrub, drawn over whoever stands in it."""
+    s = pygame.Surface((20, 20), pygame.SRCALPHA)
+    for cx, cy, r in ((6, 10, 6), (14, 10, 6), (10, 6, 6), (10, 13, 6)):
+        pygame.draw.circle(s, (28, 70, 44), (cx, cy), r)
+    for cx, cy, r in ((6, 9, 4), (14, 9, 4), (10, 5, 4)):
+        pygame.draw.circle(s, (46, 104, 62), (cx, cy), r)
+    for _ in range(12):
+        s.set_at((rng.randrange(3, 17), rng.randrange(3, 16)), (70, 136, 84))
+    for x, y in ((5, 4), (9, 1), (10, 2), (14, 4), (4, 5), (15, 5), (11, 1), (8, 2)):
+        s.fill((236, 242, 252), (x, y, 2, 1))
+    return s
 
 
 def _truck():
@@ -382,10 +654,17 @@ def _codec_portrait(cid):
     return img
 
 
+def _body_img(art, face):
+    """A soldier lying in the snow: his idle frame turned on its side."""
+    img, _ = art.frame(face, False, 0, 0)
+    return pygame.transform.rotate(img, -90 if face > 0 else 90)
+
+
 # ---------------------------------------------------------------------------
 class StealthScene:
     def __init__(self, game, seed=None, level=8, hp=None):
         F.init_shared()
+        _sounds()
         self.game = game
         self.level = level
         self.rng = random.Random(seed)
@@ -394,10 +673,12 @@ class StealthScene:
         self.mw, self.mh = self.gw * T, self.gh * T
         self.tiles = _make_tiles(random.Random(seed or 0))
         self.box_img = _box_sprites()
+        self.icons = _icons()
         self.art = _map_art("akuma")
         self.menu = PauseMenu(game, CONTROLS)
-        self.passable = [(x, y) for y in range(self.gh) for x in range(self.gw) if not self.solid(x, y)]
         self.exit_tiles = set()
+        self.gens = {}
+        self.box_pickup = None
         for y, row in enumerate(self.grid):
             for x, c in enumerate(row):
                 if c == "P":
@@ -406,9 +687,12 @@ class StealthScene:
                     self.box_pickup = [(x + 0.5) * T, (y + 0.5) * T]
                 elif c == "E":
                     self.exit_tiles.add((x, y))
+                elif c == "G":
+                    self.gens[(x, y)] = False
+        self.passable = [(x, y) for y in range(self.gh) for x in range(self.gw) if not self.solid(x, y)]
+        self.power = True            # the generators still run
         self._render()
-        self.radar_map = self._render_radar()
-        self.guards = [Guard(self.rng, r, i) for i, r in enumerate(ROUTES)]
+        self.guards = [Guard(self.rng, spec, i) for i, spec in enumerate(GUARDS)]
         self.cameras = [dict(x=(tx + 0.5) * T, y=(ty + 1) * T - 2, base=math.radians(b), sweep=math.radians(s),
                              period=p, angle=math.radians(b), t=self.rng.randrange(p), flash=0)
                         for (tx, ty), b, s, p in CAMERAS]
@@ -429,6 +713,8 @@ class StealthScene:
         self.flakes = [[self.rng.uniform(0, W), self.rng.uniform(0, H), self.rng.uniform(0.2, 0.6)]
                        for _ in range(46)]
         self.ripples = []
+        self.leaves = []
+        self.pops = []             # floating "+15" texts
         # alert state: normal, alert, evasion, caution
         self.phase = "normal"
         self.timer = 0
@@ -439,15 +725,54 @@ class StealthScene:
         self.encounter = None
         self.encounter_t = 0
         self._fields = {}
+        self.chat_cd = 120
+        self._decks = {}
+        # neck snaps and what they leave behind
+        self.snap = None
+        self.bodies = []
+        # the missions
+        self.mission = 0
+        self.keycard = False
+        self.c4 = 0
+        self.detonate = 0
+        self.shake = 0
+        self.items = self._place_items(seed)
+        self.prisoner = SimpleNamespace(x=(PRISONER_AT[0] + 0.5) * T, y=(PRISONER_AT[1] + 0.5) * T, free=False,
+                                        say=None, chat_cd=200, face=1, art=_map_art("sakura"))
+        self.boss_g = None
         # intro: codec call, then the level card
-        self.stage = "ring"         # ring, codec, card, play, won
+        self.stage = "ring"         # ring, codec, card, play
+        self.codec_lines = CODEC["intro"]
+        self.after_codec = "card"
         self.t = 0
         self.line = 0
         self.chars = 0
         self.result = None
         self.anim = 0
-        self.caller_img = _codec_portrait(CALLER)
-        self.akuma_img = _codec_portrait("akuma")
+        self._portraits = {}
+
+    def _place_items(self, seed):
+        items = [dict(kind="keycard", x=(KEYCARD_AT[0] + 0.5) * T, y=(KEYCARD_AT[1] + 0.5) * T)]
+        rng = random.Random((seed or 0) + 5)
+        for kind, (tx, ty) in PICKUPS:
+            it = dict(kind=kind, x=(tx + 0.5) * T, y=(ty + 0.5) * T)
+            if kind in ("snack", "bento"):
+                it["kind"], it["name"] = "snack", "BENTO" if kind == "bento" else random_snack(rng)
+            items.append(it)
+        # snacks in random corners of the open base (not in the rooms, not by the start)
+        sx, sy = int(self.px // T), int(self.py // T)
+        spots = [(x, y) for x, y in self.passable if self.tile(x, y) in ".:,;"
+                 and not (x >= 46 and (y >= 25 or 8 <= y <= 12)) and not (9 <= x <= 14 and y <= 6)
+                 and abs(x - sx) + abs(y - sy) > 8 and not (x >= 45 and y <= 4)]
+        rng.shuffle(spots)
+        taken = []
+        for x, y in spots:
+            if len(taken) >= N_SNACKS:
+                break
+            if all(abs(x - a) + abs(y - b) > 9 for a, b in taken):
+                taken.append((x, y))
+                items.append(dict(kind="snack", name=random_snack(rng), x=(x + 0.5) * T, y=(y + 0.5) * T))
+        return items
 
     # ---- map queries ------------------------------------------------------
     def tile(self, tx, ty):
@@ -459,7 +784,13 @@ class StealthScene:
         return self.tile(tx, ty) in SOLID
 
     def in_shadow(self, x, y):
-        return self.tile(int(x // T), int(y // T)) in SHADOW
+        c = self.tile(int(x // T), int(y // T))
+        return c in SHADOW or (not self.power and c in INDOOR)
+
+    def in_bush(self, x=None, y=None):
+        x = self.px if x is None else x
+        y = self.py if y is None else y
+        return self.tile(int(x // T), int(y // T)) == "b"
 
     def rect_hits(self, r):
         for ty in range(r.top // T, (r.bottom - 1) // T + 1):
@@ -480,6 +811,13 @@ class StealthScene:
     def player_rect(self):
         return pygame.Rect(round(self.px) - 5, round(self.py) - 4, 10, 8)
 
+    def set_tile(self, tx, ty, c):
+        row = self.grid[ty]
+        self.grid[ty] = row[:tx] + c + row[tx + 1:]
+        self._fields.clear()
+        self.passable = [(x, y) for y in range(self.gh) for x in range(self.gw) if not self.solid(x, y)]
+        self._render()
+
     @property
     def paused(self):
         return self.menu.open
@@ -488,17 +826,37 @@ class StealthScene:
         if not self.messages or self.messages[-1][0] != text:
             self.messages.append([text, frames])
 
+    def speak(self, who, text, frames=None):
+        who.say = [text, frames or max(120, 40 + len(text) * 4)]
+
+    def _line(self, key, pool):
+        """Next line from a shuffled deck, so nobody repeats himself soon."""
+        deck = self._decks.get(key)
+        if not deck:
+            deck = list(pool)
+            self.rng.shuffle(deck)
+            self._decks[key] = deck
+        return deck.pop()
+
+    @property
+    def objective(self):
+        if self.mission == 1:
+            return OBJECTIVES[1] % sum(self.gens.values())
+        return OBJECTIVES[min(self.mission, 3)]
+
     # ---- art --------------------------------------------------------------
     def _render(self):
         rng = random.Random(77)
         surf = pygame.Surface((self.mw, self.mh))
         dark = pygame.Surface((self.mw, self.mh), pygame.SRCALPHA)
+        night = pygame.Surface((self.mw, self.mh), pygame.SRCALPHA)   # the hangar with the power cut
         trucks = []
+        self.bushes = []
         for ty in range(self.gh):
             for tx in range(self.gw):
                 c = self.tile(tx, ty)
                 x, y = tx * T, ty * T
-                outdoor = ty >= 13
+                outdoor = c in SNOW
                 if c == "#":
                     if not self.solid(tx, ty + 1) and ty + 1 < self.gh:
                         surf.blit(self.tiles["wall_face"], (x, y))
@@ -506,11 +864,21 @@ class StealthScene:
                         surf.blit(self.tiles["wall_top_snow" if ty in (0, 13) or ty > 13 or tx in (0, 55)
                                              else "wall_top"], (x, y))
                     continue
+                if c in "CTG":
+                    outdoor = ty > 13 and not (tx >= 46 and ty >= 25)
                 floor = self.tiles["snow"][rng.choice((0, 0, 1, 2, 3))] if outdoor else \
                     self.tiles["metal"][rng.choice((0, 0, 1, 2))]
                 surf.blit(floor, (x, y))
                 if c == "C":
                     surf.blit(self.tiles["crate"], (x, y))
+                elif c == "G":
+                    surf.blit(self.tiles["gen"], (x, y))
+                elif c == "D":
+                    surf.blit(self.tiles["bars"], (x, y))
+                elif c == "K":
+                    surf.blit(self.tiles["door"], (x, y))
+                elif c == "b":
+                    self.bushes.append((x - 2, y - 4))
                 elif c == "T" and self.tile(tx - 1, ty) != "T" and self.tile(tx, ty - 1) != "T":
                     trucks.append((x, y))
                 elif c == "E":
@@ -518,6 +886,8 @@ class StealthScene:
                         surf.fill((220, 190, 40) if (k // 4 + tx) % 2 else (30, 30, 30), (x + k, y + 12, 4, 4))
                 if c in SHADOW:
                     dark.fill((6, 10, 26, 135), (x, y, T, T))
+                elif c in INDOOR or (not outdoor and c != "b"):
+                    night.fill((6, 10, 26, 135), (x, y, T, T))
                 if self.solid(tx, ty - 1) and not outdoor:
                     surf.fill((40, 44, 58), (x, y, T, 3))
         for x, y in trucks:
@@ -534,17 +904,22 @@ class StealthScene:
         surf.fill((120, 130, 150), (ex, 0, 3 * T, T))
         pygame.draw.line(surf, (60, 66, 80), (ex + 24, 2), (ex + 24, 15))
         pygame.draw.rect(surf, (50, 56, 70), (ex, 0, 3 * T, T), 1)
-        surf.fill((80, 255, 120), (ex + 22, 2, 4, 2))
+        surf.fill((80, 255, 120) if self.power else (255, 80, 60), (ex + 22, 2, 4, 2))
         self.map_surf = surf
         self.dark = dark
+        self.night = night
+        self.radar_map = self._render_radar()
 
     def _render_radar(self):
         s = pygame.Surface((self.gw * 4, self.gh * 4))
         s.fill((4, 26, 14))
         for ty in range(self.gh):
             for tx in range(self.gw):
-                if self.solid(tx, ty):
+                c = self.tile(tx, ty)
+                if c in SOLID:
                     s.fill((40, 120, 66), (tx * 4, ty * 4, 4, 4))
+                elif c == "b":
+                    s.fill((20, 70, 36), (tx * 4, ty * 4, 4, 4))
         for tx, ty in self.exit_tiles:
             s.fill((200, 255, 200), (tx * 4, ty * 4, 4, 4))
         return s
@@ -612,12 +987,16 @@ class StealthScene:
     def _turn(g, target, rate):
         diff = (target - g.angle + math.pi) % math.tau - math.pi
         g.angle += max(-rate, min(rate, diff))
+        if abs(math.cos(g.angle)) > 0.3 and not g.moving:
+            g.face = 1 if math.cos(g.angle) > 0 else -1
 
     # ---- seeing and hearing ------------------------------------------------
     def visibility(self):
-        """What a watcher can see of Akuma: 'hidden' (still in the box),
-        'box' (a box shuffling along) or 'full'."""
+        """What a watcher can see of Akuma: 'hidden' (still in the box, or in
+        a bush), 'box' (a box shuffling along) or 'full'."""
         if self.ignore_player:
+            return "hidden"
+        if self.in_bush():
             return "hidden"
         if self.box_on:
             return "hidden" if self.still >= 3 else "box"
@@ -635,13 +1014,18 @@ class StealthScene:
         if d > reach:
             return False
         if d > 6:
-            diff = abs((math.atan2(ty - y, tx - x) - angle + math.pi) % math.tau - math.pi)
-            if diff > half:
+            if _angdiff(math.atan2(ty - y, tx - x), angle) > half:
                 return False
         return self.line_of_sight(x, y, tx, ty)
 
     def guard_sees(self, g):
-        return self.in_view(g.x, g.y - 4, g.angle, VIEW_HALF, VIEW_RANGE)
+        return self.in_view(g.x, g.y - 4, g.angle, g.half, g.range)
+
+    def behind(self, g, x=None, y=None):
+        """Is (x, y) (Akuma) behind where this soldier is looking?"""
+        x = self.px if x is None else x
+        y = self.py if y is None else y
+        return _angdiff(math.atan2(y - g.y, x - g.x), g.angle) > SNAP_BEHIND
 
     def _cone(self, x, y, angle, half, reach, cx, cy):
         pts = [(x - cx, y - cy)]
@@ -669,6 +1053,7 @@ class StealthScene:
                 if g.alive:
                     g.state = "alert"
                     g.huh = 0
+                    g.say = None
         if by is not None:
             if not by.exclaim:
                 by.exclaim = 60
@@ -705,16 +1090,20 @@ class StealthScene:
                 self.timer = 0
                 audio.play("mgs_clear")
                 self.message("ALL CLEAR", 80)
+                live = [g for g in self.guards if g.alive]
+                if live:
+                    g = min(live, key=lambda o: math.hypot(o.x - self.px, o.y - self.py))
+                    self.speak(g, self.rng.choice(CAUTION_OVER))
 
     def _back_to_patrol(self, g):
         g.state = "patrol"
         g.stim = None
         g.notice = 0
-        # rejoin the route at its nearest stop
+        # rejoin the beat at its nearest stop
         g.ri = min(range(len(g.route)), key=lambda i: math.hypot(g.route[i][0] - g.x, g.route[i][1] - g.y))
         g.wait = 0
 
-    def _suspect(self, g, x, y, sound=True):
+    def _suspect(self, g, x, y, sound=True, why=None):
         if g.state not in ("patrol", "suspicious"):
             return
         if g.state != "suspicious" or g.sub == "search":
@@ -723,6 +1112,8 @@ class StealthScene:
             if sound:
                 audio.play("mgs_huh", 0.8)
             g.huh = 50
+            g.why = why or ("box" if self.box_on else "noise")
+            self.speak(g, HUH[g.why], 110)
         g.state = "suspicious"
         g.stim = (x, y)
 
@@ -754,12 +1145,6 @@ class StealthScene:
             if self.t >= 100 or (self.t > 20 and inp.any_pressed("punch", "kick", "special", "start")):
                 self.stage, self.t = "play", 0
             return
-        if self.stage == "won":
-            if self.t >= 110 or (self.t > 40 and inp.any_pressed("punch", "kick", "special", "start")):
-                if self.result is None:
-                    self.result = "win"
-                    self.game.level_done(self, max(1, self.hp))
-            return
         if self.menu.toggle(inp):
             return
         for m in self.messages[:1]:
@@ -771,24 +1156,37 @@ class StealthScene:
             return
         if self.invuln:
             self.invuln -= 1
-        self._move(inp)
-        self._items(inp)
-        for c in self.cameras:
-            self._camera(c)
-        for lz in self.lasers:
-            self._laser(lz)
+        if self.shake:
+            self.shake -= 1
+        if self.chat_cd:
+            self.chat_cd -= 1
+        if self.snap:
+            self._snapping()
+        else:
+            self._move(inp)
+            self._items(inp)
+        if self.power:
+            for c in self.cameras:
+                self._camera(c)
+            for lz in self.lasers:
+                self._laser(lz)
         vis = self.visibility()
         for g in self.guards:
-            if g.alive:
+            if g.alive and not (self.snap and self.snap["g"] is g):
                 self._guard(g, vis)
         self._phases()
+        self._missions()
         self._touch()
-        if (int(self.px // T), int(self.py // T)) in self.exit_tiles and self.stage == "play":
-            self.stage, self.t = "won", 0
-            audio.play("mgs_item")
+
+    def _ring(self, key, after="play"):
+        """Start a codec call (ringing first)."""
+        self.codec_lines = CODEC[key]
+        self.after_codec = after
+        self.stage, self.t, self.line, self.chars = "ring", 0, 0, 0
+        self.pvx = self.pvy = 0.0
 
     def _codec(self, inp):
-        who, text = CODEC[self.line]
+        who, text = self.codec_lines[self.line]
         if self.chars < len(text):
             self.chars += 1 if self.t % 2 == 0 else 0
             if self.t % 6 == 0 and text[min(self.chars, len(text) - 1)] != " ":
@@ -800,11 +1198,18 @@ class StealthScene:
                 self.line += 1
                 self.chars = 0
                 audio.play("codec_beep")
-                if self.line >= len(CODEC):
-                    self.stage, self.t = "card", 0
-                    audio.play("fight")
+                if self.line >= len(self.codec_lines):
+                    self._end_codec()
         if inp.pressed("back"):
-            self.stage, self.t = "card", 0
+            self._end_codec()
+
+    def _end_codec(self):
+        self.line = min(self.line, len(self.codec_lines) - 1)
+        self.stage, self.t = self.after_codec, 0
+        if self.after_codec == "card":
+            audio.play("fight")
+        if self.codec_lines is CODEC["rescue"] and self.boss_g is None:
+            self._boss_arrives()
 
     def _weather(self):
         for f in self.flakes:
@@ -816,6 +1221,16 @@ class StealthScene:
         for r in self.ripples:
             r[2] += 1
         self.ripples = [r for r in self.ripples if r[2] < 30]
+        for p in self.leaves:
+            p[0] += p[2]
+            p[1] += p[3]
+            p[3] += 0.05
+            p[4] -= 1
+        self.leaves = [p for p in self.leaves if p[4] > 0]
+        for p in self.pops:
+            p[1] -= 0.4
+            p[3] -= 1
+        self.pops = [p for p in self.pops if p[3] > 0]
 
     def _move(self, inp):
         dx = (1 if inp.held("right") else 0) - (1 if inp.held("left") else 0)
@@ -830,6 +1245,7 @@ class StealthScene:
         if not dy and abs(self.pvy) < 0.05:
             self.pvy = 0.0
         moved = 0.0
+        was_bush = self.in_bush()
         if self.pvx or self.pvy:
             ox, oy = self.px, self.py
             self._slide(self.pvx, 0)
@@ -840,12 +1256,17 @@ class StealthScene:
         self.still = 0 if self.moving else self.still + 1
         if dx:
             self.pface = dx
+        if self.in_bush() != was_bush or (self.moving and self.in_bush() and self.steps % 24 == 0):
+            audio.play("rustle", 0.6)
+            for _ in range(4):
+                self.leaves.append([self.px + self.rng.uniform(-6, 6), self.py - self.rng.uniform(4, 12),
+                                    self.rng.uniform(-0.5, 0.5), -self.rng.uniform(0.3, 0.9), 26])
         if self.moving:
             self.steps += 1
             loud = not self.sneaking and not self.box_on
             if self.steps % (18 if loud else 30) == 0:
                 audio.play("step", 0.5 if loud else 0.15)
-                if not self.box_on and (self.py // T) >= 13:
+                if not self.box_on and self.tile(int(self.px // T), int(self.py // T)) in ",;P":
                     self.footprints.append([self.px + (2 if (self.steps // 18) % 2 else -2), self.py + 2, 700])
             if loud and self.steps % 10 == 0:
                 self._noise(HEAR)
@@ -872,11 +1293,59 @@ class StealthScene:
         y = self.py if y is None else y
         for g in self.guards:
             if g.alive and g.state in ("patrol", "suspicious") and math.hypot(g.x - x, g.y - y) < radius:
-                self._suspect(g, x, y)
+                self._suspect(g, x, y, why="noise")
 
+    # ---- neck snaps --------------------------------------------------------
+    def snap_target(self):
+        """The unaware soldier Akuma is right behind, if any."""
+        if self.box_on or self.snap:
+            return None
+        best, bd = None, SNAP_RANGE
+        for g in self.guards:
+            if not g.alive or g.state == "alert":
+                continue
+            d = math.hypot(g.x - self.px, g.y - self.py)
+            if d < bd and self.behind(g):
+                best, bd = g, d
+        return best
+
+    def start_snap(self, g):
+        self.snap = dict(g=g, t=0)
+        self.pvx = self.pvy = 0.0
+        self.moving = False
+        g.moving = False
+        g.say = None
+        g.huh = g.exclaim = 0
+        self.pface = 1 if g.x > self.px else -1
+        audio.play("grab")
+
+    def _snapping(self):
+        s = self.snap
+        g = s["g"]
+        s["t"] += 1
+        # pull in tight behind him
+        bx, by = g.x - math.cos(g.angle) * 7, g.y - math.sin(g.angle) * 4
+        if not self.rect_hits(pygame.Rect(round(bx) - 5, round(by) - 4, 10, 8)):
+            self.px += (bx - self.px) * 0.3
+            self.py += (by - self.py) * 0.3
+        if s["t"] == 4:
+            self.speak(g, "GURK!", 40)
+        if s["t"] == SNAP_KILL:
+            audio.play("neck_snap")
+            self.ripples.append([g.x, g.y - 14, 10])
+        if s["t"] >= SNAP_T:
+            g.alive = False
+            g.say = None
+            self.snap = None
+            self.game.kills = getattr(self.game, "kills", 0) + 1
+            self.bodies.append(dict(x=g.x, y=g.y, img=_body_img(g.map_art, g.face), found=False))
+            self.message("SILENT TAKEDOWN", 90)
+
+    # ---- items and missions -----------------------------------------------
     def _items(self, inp):
+        pr = self.player_rect()
         bp = self.box_pickup
-        if bp and self.player_rect().colliderect(pygame.Rect(bp[0] - 7, bp[1] - 6, 14, 12)):
+        if bp and pr.colliderect(pygame.Rect(bp[0] - 7, bp[1] - 6, 14, 12)):
             self.box_pickup = None
             self.has_box = True
             self.box_on = True
@@ -884,15 +1353,151 @@ class StealthScene:
             audio.play("mgs_item")
             self.message("CARDBOARD BOX: EQUIPPED", 150)
             self.message("L / SPACE: TAKE IT OFF AND ON", 120)
+        for it in list(self.items):
+            if pr.colliderect(pygame.Rect(it["x"] - 7, it["y"] - 7, 14, 14)):
+                self.items.remove(it)
+                self._pickup(it)
         if self.has_box and inp.pressed("special"):
             self.box_on = not self.box_on
             audio.play("box_on" if self.box_on else "box_off")
+        # keycard doors open as he walks up with the card
+        near = pr.inflate(12, 12)
+        for ty in range(near.top // T, (near.bottom - 1) // T + 1):
+            for tx in range(near.left // T, (near.right - 1) // T + 1):
+                if self.tile(tx, ty) == "K":
+                    if self.keycard:
+                        self.set_tile(tx, ty, ".")
+                        audio.play("door_open")
+                        self.message("ACCESS GRANTED", 90)
+                    else:
+                        self.message("LOCKED: KEYCARD NEEDED", 60)
+                elif self.tile(tx, ty) == "D":
+                    self.message("MAGNETIC LOCK. CUT THE POWER.", 60)
         if inp.pressed("punch") and not self.box_on:
+            g = self.snap_target()
+            if g is not None:
+                self.start_snap(g)
+                return
+            if self._plant():
+                return
             r = self.player_rect().inflate(10, 10)
             if self.rect_hits(r):
                 audio.play("knock")
                 self.ripples.append([self.px, self.py - 6, 0])
                 self._noise(KNOCK_HEAR)
+
+    def _pickup(self, it):
+        k = it["kind"]
+        mx = self.game.akuma_max
+        if k == "snack":
+            heal = heal_amount(it["name"], mx)
+            self.hp = min(mx, self.hp + heal)
+            audio.play("pickup")
+            self.message("%s +%d" % (it["name"], heal), 100)
+            self.pops.append([it["x"], it["y"] - 12, "+%d" % heal, 50])
+        elif k == "keycard":
+            self.keycard = True
+            self.c4 = 3
+            audio.play("mgs_item")
+            self.message("KEYCARD AND C4 x3", 140)
+            if self.mission == 0:
+                self.mission = 1
+                self._ring("keycard")
+        elif k == "lifeup":
+            self.game.akuma_max = mx + 20
+            self.hp = min(self.game.akuma_max, self.hp + 20)
+            audio.play("mgs_item")
+            self.message("LIFE UP! MAX LIFE +20", 140)
+            self.pops.append([it["x"], it["y"] - 12, "LIFE UP", 60])
+        elif k == "powup":
+            self.game.power = getattr(self.game, "power", 1.0) + 0.15
+            audio.play("mgs_item")
+            self.message("DAMAGE UP! POWER x%.2f" % self.game.power, 140)
+            self.pops.append([it["x"], it["y"] - 12, "POWER UP", 60])
+
+    def _plant(self):
+        for (tx, ty), done in self.gens.items():
+            if done or not pygame.Rect(tx * T, ty * T, T, T).inflate(22, 22).collidepoint(self.px, self.py):
+                continue
+            if self.c4 <= 0:
+                self.message("NO C4. RAID THE BARRACKS FIRST.", 100)
+                return True
+            self.gens[(tx, ty)] = True
+            self.c4 -= 1
+            audio.play("plant")
+            n = sum(self.gens.values())
+            self.message("C4 PLANTED (%d/3)" % n, 110)
+            if n == len(self.gens):
+                self.detonate = DETONATE_T
+                self.message("ALL CHARGES SET... DETONATING", 120)
+            return True
+        return False
+
+    def _missions(self):
+        if self.detonate:
+            self.detonate -= 1
+            if self.detonate % 20 == 0:
+                audio.play("c4_beep")
+            if self.detonate == 0:
+                self._blackout()
+        p = self.prisoner
+        if not p.free:
+            if p.say:
+                p.say[1] -= 1
+                if p.say[1] <= 0:
+                    p.say = None
+            p.chat_cd -= 1
+            if p.chat_cd <= 0 and math.hypot(p.x - self.px, p.y - self.py) < 120:
+                p.chat_cd = 600
+                self.speak(p, "AKUMA-SAN?! OVER HERE!" if not self.power else self.rng.choice(PRISONER_LINES))
+            if self.mission == 2 and self.player_rect().inflate(6, 6).colliderect(
+                    pygame.Rect(p.x - 6, p.y - 6, 12, 12)):
+                p.free = True
+                self.mission = 3
+                audio.play("mgs_item")
+                self.message("PRISONER FREED", 120)
+                self._ring("rescue")
+        b = self.boss_g
+        if b is not None and b.alive:
+            b.anim += 1
+            if b.say:
+                b.say[1] -= 1
+                if b.say[1] <= 0:
+                    b.say = None
+            tx, ty = (BOSS_POST[0] + 0.5) * T, (BOSS_POST[1] + 0.5) * T
+            if self._step_toward(b, tx, ty, G_WALK + 0.2):
+                self._turn(b, math.atan2(self.py - b.y, self.px - b.x), 0.1)
+                b.face = 1 if self.px > b.x else -1
+            b.chat_cd -= 1
+            if b.chat_cd <= 0 and math.hypot(b.x - self.px, b.y - self.py) < 160:
+                b.chat_cd = 300
+                self.speak(b, self._line("boss", BOSS_LINES))
+
+    def _blackout(self):
+        self.power = False
+        self.shake = 40
+        audio.play("boom")
+        for (tx, ty), done in self.gens.items():
+            self.ripples.append([(tx + 0.5) * T, (ty + 0.5) * T, 0])
+        for y, row in enumerate(self.grid):
+            for x, c in enumerate(row):
+                if c == "D":
+                    self.grid[y] = self.grid[y][:x] + "." + self.grid[y][x + 1:]
+        self.set_tile(PRISONER_AT[0], PRISONER_AT[1], self.tile(*PRISONER_AT))   # re-render
+        self.message("POWER CUT!", 120)
+        if self.phase == "normal":
+            self.phase, self.timer = "caution", CAUTION_T
+        if self.mission == 1:
+            self.mission = 2
+            self._ring("power")
+
+    def _boss_arrives(self):
+        b = make_boss(self.rng)
+        b.x, b.y = (BOSS_FROM[0] + 0.5) * T, (BOSS_FROM[1] + 0.5) * T
+        self.boss_g = b
+        audio.play("mgs_alert", 0.6)
+        self.message("THE ELEVATOR IS COMING UP...", 150)
+        self.speak(b, "YOU'RE PRETTY GOOD.", 150)
 
     def _camera(self, c):
         c["t"] += 1
@@ -913,12 +1518,24 @@ class StealthScene:
                     self.message("INFRARED SENSOR TRIPPED", 90)
                 self.spotted()
 
+    # ---- the soldiers ------------------------------------------------------
     def _guard(self, g, vis):
         g.anim += 1
         if g.exclaim:
             g.exclaim -= 1
         if g.huh:
             g.huh -= 1
+        if g.say:
+            g.say[1] -= 1
+            if g.say[1] <= 0:
+                g.say = None
+        if g.kind == "smoker" and g.state == "patrol" and g.anim % 46 == 0:
+            g.puffs.append([g.x + g.face * 8, g.y - 22, 0])
+        for p in g.puffs:
+            p[0] += 0.12 + 0.1 * math.sin(p[2] / 9)
+            p[1] -= 0.28
+            p[2] += 1
+        g.puffs = [p for p in g.puffs if p[2] < 70]
         sees = vis != "hidden" and self.guard_sees(g)
         d = math.hypot(self.px - g.x, self.py - g.y)
         # ---- noticing ----
@@ -930,21 +1547,24 @@ class StealthScene:
                     self.message("IT'S AKUMA IN A BOX!", 100)
                     self.spotted(g)
                 else:
-                    self._suspect(g, self.px, self.py)
+                    self._suspect(g, self.px, self.py, why="box")
             else:
-                reach = VIEW_RANGE * (SHADOW_K if self.in_shadow(self.px, self.py) else 1)
-                g.notice += 2 if d < reach * 0.8 else 1
+                reach = g.range * (SHADOW_K if self.in_shadow(self.px, self.py) else 1)
+                g.notice += (2 if d < reach * 0.8 else 1) * (0.5 if g.kind == "smoker" else 1)
                 if d < reach * NEAR_K or g.notice >= NOTICE_T or self.phase in ("evasion", "caution") \
                         and g.notice > NOTICE_T // 2:
                     self.spotted(g)
                 else:
-                    self._suspect(g, self.px, self.py)
+                    self._suspect(g, self.px, self.py, why="seen")
         elif g.notice:
             g.notice -= 0.25 if g.state == "suspicious" else 1
             g.notice = max(0, g.notice)
+        if g.state in ("patrol", "suspicious"):
+            self._look_for_bodies(g)
         # ---- acting ----
         if g.state == "patrol":
             self._patrol(g)
+            self._chatter(g, d)
         elif g.state == "suspicious":
             self._investigate(g)
         elif g.state == "alert":
@@ -958,22 +1578,55 @@ class StealthScene:
         elif g.state == "search":
             self._search(g)
 
+    def _chatter(self, g, d):
+        g.chat_cd -= 1
+        if g.chat_cd > 0 or g.say or self.chat_cd or d > 170:
+            return
+        g.chat_cd = self.rng.randint(900, 1800)
+        self.chat_cd = CHAT_GAP
+        self.speak(g, self._line(g.kind, CHATTER.get(g.kind, CHATTER["guard"])))
+
+    def _look_for_bodies(self, g):
+        for b in self.bodies:
+            if b["found"] or self.in_bush(b["x"], b["y"]):
+                continue
+            if self.in_view(g.x, g.y - 4, g.angle, g.half, g.range, b["x"], b["y"] - 4):
+                b["found"] = True
+                g.state = "patrol"            # fresh suspicion, aimed at the body
+                self._suspect(g, b["x"], b["y"], why="body")
+                if self.phase == "normal":
+                    self.phase, self.timer = "caution", CAUTION_T
+                    self.message("A BODY WAS FOUND. CAUTION", 120)
+                return
+
     def _patrol(self, g):
-        x, y, wait = g.route[g.ri]
+        x, y, wait, face = g.route[g.ri]
         if g.wait > 0:
             g.wait -= 1
             g.moving = False
             g.look_t += 1
-            # stopped: turn the head left and right
-            self._turn(g, g.look_base + math.sin(g.look_t / 34) * 1.1, 0.05)
+            self._glance(g)
             if g.wait == 0:
                 g.ri = (g.ri + 1) % len(g.route)
             return
         speed = G_CAUTION if self.phase == "caution" else G_WALK
         if self._step_toward(g, x, y, speed):
-            g.wait = wait if len(g.route) > 1 else 10 ** 9
-            g.look_base = g.angle
+            g.wait = 10 ** 9 if g.post else wait
+            g.look_base = face if face is not None else g.angle
             g.look_t = 0
+
+    def _glance(self, g):
+        """On post: stare one way; once a cycle look left, then right, then back."""
+        c, L = g.look_t % g.cycle, g.cycle
+        if c < L - 150:
+            tgt = g.look_base
+        elif c < L - 100:
+            tgt = g.look_base - 0.9
+        elif c < L - 50:
+            tgt = g.look_base + 0.9
+        else:
+            tgt = g.look_base
+        self._turn(g, tgt, 0.05)
 
     def _investigate(self, g):
         g.t += 1
@@ -999,6 +1652,7 @@ class StealthScene:
             g.moving = False
             self._turn(g, g.look_base + math.sin(g.t / 26) * 1.0, 0.07)
             if g.t >= 150:
+                self.speak(g, self.rng.choice(GIVE_UP.get(g.why, GIVE_UP["noise"])), 150)
                 self._back_to_patrol(g)
 
     def _search(self, g):
@@ -1021,17 +1675,30 @@ class StealthScene:
             g.look_base = g.angle
 
     def _touch(self):
-        if self.invuln or self.ignore_player:
+        if self.invuln:
             return
         pr = self.player_rect()
+        b = self.boss_g
+        if b is not None and b.alive and pr.inflate(4, 4).colliderect(b.rect()):
+            if self.phase != "alert":
+                self.phase, self.timer = "alert", ALERT_T
+            self.encounter = (b, False)
+            self.encounter_t = 0
+            audio.play("encounter")
+            return
+        if self.ignore_player:
+            return
         for g in self.guards:
-            if not g.alive or not pr.colliderect(g.rect()):
+            if not g.alive or not pr.colliderect(g.rect()) or (self.snap and self.snap["g"] is g):
                 continue
             aware = g.state in ("alert", "search") or self.phase in ("alert", "evasion")
-            if self.box_on and not aware:
-                self.message("IT'S AKUMA IN A BOX!", 100)
+            hidden = self.box_on or self.in_bush()
+            if hidden and not aware:
+                self.message("IT'S AKUMA IN A %s!" % ("BUSH" if self.in_bush() else "BOX"), 100)
                 self.spotted(g)
                 aware = True
+            elif not aware and self.behind(g):
+                continue                     # right behind him and he hasn't noticed: snap him
             g.allies = []
             if aware:
                 if self.phase != "alert":
@@ -1054,7 +1721,11 @@ class StealthScene:
             for g in down:
                 g.alive = False
                 g.allies = []
-            self.message("%d GENOME SOLDIER%s DOWN" % (len(down), "S" if len(down) > 1 else ""), 110)
+            elite = sum(1 for g in down if getattr(g, "kind", "") == "elite")
+            if elite and len(down) == 1:
+                self.message("RED BERET DOWN", 110)
+            else:
+                self.message("%d SOLDIER%s DOWN" % (len(down), "S" if len(down) > 1 else ""), 110)
             if self.phase == "alert":
                 self.phase = "evasion"
                 self.timer = EVASION_T
@@ -1070,33 +1741,64 @@ class StealthScene:
     def camera(self):
         cx = int(self.px - W / 2)
         cy = int(self.py - H / 2)
-        return max(0, min(self.mw - W, cx)), max(0, min(self.mh - H, cy))
+        cx, cy = max(0, min(self.mw - W, cx)), max(0, min(self.mh - H, cy))
+        if self.shake:
+            cx += self.rng.randint(-3, 3)
+            cy += self.rng.randint(-2, 2)
+        return cx, cy
 
     def draw(self, surf):
         if self.stage in ("ring", "codec"):
             self._draw_codec(surf)
             return
         cx, cy = self.camera()
+        surf.fill((0, 0, 0))
         surf.blit(self.map_surf, (0, 0), (cx, cy, W, H))
         view = pygame.Rect(cx - 100, cy - 100, W + 200, H + 200)
         for fx, fy, life in self.footprints:
             surf.fill((150, 162, 190), (round(fx) - cx, round(fy) - cy, 2, 1))
+        # generators: a blinking C4 on the planted ones
+        for (tx, ty), done in self.gens.items():
+            x, y = tx * T - cx, ty * T - cy
+            if done and self.power:
+                surf.blit(self.icons["c4"], (x + 3, y + 8))
+                if (self.anim // 10) % 2:
+                    surf.fill((255, 40, 40), (x + 11, y + 10, 2, 2))
+            elif not self.power:
+                pygame.draw.line(surf, (30, 30, 30), (x + 2, y + 2), (x + 13, y + 12), 2)
+                pygame.draw.line(surf, (30, 30, 30), (x + 13, y + 3), (x + 4, y + 13), 2)
+        # bodies
+        for b in self.bodies:
+            img = b["img"]
+            surf.blit(img, (round(b["x"]) - img.get_width() // 2 - cx, round(b["y"]) - img.get_height() + 4 - cy))
+        # pickups
+        for it in self.items:
+            x, y = round(it["x"]) - cx, round(it["y"]) - cy + round(math.sin(self.anim / 14 + it["x"]) * 1.5)
+            if not (-16 < x < W + 16 and -16 < y < H + 16):
+                continue
+            img = snack_image(it["name"]) if it["kind"] == "snack" else self.icons[it["kind"]]
+            pygame.draw.ellipse(surf, (40, 46, 70), (x - 5, round(it["y"]) - cy + 3, 10, 3))
+            surf.blit(img, (x - img.get_width() // 2, y - img.get_height() // 2 - 2))
+            if it["kind"] != "snack" and (self.anim // 12) % 3 == 0:
+                surf.fill((255, 255, 255), (x + 4, y - 7, 1, 1))
         # vision cones on the floor
         cones = pygame.Surface((W, H), pygame.SRCALPHA)
         for g in self.guards:
             if g.alive and view.collidepoint(g.x, g.y):
                 col = (255, 40, 30, 96) if g.state in ("alert",) else \
                     (255, 190, 30, 96) if g.state in ("suspicious", "search") else (40, 120, 255, 84)
-                reach = VIEW_RANGE * (CAUTION_K if self.phase == "caution" else 1)
-                pygame.draw.polygon(cones, col, self._cone(g.x, g.y - 4, g.angle, VIEW_HALF, reach, cx, cy))
-        for c in self.cameras:
-            if view.collidepoint(c["x"], c["y"]):
-                col = (255, 40, 30, 100) if c["flash"] else (255, 200, 40, 80)
-                pygame.draw.polygon(cones, col, self._cone(c["x"], c["y"], c["angle"], CAM_HALF, CAM_RANGE, cx, cy))
+                reach = g.range * (CAUTION_K if self.phase == "caution" else 1)
+                pygame.draw.polygon(cones, col, self._cone(g.x, g.y - 4, g.angle, g.half, reach, cx, cy))
+        if self.power:
+            for c in self.cameras:
+                if view.collidepoint(c["x"], c["y"]):
+                    col = (255, 40, 30, 100) if c["flash"] else (255, 200, 40, 80)
+                    pygame.draw.polygon(cones, col, self._cone(c["x"], c["y"], c["angle"], CAM_HALF, CAM_RANGE,
+                                                               cx, cy))
         surf.blit(cones, (0, 0))
         # lasers
         for lz in self.lasers:
-            if lz["t"] < lz["on"]:
+            if self.power and lz["t"] < lz["on"]:
                 x = round(lz["x"]) - cx
                 col = (255, 40, 40) if (self.anim // 2) % 3 else (255, 160, 160)
                 pygame.draw.line(surf, col, (x, lz["y0"] - cy), (x, lz["y1"] - cy))
@@ -1110,33 +1812,55 @@ class StealthScene:
             if (self.anim // 12) % 3 == 0:
                 surf.fill((255, 255, 255), (round(bx) + 5 - cx, round(by) - 7 - cy, 1, 1))
         # y-sorted actors
-        actors = [(self.py, None)] + [(g.y, g) for g in self.guards if g.alive and view.collidepoint(g.x, g.y)]
+        actors = [(self.py, "akuma")] + [(g.y, g) for g in self.guards if g.alive and view.collidepoint(g.x, g.y)]
+        if not self.prisoner.free:
+            actors.append((self.prisoner.y, "prisoner"))
+        if self.boss_g is not None and self.boss_g.alive:
+            actors.append((self.boss_g.y, self.boss_g))
         actors.sort(key=lambda a: a[0])
         for _, g in actors:
-            if g is None:
+            if g == "akuma":
                 self._draw_akuma(surf, cx, cy)
+            elif g == "prisoner":
+                p = self.prisoner
+                img, (ax, ay) = p.art.frame(p.face, False, 0, self.anim)
+                surf.blit(img, (round(p.x) - ax - cx, round(p.y) - ay + 2 - cy))
             else:
-                img, (ax, ay) = g.map_art.frame(g.face, g.moving, g.walked, g.anim)
-                pygame.draw.ellipse(surf, (40, 46, 70), (round(g.x) - 7 - cx, round(g.y) - cy - 1, 14, 4))
-                surf.blit(img, (round(g.x) - ax - cx, round(g.y) - ay + 2 - cy))
-                # gun barrel pointing where he looks
-                hx, hy = round(g.x) - cx, round(g.y) - 12 - cy
-                pygame.draw.line(surf, (30, 30, 34), (hx, hy), (hx + round(math.cos(g.angle) * 8),
-                                                               hy + round(math.sin(g.angle) * 8)), 2)
+                self._draw_guard(surf, g, cx, cy)
+        # bushes cover whoever is in them
+        for bx, by in self.bushes:
+            if -24 < bx - cx < W + 4 and -24 < by - cy < H + 4:
+                surf.blit(self.tiles["bush"], (bx - cx, by - cy))
+        if self.in_bush() and not self.box_on:     # a pair of eyes in the leaves
+            x, y = round(self.px) - cx, round(self.py) - cy - 9
+            if (self.anim // 50) % 4:
+                surf.fill((255, 240, 200), (x - 3 + self.pface, y, 2, 1))
+                surf.fill((255, 240, 200), (x + 1 + self.pface, y, 2, 1))
+        for p in self.leaves:
+            surf.fill((70, 136, 84), (round(p[0]) - cx, round(p[1]) - cy, 2, 1))
         # shadows darken whoever stands in them
         surf.blit(self.dark, (0, 0), (cx, cy, W, H))
+        if not self.power:
+            surf.blit(self.night, (0, 0), (cx, cy, W, H))
         for c in self.cameras:
             x, y = round(c["x"]) - cx, round(c["y"]) - cy
             if -10 < x < W + 10 and -10 < y < H + 10:
                 pygame.draw.rect(surf, (40, 40, 48), (x - 4, y - 4, 8, 6))
                 pygame.draw.line(surf, (80, 80, 92), (x, y), (x + round(math.cos(c["angle"]) * 6),
                                                               y + round(math.sin(c["angle"]) * 6)), 3)
-                surf.fill((255, 40, 40) if c["flash"] or (self.anim // 20) % 2 else (90, 20, 20), (x - 1, y - 3, 2, 2))
-        # marks over heads (drawn above the shadow so they always read)
+                on = self.power and (c["flash"] or (self.anim // 20) % 2)
+                surf.fill((255, 40, 40) if on else (60, 20, 20), (x - 1, y - 3, 2, 2))
+        # smoke, then marks and speech over heads (drawn above the shadow so they always read)
+        for g in self.guards:
+            for px, py, a in g.puffs:
+                r = 2 + a // 20
+                c = max(110, 200 - a)
+                pygame.draw.circle(surf, (c, c, c + 8), (round(px) - cx, round(py) - cy), r)
         for g in self.guards:
             if not g.alive:
                 continue
             x, y = round(g.x) - cx, round(g.y) - 36 - cy
+            mark = True
             if g.exclaim:
                 k = 3 if g.exclaim > 50 else 2
                 draw_text(surf, "!", x, y - 6 * (k - 2), (255, 50, 30), scale=k, shadow=(255, 255, 255), align="center")
@@ -1144,8 +1868,21 @@ class StealthScene:
                 draw_text(surf, "?", x, y, (255, 230, 70), scale=2, align="center")
             elif g.state == "suspicious" and g.sub == "search" and (self.anim // 20) % 2:
                 draw_text(surf, "...", x, y + 6, (230, 230, 240), align="center")
+            else:
+                mark = False
+            if g.say and -60 < x < W + 60 and -20 < y < H + 60:
+                self._bubble(surf, x, y - (10 if mark else -2), g.say[0])
+        tgt = self.snap_target() if self.stage == "play" and not self.ignore_player else None
+        if tgt is not None and (self.anim // 8) % 3:
+            draw_text(surf, "J: SNAP", round(tgt.x) - cx, round(tgt.y) - 46 - cy, (255, 255, 255),
+                      shadow=(160, 20, 20), align="center")
+        for who in (self.prisoner, self.boss_g):
+            if who is not None and getattr(who, "say", None) and not getattr(who, "free", False):
+                self._bubble(surf, round(who.x) - cx, round(who.y) - 34 - cy, who.say[0])
         for x, y, t in self.ripples:
             pygame.draw.circle(surf, (230, 240, 255), (round(x) - cx, round(y) - cy), 6 + t * 2, 1)
+        for x, y, text, life in self.pops:
+            draw_text(surf, text, round(x) - cx, round(y) - cy, (140, 255, 160), align="center")
         # snow over the yard
         for fx, fy, sp in self.flakes:
             if (fy + cy) // T >= 13:
@@ -1155,16 +1892,79 @@ class StealthScene:
             self._freeze_fx(surf)
         if self.stage == "card":
             self._card(surf)
-        if self.stage == "won":
-            s = pygame.Surface((W, 40), pygame.SRCALPHA)
-            s.fill((0, 0, 0, 170))
-            surf.blit(s, (0, 62))
-            draw_text(surf, "ELEVATOR REACHED", W // 2, 68, (140, 255, 170), scale=2, align="center")
-            draw_text(surf, "AKUMA SLIPS OUT OF THE COMPOUND", W // 2, 88, (220, 230, 220), align="center")
         if self.menu.open:
             self.menu.draw(surf)
         if self.encounter:
             self._encounter_fx(surf)
+
+    def _draw_guard(self, surf, g, cx, cy):
+        snapping = self.snap and self.snap["g"] is g
+        img, (ax, ay) = g.map_art.frame(g.face, g.moving, g.walked, g.anim if not snapping else 0)
+        jx = 0
+        if snapping:
+            jx = (self.snap["t"] // 2) % 3 - 1 if self.snap["t"] < SNAP_KILL else 0
+            if self.snap["t"] >= SNAP_KILL:     # going limp
+                img = pygame.transform.rotate(img, -g.face * min(60, (self.snap["t"] - SNAP_KILL) * 5))
+        x, y = round(g.x) - cx + jx, round(g.y) - cy
+        pygame.draw.ellipse(surf, (40, 46, 70), (x - 7, y - 1, 14, 4))
+        top = y - ay + 2
+        surf.blit(img, (x - ax, top))
+        if g.kind == "elite":                     # the red beret
+            hx = x + g.face * 1
+            pygame.draw.ellipse(surf, (200, 30, 40), (hx - 5, top - 1, 10, 4))
+            surf.fill((140, 10, 20), (hx - 5, top + 2, 10, 1))
+            surf.fill((255, 220, 60), (hx + g.face * 2, top, 1, 1))
+        if g.kind == "smoker" and g.state == "patrol" and not snapping:
+            mx, my = x + g.face * 4, top + 11
+            surf.fill((40, 30, 30), (min(mx, mx + g.face * 4) - 1, my - 1, 6, 3))
+            surf.fill((250, 250, 250), (min(mx, mx + g.face * 3), my, 4, 1))
+            surf.fill((255, 120, 40) if (g.anim // 6) % 3 else (255, 230, 120), (mx + g.face * 4, my, 1, 1))
+        if g.kind == "boss":                      # a cowboy hat, and a revolver spun round a finger
+            hx = x + g.face
+            surf.fill((120, 76, 36), (hx - 8, top + 2, 16, 2))
+            surf.fill((150, 98, 48), (hx - 4, top - 2, 8, 4))
+            surf.fill((60, 36, 20), (hx - 4, top + 1, 8, 1))
+            a = self.anim / 4
+            rx, ry = x + g.face * 6, top + 14
+            pygame.draw.line(surf, (60, 60, 70), (rx, ry), (rx + round(math.cos(a) * 5), ry + round(math.sin(a) * 3)), 2)
+        else:
+            # gun barrel pointing where he looks
+            hx, hy = x, y - 12
+            pygame.draw.line(surf, (30, 30, 34), (hx, hy), (hx + round(math.cos(g.angle) * 8),
+                                                           hy + round(math.sin(g.angle) * 8)), 2)
+
+    def _bubble(self, surf, x, y, text):
+        """A comic speech bubble whose tail points down at (x, y)."""
+        lines = wrap(text, 22)
+        w = max(len(s) for s in lines) * 6 + 5
+        h = len(lines) * 9 + 3
+        bx = max(2, min(W - w - 2, x - w // 2))
+        by = max(2, y - h - 3)
+        # keep clear of the radar (top right) and the life bar / objective (top left)
+        for cand in (bx, HUD_RADAR.left - w - 2, HUD_LIFE.right + 2):
+            r = pygame.Rect(cand, by, w, h + 4)
+            if cand >= 2 and cand + w <= W - 2 and not r.collidelist([HUD_RADAR, HUD_LIFE]) + 1:
+                bx = cand
+                break
+        else:                                        # nowhere beside them: hang it under his feet
+            by = max(y + 50, HUD_RADAR.bottom + 4)
+            tx = max(bx + 4, min(bx + w - 5, x))
+            pygame.draw.rect(surf, (248, 248, 240), (bx, by, w, h))
+            pygame.draw.polygon(surf, (248, 248, 240), [(tx - 3, by), (tx + 2, by), (tx, by - 4)])
+            pygame.draw.rect(surf, (30, 30, 46), (bx, by, w, h), 1)
+            pygame.draw.line(surf, (30, 30, 46), (tx - 3, by - 1), (tx, by - 4))
+            pygame.draw.line(surf, (30, 30, 46), (tx + 2, by - 1), (tx, by - 4))
+            for i, s in enumerate(lines):
+                draw_text(surf, s, bx + 3, by + 2 + i * 9, (30, 30, 46), shadow=None)
+            return
+        tx = max(bx + 4, min(bx + w - 5, x))
+        pygame.draw.rect(surf, (248, 248, 240), (bx, by, w, h))
+        pygame.draw.polygon(surf, (248, 248, 240), [(tx - 3, by + h - 1), (tx + 2, by + h - 1), (tx, by + h + 3)])
+        pygame.draw.rect(surf, (30, 30, 46), (bx, by, w, h), 1)
+        pygame.draw.line(surf, (30, 30, 46), (tx - 3, by + h), (tx, by + h + 3))
+        pygame.draw.line(surf, (30, 30, 46), (tx + 2, by + h), (tx, by + h + 3))
+        for i, s in enumerate(lines):
+            draw_text(surf, s, bx + 3, by + 2 + i * 9, (30, 30, 46), shadow=None)
 
     def _draw_akuma(self, surf, cx, cy):
         if self.invuln and (self.invuln // 4) % 2:
@@ -1198,12 +1998,19 @@ class StealthScene:
         draw_text(surf, "LIFE", 6, 4, (200, 230, 255))
         pygame.draw.rect(surf, (10, 14, 24), (5, 12, 84, 7))
         pygame.draw.rect(surf, (40, 50, 60), (6, 13, 82, 5))
-        frac = max(0, self.hp) / mx
+        frac = max(0, min(1, self.hp / mx))
         col = (100, 220, 140) if frac > 0.3 else (255, 90, 60)
         pygame.draw.rect(surf, col, (6, 13, int(82 * frac), 5))
         pygame.draw.rect(surf, (230, 255, 230), (6, 13, int(82 * frac), 1))
-        if self.sneaking and self.stage == "play":
-            draw_text(surf, "SNEAKING", 6, 22, (160, 190, 230))
+        # the objective
+        if self.stage == "play":
+            draw_text(surf, self.objective, 6, 22, (255, 220, 120))
+            if self.detonate:
+                draw_text(surf, "DETONATION %d" % (self.detonate // 30 + 1), 6, 31, (255, 90, 60))
+            elif self.in_bush() and not self.ignore_player:
+                draw_text(surf, "IN A BUSH", 6, 31, (120, 220, 140))
+            elif self.sneaking:
+                draw_text(surf, "SNEAKING", 6, 31, (160, 190, 230))
         self._radar(surf)
         # item box
         bx, by = W - 38, H - 30
@@ -1216,8 +2023,29 @@ class StealthScene:
         else:
             draw_text(surf, "NO", bx + 17, by + 6, (90, 100, 120), align="center")
             draw_text(surf, "ITEM", bx + 17, by + 15, (90, 100, 120), align="center")
+        # keycard and C4 beside it
+        x = bx - 4
+        if self.c4:
+            x -= 24
+            surf.blit(self.icons["c4"], (x, by + 4))
+            draw_text(surf, "x%d" % self.c4, x + 12, by + 16, (230, 230, 210), align="center")
+        if self.keycard:
+            x -= 15
+            surf.blit(self.icons["keycard"], (x, by + 5))
         if self.messages:
             draw_text(surf, self.messages[0][0], W // 2, H - 12, (255, 240, 200), align="center")
+
+    def _targets(self):
+        """Where the radar points for the current objective."""
+        if self.mission == 0:
+            return [(it["x"], it["y"]) for it in self.items if it["kind"] == "keycard"]
+        if self.mission == 1:
+            return [((tx + 0.5) * T, (ty + 0.5) * T) for (tx, ty), d in self.gens.items() if not d]
+        if self.mission == 2:
+            return [(self.prisoner.x, self.prisoner.y)]
+        if self.boss_g is not None:
+            return [(self.boss_g.x, self.boss_g.y)]
+        return []
 
     def _radar(self, surf):
         rw, rh = 64, 44
@@ -1241,16 +2069,23 @@ class StealthScene:
                 if not g.alive:
                     continue
                 gx, gy = ox + g.x / 4 - sx, oy + g.y / 4 - sy
-                r = VIEW_RANGE / 4
-                pts = [(gx, gy), (gx + math.cos(g.angle - VIEW_HALF) * r, gy + math.sin(g.angle - VIEW_HALF) * r),
-                       (gx + math.cos(g.angle + VIEW_HALF) * r, gy + math.sin(g.angle + VIEW_HALF) * r)]
+                r = g.range / 4
+                pts = [(gx, gy), (gx + math.cos(g.angle - g.half) * r, gy + math.sin(g.angle - g.half) * r),
+                       (gx + math.cos(g.angle + g.half) * r, gy + math.sin(g.angle + g.half) * r)]
                 pygame.draw.polygon(surf, (60, 150, 90) if g.state == "patrol" else (170, 160, 60), pts, 1)
                 surf.fill((255, 60, 60), (round(gx) - 1, round(gy) - 1, 3, 3))
-            for c in self.cameras:
-                surf.fill((255, 230, 90), (round(ox + c["x"] / 4 - sx) - 1, round(oy + c["y"] / 4 - sy) - 1, 2, 2))
+            if self.power:
+                for c in self.cameras:
+                    surf.fill((255, 230, 90), (round(ox + c["x"] / 4 - sx) - 1, round(oy + c["y"] / 4 - sy) - 1, 2, 2))
             if (self.anim // 10) % 3:
                 surf.fill((255, 255, 255), (ox + rw // 2 - 1, oy + rh // 2 - 1, 3, 3))
             surf.set_clip(clip)
+            # objective markers, pinned to the radar's edge when off it
+            if (self.anim // 12) % 2:
+                for tx, ty in self._targets():
+                    mx = max(ox + 1, min(ox + rw - 3, round(ox + tx / 4 - sx) - 1))
+                    my = max(oy + 1, min(oy + rh - 3, round(oy + ty / 4 - sy) - 1))
+                    surf.fill((255, 220, 60), (mx, my, 3, 3))
         pygame.draw.rect(surf, (120, 200, 140), (ox - 1, oy - 1, rw + 2, rh + 2), 1)
         # phase + countdown under the radar
         if self.phase != "normal":
@@ -1267,7 +2102,14 @@ class StealthScene:
         surf.blit(s, (0, 52))
         draw_text(surf, "LEVEL %d" % self.level, W // 2, 58, (255, 220, 80), scale=2, align="center")
         draw_text(surf, "THE FROZEN COMPOUND", W // 2, 78, (230, 240, 255), align="center")
-        draw_text(surf, "SNEAK TO THE ELEVATOR. DON'T GET SEEN.", W // 2, 92, (180, 200, 230), align="center")
+        draw_text(surf, "COMPLETE THE MISSIONS. DRAW OUT THE COMMANDER.", W // 2, 92, (180, 200, 230),
+                  align="center")
+
+    def _portrait(self, who):
+        cid = PORTRAITS.get(who, "chunli")
+        if cid not in self._portraits:
+            self._portraits[cid] = _codec_portrait(cid)
+        return self._portraits[cid]
 
     def _draw_codec(self, surf):
         surf.fill((4, 12, 8))
@@ -1279,9 +2121,13 @@ class StealthScene:
             draw_text(surf, "PUSH ANY BUTTON", W // 2, 96, (90, 180, 110), align="center")
             draw_text(surf, FREQ, W // 2, 110, (150, 255, 170), scale=2, align="center")
             return
-        who, text = CODEC[self.line]
+        lines = self.codec_lines
+        who, text = lines[min(self.line, len(lines) - 1)]
+        caller = next((w for w, _ in reversed(lines[:self.line + 1]) if w != "AKUMA"),
+                      next((w for w, _ in lines if w != "AKUMA"), "CHUN-LI"))
         lx, rx, py = 30, W - 90, 20
-        for img, x, talking in ((self.akuma_img, lx, who == "AKUMA"), (self.caller_img, rx, who != "AKUMA")):
+        for img, x, talking in ((self._portrait("AKUMA"), lx, who == "AKUMA"),
+                                (self._portrait(caller), rx, who != "AKUMA")):
             surf.blit(img, (x, py))
             if not talking:
                 dim = pygame.Surface((60, 60), pygame.SRCALPHA)
@@ -1289,7 +2135,7 @@ class StealthScene:
                 surf.blit(dim, (x, py))
             pygame.draw.rect(surf, (120, 220, 140), (x - 2, py - 2, 64, 64), 1)
         draw_text(surf, "AKUMA", lx + 30, py + 66, (150, 255, 170), align="center")
-        draw_text(surf, "CHUN-LI", rx + 30, py + 66, (150, 255, 170), align="center")
+        draw_text(surf, caller, rx + 30, py + 66, (150, 255, 170), align="center")
         # frequency readout and signal bars
         draw_text(surf, "PTT", W // 2, py + 2, (90, 180, 110), align="center")
         draw_text(surf, FREQ, W // 2, py + 14, (150, 255, 170), scale=2, align="center")

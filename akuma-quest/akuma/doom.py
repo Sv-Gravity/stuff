@@ -9,11 +9,16 @@ mid-plane), then walls, floor, ceiling and sky are gathered per pixel from
 procedurally generated 64x64 textures, shaded by each cell's (flickering)
 light, distance fog and the glow of every flying hadouken, and blitted with
 pygame.surfarray. The wall distance of every column is kept as a z-buffer so
-billboard sprites (fighters from the sprite pack, fireballs, pickups) hide
-behind walls.
+billboard sprites (demons, fireballs, snacks) hide behind walls.
 
-The map is a hand-laid hell fortress: a tech-base start room, a demon hall,
-a blue key room, a red key cavern (with a secret wall), and a sky-lit arena
+The demons (imp, pinky, cacodemon, lost soul, zombieman) and Akuma's own
+first-person hands and feet (dark clawed hands, prayer beads, red ki flames)
+are drawn in code from shaded "capsules" (see rig_render). Fireballs pick a
+back / side / front view from their direction of flight relative to the camera.
+
+The map is a hand-laid hell fortress of green-grey stone under a red sky: a
+tech-base start room, a demon hall, a blue key room, a red key cavern (with a
+secret wall), and a sky-lit arena
 where CYBER-GIEF waits in front of the sealed exit portal.
 """
 
@@ -26,8 +31,9 @@ import pygame
 from . import audio
 from .akuma_sprites import CharArt, portrait
 from .config import W, H
-from .font import draw_text
+from .font import draw_text, text_surface
 from .pause import PauseMenu
+from .snacks import heal_amount, random_snack, snack_image
 
 LEVEL_NAME = "KNEE-DEEP IN THE DEMON"
 VIEW_H = 148                  # rows of 3D view; the status bar takes the rest
@@ -41,30 +47,36 @@ MOVE_SPEED = 0.055
 STRAFE_SPEED = 0.05
 TURN_SPEED = 0.05
 PLAYER_R = 0.22
-HADO_COST, SHINKU_COST = 1, 8
+HADO_COST, SHINKU_COST = 2, 16
 HADO_DMG, HADO_SPLASH = 25, 10
 SHINKU_DMG, SHINKU_SPLASH = 90, 45
 KICK_DMG = 30
-KI_START, KI_MAX = 30, 99
+PUNCH_DMG = 18
+SHORYU_DMG = 50
+TATSU_DMG = 28
+KI_START, KI_MAX = 60, 200
+KI_ORB, BIG_KI_ORB = 12, 50
 HADO_SPEED = 0.17
 ENEMY_SHOT_SPEED = 0.075
-ONIGIRI_HEAL = 40
+COMBO_WINDOW = 4              # special + punch / kick within this many frames = shoryuken / tatsumaki
+EXTRA_SNACKS = 8              # snacks scattered at random on top of the hand-placed ones
 CONTROLS = [
     "UP / DOWN: WALK FORWARD / BACK",
     "LEFT / RIGHT: TURN",
     "HOLD I (SHIELD) + LEFT / RIGHT: STRAFE",
-    "J: HADOUKEN (1 KI), HOLD TO KEEP FIRING",
-    "L: SHINKU HADOUKEN (8 KI), PIERCES",
-    "K: KICK, OPEN DOORS, PUSH SECRET WALLS",
+    "L: HADOUKEN (2 KI), HOLD TO KEEP FIRING",
+    "I + L: SHINKU HADOUKEN (16 KI), PIERCES",
+    "L + J: SHORYUKEN    L + K: TATSUMAKI",
+    "J: PUNCH    K: KICK (BOTH OPEN DOORS)",
     "BLUE AND RED DOORS NEED THEIR KEY",
-    "ONIGIRI HEAL. BLUE KI ORBS REFILL KI",
+    "SNACKS HEAL. BLUE KI ORBS REFILL KI",
     "KILL CYBER-GIEF, THEN TAKE THE PORTAL",
 ]
 
 # ---- textures ------------------------------------------------------------
 (T_HELL, T_FACE, T_TECH, T_COMP, T_FLESH, T_DOOR, T_DOOR_B, T_DOOR_R, T_BOSSDOOR, T_JAMB,
- T_SECRET, F_STONE, F_METAL, F_LAVA, C_STONE, C_LIGHT, F_EXIT, C_FLESH) = range(1, 19)
-N_TEX = 19
+ T_SECRET, F_STONE, F_METAL, F_LAVA, C_STONE, C_LIGHT, F_EXIT, C_FLESH, T_BAND) = range(1, 20)
+N_TEX = 20                    # T_HELL is the green-grey fortress stone, T_BAND the same with an iron band
 SKY = 99                      # ceiling id: open sky
 DOOR = 100                    # grid marker for a door cell
 MAP_W, MAP_H = 40, 32
@@ -88,28 +100,11 @@ def _fbm(rng, ts=TS, octaves=(4, 8, 16, 32)):
     return n / max(1e-6, n.max())
 
 
+_BAYER_T = (np.array([[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]], np.float32) + 0.5) / 16 - 0.5
+
+
 def _col(base, mult):
     return np.clip(np.array(base, np.float32)[None, None, :] * mult[..., None], 0, 255)
-
-
-def _tex_hell(rng, glow=True):
-    X, Y = np.meshgrid(np.arange(TS), np.arange(TS), indexing="ij")
-    n = _fbm(rng)
-    row = Y // 16
-    off = np.where(row % 2 == 1, 16, 0)
-    bx = (X + off) % 32
-    by = Y % 16
-    mortar = (bx < 2) | (by < 2)
-    brick_id = ((X + off) // 32) % 2 + row * 2
-    tint = np.array([rng.uniform(0.75, 1.15) for _ in range(16)])[brick_id % 16]
-    img = _col((110, 48, 34), (0.55 + 0.6 * n) * tint)
-    img[mortar] = _col((30, 12, 10), 0.7 + 0.5 * n)[mortar]
-    if glow:
-        # lava glowing through a few cracks
-        cr = np.abs(_smooth(rng, 6) - 0.5) < 0.018
-        cr &= _smooth(rng, 4) > 0.55
-        img[cr] = np.array((255, 120, 30))
-    return img
 
 
 def _tex_from_surface(s):
@@ -118,30 +113,6 @@ def _tex_from_surface(s):
 
 def _surface(img):
     return pygame.surfarray.make_surface(np.clip(img, 0, 255).astype(np.uint8))
-
-
-def _tex_face(rng):
-    s = _surface(_tex_hell(rng, glow=False))
-    pygame.draw.rect(s, (40, 16, 12), (6, 4, 52, 56))
-    pygame.draw.rect(s, (70, 30, 22), (8, 6, 48, 52))
-    pygame.draw.rect(s, (20, 8, 6), (8, 6, 48, 52), 1)
-    bone, dark = (176, 150, 116), (96, 74, 56)
-    pygame.draw.polygon(s, bone, [(16, 22), (8, 8), (20, 18)])      # horns
-    pygame.draw.polygon(s, bone, [(48, 22), (56, 8), (44, 18)])
-    pygame.draw.ellipse(s, bone, (16, 14, 32, 34))
-    pygame.draw.ellipse(s, dark, (16, 14, 32, 34), 1)
-    pygame.draw.rect(s, bone, (22, 40, 20, 12))
-    pygame.draw.ellipse(s, (10, 0, 0), (20, 24, 10, 9))             # eyes
-    pygame.draw.ellipse(s, (10, 0, 0), (34, 24, 10, 9))
-    pygame.draw.rect(s, (255, 40, 20), (24, 27, 3, 3))
-    pygame.draw.rect(s, (255, 40, 20), (38, 27, 3, 3))
-    pygame.draw.polygon(s, (20, 4, 2), [(32, 33), (29, 39), (35, 39)])
-    for k in range(5):
-        pygame.draw.rect(s, (230, 220, 190), (23 + k * 4, 44, 3, 6))
-        pygame.draw.line(s, dark, (23 + k * 4, 44), (23 + k * 4, 49))
-    pygame.draw.polygon(s, (240, 230, 200), [(25, 44), (27, 52), (29, 44)])   # fangs
-    pygame.draw.polygon(s, (240, 230, 200), [(35, 44), (37, 52), (39, 44)])
-    return _tex_from_surface(s)
 
 
 def _tex_tech(rng, computer=False):
@@ -236,13 +207,88 @@ def _tex_jamb(rng):
     return _tex_from_surface(s)
 
 
+def _blocks(rng, base, bw, bh, stagger=True, bevel=2, mortar=(22, 24, 20), vary=0.16, moss=True):
+    """Big bevelled stone blocks (bw x bh texels) in rows: the green-grey
+    fortress masonry. Returns (img, block id array)."""
+    X, Y = np.meshgrid(np.arange(TS), np.arange(TS), indexing="ij")
+    n = _fbm(rng)
+    fine = rng.random((TS, TS))
+    row = Y // bh
+    off = np.where((row % 2 == 1) & stagger, bw // 2, 0)
+    bx = (X + off) % bw
+    by = Y % bh
+    bid = ((X + off) // bw) % (TS // bw) + row * (TS // bw + 1)
+    tint = np.array([rng.uniform(1 - vary, 1 + vary) for _ in range(64)])[bid % 64]
+    hue = np.array([rng.uniform(-0.06, 0.06) for _ in range(64)])[bid % 64]
+    mult = (0.62 + 0.42 * n + 0.1 * fine) * tint
+    img = _col(base, mult)
+    img[..., 1] *= 1 + (hue if moss else hue * 0.3)
+    # bevels: light top/left, dark bottom/right, then the mortar
+    top = (by < bevel) | (bx < bevel)
+    bot = (by >= bh - bevel - 1) | (bx >= bw - bevel - 1)
+    img[top] = np.minimum(255, img[top] * 1.28)
+    img[bot] *= 0.62
+    mort = (by == bh - 1) | (bx == bw - 1)
+    img[mort] = np.array(mortar, np.float32) * (0.8 + 0.4 * n[mort, None])
+    # chips and cracks
+    cr = (np.abs(_smooth(rng, 7) - 0.5) < 0.012) & (_smooth(rng, 5) > 0.5)
+    img[cr] *= 0.45
+    if moss:
+        mm = _smooth(rng, 6) > 0.72
+        img[mm] = img[mm] * np.array((0.8, 0.95, 0.7))
+    return img, bid
+
+
+def _tex_stone(rng, support=False):
+    img, _ = _blocks(rng, (104, 114, 94), 32, 16)
+    if support:
+        # a riveted iron band down the middle, like the fortress corners
+        s = _surface(img)
+        pygame.draw.rect(s, (46, 48, 46), (24, 0, 16, 64))
+        pygame.draw.line(s, (92, 96, 92), (25, 0), (25, 63))
+        pygame.draw.line(s, (24, 24, 24), (39, 0), (39, 63))
+        for y in range(4, 64, 10):
+            pygame.draw.rect(s, (120, 124, 118), (28, y, 2, 2))
+            pygame.draw.rect(s, (120, 124, 118), (34, y, 2, 2))
+            pygame.draw.rect(s, (20, 20, 20), (29, y + 1, 1, 1))
+            pygame.draw.rect(s, (20, 20, 20), (35, y + 1, 1, 1))
+        return _tex_from_surface(s)
+    return img
+
+
+def _tex_face(rng):
+    """A skull plaque set in the stone (the framed skull of the reference)."""
+    s = _surface(_tex_stone(rng))
+    pygame.draw.rect(s, (30, 22, 16), (12, 8, 40, 48))
+    pygame.draw.rect(s, (92, 70, 46), (13, 9, 38, 46))
+    pygame.draw.rect(s, (64, 46, 30), (13, 9, 38, 46), 3)
+    pygame.draw.line(s, (130, 104, 70), (13, 9), (50, 9))
+    pygame.draw.line(s, (130, 104, 70), (13, 9), (13, 54))
+    pygame.draw.rect(s, (40, 30, 22), (17, 13, 30, 38))
+    bone, dark, lite = (186, 170, 140), (100, 86, 70), (230, 220, 196)
+    pygame.draw.ellipse(s, bone, (21, 16, 22, 22))
+    pygame.draw.rect(s, bone, (25, 33, 14, 9))
+    pygame.draw.ellipse(s, lite, (24, 18, 10, 8))
+    pygame.draw.ellipse(s, (16, 8, 6), (24, 25, 7, 7))
+    pygame.draw.ellipse(s, (16, 8, 6), (33, 25, 7, 7))
+    pygame.draw.rect(s, (220, 40, 20), (27, 28, 2, 2))
+    pygame.draw.rect(s, (220, 40, 20), (36, 28, 2, 2))
+    pygame.draw.polygon(s, (30, 16, 10), [(32, 31), (30, 35), (34, 35)])
+    for k in range(4):
+        pygame.draw.rect(s, lite, (26 + k * 3, 38, 2, 4))
+    pygame.draw.ellipse(s, dark, (21, 16, 22, 22), 1)
+    return _tex_from_surface(s)
+
+
 def _tex_floor(rng, kind):
     X, Y = np.meshgrid(np.arange(TS), np.arange(TS), indexing="ij")
     n = _fbm(rng)
     if kind == "stone":
-        img = _col((88, 70, 62), 0.6 + 0.5 * n)
-        grout = (X % 32 < 1) | (Y % 32 < 1)
-        img[grout] = _col((30, 24, 22), 1 + 0 * n)[grout]
+        # big brown flagstones, a little uneven
+        img, bid = _blocks(rng, (130, 98, 66), 32, 32, stagger=False, bevel=2, mortar=(34, 26, 20), vary=0.2,
+                           moss=False)
+        stain = _smooth(rng, 5) > 0.68
+        img[stain] *= 0.82
     elif kind == "metal":
         img = _col((92, 96, 104), 0.7 + 0.4 * n)
         grid = ((X % 8) < 1) | ((Y % 8) < 1)
@@ -255,9 +301,7 @@ def _tex_floor(rng, kind):
         cr |= np.abs(_smooth(rng, 9) - 0.5) < 0.02
         img[cr] = _col((255, 110, 20), 0.8 + 0.2 * n)[cr]
     elif kind == "ceil":
-        img = _col((60, 48, 44), 0.6 + 0.5 * n)
-        grout = (X % 16 < 1) | (Y % 16 < 1)
-        img[grout] = _col((24, 18, 16), 1 + 0 * n)[grout]
+        img, _ = _blocks(rng, (70, 70, 62), 32, 32, stagger=False, mortar=(20, 20, 18))
     elif kind == "light":
         img = _col((80, 82, 90), 0.7 + 0.3 * n)
         lamp = (X >= 16) & (X < 48) & (Y >= 16) & (Y < 48)
@@ -272,23 +316,43 @@ def _tex_floor(rng, kind):
     return img
 
 
-def _sky(rng, w=256, h=84):
+def _sky(rng, w=512, h=84):
+    """Blood-red sky over jagged red mountains (lit from the left)."""
     X, Y = np.meshgrid(np.arange(w), np.arange(h), indexing="ij")
     t = Y / (h - 1)
     img = np.zeros((w, h, 3), np.float32)
-    img[..., 0] = 40 + 200 * t ** 1.5
-    img[..., 1] = 6 + 70 * t ** 3
-    img[..., 2] = 14 + 10 * t
-    cl = _smooth(rng, 8, w)[:, :h]
-    img *= (0.7 + 0.5 * cl)[..., None]
-    # jagged mountains
-    ridge = np.zeros(w)
-    for f, a in ((1, 12), (3, 6), (9, 3)):
-        ph = rng.uniform(0, 6.28)
-        ridge += a * np.abs(np.sin(np.arange(w) * f * 2 * math.pi / w + ph))
-    ridge = h - 6 - ridge
-    m = Y > ridge[:, None]
-    img[m] = np.array((28, 6, 8))
+    img[..., 0] = 120 + 110 * t
+    img[..., 1] = 8 + 30 * t ** 2
+    img[..., 2] = 10 + 12 * t
+    cl = _smooth(rng, 16, w)[:, :h] * 0.6 + _smooth(rng, 32, w)[:, :h] * 0.4
+    streak = np.clip((cl - 0.45) * 3, 0, 1)
+    img *= (0.72 + 0.4 * streak)[..., None]
+    img[..., 0] = np.where(streak > 0.6, img[..., 0] * 1.12, img[..., 0])
+
+    def ridge(seed_f, amp, base):
+        r = np.zeros(w)
+        xs = np.arange(w)
+        for f, a in seed_f:
+            ph = rng.uniform(0, 6.28)
+            saw = np.abs(((xs * f / w + ph) % 1.0) - 0.5) * 2         # triangle peaks
+            r += a * (1 - saw)
+        return base - r * amp
+
+    for layer, (spec, amp, base, col_lit, col_dark) in enumerate((
+            (((3, 1.0), (7, 0.5), (17, 0.25)), 14, h - 16, (170, 40, 34), (96, 16, 16)),
+            (((5, 1.0), (11, 0.45), (29, 0.2)), 16, h - 2, (120, 22, 20), (52, 6, 8)))):
+        top = ridge(spec, amp, base)
+        slope = np.gradient(top)
+        lit = slope < 0                                  # faces the light (left)
+        m = Y > top[:, None]
+        depth = np.clip((Y - top[:, None]) / 22.0, 0, 1)
+        col = np.where(lit[:, None, None], np.array(col_lit, np.float32), np.array(col_dark, np.float32))
+        col = col * (1 - 0.45 * depth[..., None])
+        snow = m & (Y < top[:, None] + 2)
+        img[m] = col[m]
+        img[snow] = np.minimum(255, col[snow] * 1.35)
+    dith = np.tile(_BAYER_T, (w // 4 + 1, h // 4 + 1))[:w, :h]
+    img = np.floor(img / 12 + dith[..., None]) * 12
     return np.clip(img, 0, 255)
 
 
@@ -296,7 +360,8 @@ def build_textures(seed=13):
     rng = np.random.default_rng(seed)
     prng = random.Random(seed)
     T = np.zeros((N_TEX, TS, TS, 3), np.float32)
-    T[T_HELL] = _tex_hell(rng)
+    T[T_HELL] = _tex_stone(rng)
+    T[T_BAND] = _tex_stone(rng, support=True)
     T[T_FACE] = _tex_face(rng)
     T[T_TECH] = _tex_tech(_PR(prng, rng))
     T[T_COMP] = _tex_tech(_PR(prng, rng), computer=True)
@@ -400,7 +465,7 @@ class LevelMap:
         R("corridor", 5, 16, 8, 23, T_HELL, F_STONE, C_STONE, 0.6, flicker=1)
         self.grid[24, 5] = self.grid[24, 7] = self.grid[24, 8] = T_TECH
         # C: the demon hall
-        R("hall", 2, 8, 17, 15, T_HELL, F_STONE, C_STONE, 0.75, faces=0.22)
+        R("hall", 2, 8, 17, 15, T_HELL, F_STONE, SKY, 0.8, faces=0.08)
         for x, y in ((6, 11), (6, 12), (12, 11), (12, 12)):
             self.grid[y, x] = T_FACE
         R("corridor", 5, 16, 8, 23, T_HELL, F_STONE, C_STONE, 0.6, flicker=1)
@@ -415,7 +480,8 @@ class LevelMap:
         self.secrets.add((2, 3))
         # F: the antechamber and the arena under the burning sky
         R("ante", 28, 11, 29, 13, T_TECH, F_METAL, C_STONE, 0.6, flicker=3)
-        R("arena", 30, 3, 38, 26, T_FLESH, F_LAVA, SKY, 0.85, faces=0.2)
+        R("arena", 30, 3, 38, 26, T_HELL, F_STONE, SKY, 0.85, faces=0.08)
+        self.floor[12:15, 31:38] = F_LAVA                  # a lava pit round the arena's centre pillar
         for x, y in ((32, 9), (36, 9), (32, 17), (36, 17), (34, 13)):
             self.grid[y, x] = T_FACE
         self.grid[11:14, 29] = 0
@@ -429,19 +495,23 @@ class LevelMap:
         self.door(9, 7, T_DOOR_B, "blue")                  # hall -> red key cavern
         self.door(27, 12, T_DOOR_R, "red")                 # blue key room -> arena
         self.door(34, 27, T_BOSSDOOR, "boss")              # arena -> exit
+        # iron bands on some of the fortress stone
+        for (y, x) in zip(*np.nonzero(self.grid == T_HELL)):
+            if (x * 7 + y * 13) % 5 == 0 and (x, y) not in self.secrets:
+                self.grid[y, x] = T_BAND
         th = self.things
-        th += [("ki", 4, 26), ("onigiri", 9, 26), ("ki", 9, 29), ("torch", 4, 29), ("torch", 9, 25)]
-        th += [("ryu", 7, 18), ("ki", 5, 20)]
-        th += [("zangief", 4, 10), ("felicia", 15, 14), ("ryu", 13, 9), ("hsienko", 3, 14),
-               ("onigiri", 16, 9), ("ki", 2, 15), ("torch", 2, 8), ("torch", 17, 8),
+        th += [("ki", 4, 26), ("snack", 9, 26), ("ki", 9, 29), ("torch", 4, 29), ("torch", 9, 25)]
+        th += [("zombie", 7, 18), ("ki", 5, 20)]
+        th += [("pinky", 4, 10), ("zombie", 15, 14), ("imp", 13, 9), ("caco", 3, 14),
+               ("snack", 16, 9), ("ki", 2, 15), ("torch", 2, 8), ("torch", 17, 8),
                ("torch", 2, 15), ("torch", 17, 15)]
-        th += [("ken", 24, 10), ("felicia", 21, 15), ("morrigan", 25, 13), ("bluekey", 25, 15),
-               ("ki", 20, 10), ("onigiri", 26, 9)]
-        th += [("zangief", 12, 3), ("hsienko", 5, 2), ("ryu", 14, 5), ("morrigan", 8, 4),
-               ("redkey", 15, 2), ("onigiri", 4, 5), ("ki", 10, 6), ("torch", 3, 1), ("torch", 16, 6)]
-        th += [("bigki", 1, 2), ("onigiri", 1, 3), ("onigiri", 1, 4)]
-        th += [("boss", 34, 6), ("ken", 31, 4), ("hsienko", 37, 4),
-               ("onigiri", 31, 25), ("onigiri", 37, 25), ("bigki", 31, 12), ("bigki", 37, 20),
+        th += [("imp", 24, 10), ("zombie", 21, 15), ("soul", 25, 13), ("bluekey", 25, 15),
+               ("ki", 20, 10), ("snack", 26, 9)]
+        th += [("pinky", 12, 3), ("caco", 5, 2), ("imp", 14, 5), ("soul", 8, 4),
+               ("redkey", 15, 2), ("snack", 4, 5), ("ki", 10, 6), ("torch", 3, 1), ("torch", 16, 6)]
+        th += [("bigki", 1, 2), ("snack", 1, 3), ("snack", 1, 4)]
+        th += [("boss", 34, 6), ("imp", 31, 4), ("caco", 37, 4), ("soul", 31, 20),
+               ("snack", 31, 25), ("snack", 37, 25), ("bigki", 31, 12), ("bigki", 37, 20),
                ("torch", 30, 3), ("torch", 38, 3), ("torch", 30, 26), ("torch", 38, 26),
                ("portal", 34, 29)]
 
@@ -672,15 +742,6 @@ BOSS_ADD = (40, 0, 30)
 LIGHT_LEVELS = 10
 
 
-def _glow_ball(r, core, edge):
-    s = pygame.Surface((r * 2 + 2, r * 2 + 2), pygame.SRCALPHA)
-    for k in range(r, 0, -1):
-        t = k / r
-        c = [int(core[i] * (1 - t) + edge[i] * t) for i in range(3)]
-        pygame.draw.circle(s, c + [int(255 * (1 - t * t * 0.7))], (r + 1, r + 1), k)
-    return s
-
-
 def _burst_frames(core, edge, n=7, r=14):
     out = []
     rnd = random.Random(core[0] * 7 + edge[2])
@@ -697,15 +758,6 @@ def _burst_frames(core, edge, n=7, r=14):
             pygame.draw.circle(s, (255, 255, 255, a), (int(r + 2 + math.cos(an) * d), int(r + 2 + math.sin(an) * d)), 1)
         out.append(s)
     return out
-
-
-def _onigiri():
-    s = pygame.Surface((16, 15), pygame.SRCALPHA)
-    pygame.draw.polygon(s, (30, 30, 30), [(8, 0), (15, 13), (1, 13)])
-    pygame.draw.polygon(s, (250, 250, 245), [(8, 1), (14, 12), (2, 12)])
-    pygame.draw.rect(s, (16, 40, 24), (5, 8, 6, 6))
-    pygame.draw.line(s, (255, 255, 255), (7, 3), (5, 6))
-    return s
 
 
 def _keycard(col):
@@ -757,14 +809,532 @@ def _tinted(img, mult, add):
     return s
 
 
+# ---- shaded pixel-art rigs ---------------------------------------------------
+# First-person hands and feet, the demons and the fireballs are built from
+# "capsules" (a line segment with a radius at each end, at a depth): every
+# pixel gets the nearest capsule's surface normal, which is lit from the top
+# left and snapped to a small palette with a little ordered dither, then
+# outlined - a cheap way to get chunky, rounded, hand-shaded looking sprites.
+_BAYER = _BAYER_T
+PALETTES = {
+    "skin": [(34, 12, 12), (64, 26, 22), (98, 46, 34), (136, 70, 48), (174, 100, 68), (210, 136, 94)],
+    "claw": [(30, 6, 6), (70, 12, 12), (130, 24, 20), (190, 60, 50)],
+    "nail": [(40, 16, 18), (86, 44, 42), (140, 92, 86)],
+    "bead": [(22, 8, 8), (46, 16, 14), (78, 30, 24), (116, 50, 38), (170, 96, 80), (236, 190, 170)],
+    "cord": [(20, 8, 8), (40, 16, 14), (60, 26, 20)],
+    "gi": [(18, 14, 26), (34, 28, 48), (54, 44, 72), (78, 64, 100), (104, 88, 130)],
+    "pink": [(62, 14, 30), (112, 34, 56), (162, 64, 86), (206, 104, 120), (238, 152, 160)],
+    "brown": [(34, 18, 10), (66, 40, 22), (104, 68, 40), (142, 100, 60), (180, 138, 90)],
+    "red": [(48, 4, 8), (92, 12, 16), (146, 26, 26), (196, 50, 44), (234, 100, 84)],
+    "bone": [(58, 50, 42), (106, 94, 78), (156, 144, 120), (202, 192, 166), (238, 232, 212)],
+    "horn": [(70, 60, 50), (130, 118, 100), (196, 186, 160), (236, 230, 210)],
+    "mouth": [(14, 0, 4), (44, 4, 10), (80, 10, 16)],
+    "bluemouth": [(10, 6, 30), (24, 20, 70), (40, 44, 120)],
+    "fatigue": [(18, 28, 12), (36, 54, 24), (60, 82, 38), (88, 112, 56), (118, 142, 80)],
+    "pale": [(52, 36, 30), (100, 74, 62), (150, 116, 98), (196, 160, 136), (226, 196, 170)],
+    "metal": [(20, 20, 24), (48, 48, 56), (86, 86, 96), (136, 136, 148), (190, 190, 200)],
+    "loin": [(14, 26, 10), (30, 52, 20), (52, 80, 32)],
+    "blood": [(60, 0, 0), (110, 6, 6), (150, 14, 12)],
+    "hoof": [(20, 14, 14), (44, 34, 32), (74, 62, 56)],
+    "eye_y": [(255, 214, 40)],
+    "eye_r": [(255, 40, 20)],
+    "eye_g": [(110, 255, 70)],
+    "pupil": [(10, 0, 0)],
+    "fire": [(255, 250, 200)],
+    "flash": [(255, 255, 210)],
+    "flash2": [(255, 190, 60)],
+}
+_MAT_NAMES = list(PALETTES)
+_MAT_PAL = [np.array(PALETTES[n], np.float32) for n in _MAT_NAMES]
+_SHINY = {"bead": 0.9, "claw": 0.7, "skin": 0.25, "metal": 0.8, "red": 0.35, "bone": 0.3, "pink": 0.25}
+_FLAT = {n for n in PALETTES if len(PALETTES[n]) == 1}
+_NO_RIM = _FLAT | {"blood"}
+
+
+def rig_render(parts, w, h, light=(-0.5, -0.7, 0.55), rim=None, rim_k=0.55, outline=(14, 4, 6)):
+    """parts: (x0, y0, x1, y1, r0, r1, z, material). Returns an RGBA surface (w, h)."""
+    X, Y = np.meshgrid(np.arange(w, dtype=np.float32) + 0.5, np.arange(h, dtype=np.float32) + 0.5, indexing="ij")
+    Z = np.full((w, h), -1e9, np.float32)
+    NX = np.zeros((w, h), np.float32)
+    NY = np.zeros((w, h), np.float32)
+    NZ = np.ones((w, h), np.float32)
+    M = np.full((w, h), -1, np.int16)
+    for x0, y0, x1, y1, r0, r1, z, mat in parts:
+        rr = max(r0, r1) + 1
+        bx0, bx1 = max(0, int(min(x0, x1) - rr)), min(w, int(max(x0, x1) + rr) + 1)
+        by0, by1 = max(0, int(min(y0, y1) - rr)), min(h, int(max(y0, y1) + rr) + 1)
+        if bx0 >= bx1 or by0 >= by1:
+            continue
+        xs, ys = X[bx0:bx1, by0:by1], Y[bx0:bx1, by0:by1]
+        dx, dy = x1 - x0, y1 - y0
+        l2 = dx * dx + dy * dy
+        t = np.clip(((xs - x0) * dx + (ys - y0) * dy) / l2, 0, 1) if l2 > 1e-6 else np.zeros_like(xs)
+        ex = xs - (x0 + t * dx)
+        ey = ys - (y0 + t * dy)
+        r = r0 + (r1 - r0) * t
+        d2 = ex * ex + ey * ey
+        hz = np.sqrt(np.maximum(r * r - d2, 0))
+        zz = z + hz
+        sub = Z[bx0:bx1, by0:by1]
+        upd = (d2 < r * r) & (zz > sub)
+        if not upd.any():
+            continue
+        sub[upd] = zz[upd]
+        rs = np.maximum(r, 0.3)
+        NX[bx0:bx1, by0:by1][upd] = (ex / rs)[upd]
+        NY[bx0:bx1, by0:by1][upd] = (ey / rs)[upd]
+        NZ[bx0:bx1, by0:by1][upd] = (hz / rs)[upd]
+        M[bx0:bx1, by0:by1][upd] = _MAT_NAMES.index(mat)
+    l = np.array(light, np.float32)
+    l /= np.linalg.norm(l)
+    diff = np.clip(NX * l[0] + NY * l[1] + NZ * l[2], 0, 1)
+    hv = l + np.array((0, 0, 1), np.float32)
+    hv /= np.linalg.norm(hv)
+    spec = np.clip(NX * hv[0] + NY * hv[1] + NZ * hv[2], 0, 1) ** 24
+    dith = np.tile(_BAYER, (w // 4 + 1, h // 4 + 1))[:w, :h]
+    out = np.zeros((w, h, 3), np.float32)
+    mask = M >= 0
+    rimm = np.zeros((w, h), bool)
+    for i in np.unique(M[mask]):
+        m = M == i
+        name = _MAT_NAMES[i]
+        pal = _MAT_PAL[i]
+        n = len(pal)
+        if n == 1:
+            out[m] = pal[0]
+            continue
+        if name == "bead":
+            v = 0.08 + 0.62 * diff[m] + 0.9 * spec[m]
+        else:
+            v = 0.18 + 0.82 * diff[m] + _SHINY.get(name, 0) * spec[m]
+        idx = np.clip((v * (n - 0.01) + dith[m] * 0.5).astype(np.int32), 0, n - 1)
+        out[m] = pal[idx]
+        if name not in _NO_RIM:
+            rimm |= m
+    if rim is not None:
+        # the red ki glow catches the undersides and edges
+        rk = np.clip(NY * 0.6 - NZ * 0.8 + 0.35, 0, 1) * rim_k
+        rk = np.where((rk + dith * 0.3 > 0.32) & rimm, rk, 0)
+        out = out * (1 - rk[..., None]) + np.asarray(rim, np.float32) * rk[..., None]
+    mask[0, :] = mask[-1, :] = False
+    mask[:, 0] = mask[:, -1] = False
+    # creases: a pixel well behind its neighbour gets an ink line
+    crease = np.zeros_like(mask)
+    for sx, sy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+        crease |= mask & (np.roll(np.roll(Z, sx, 0), sy, 1) - Z > 2.6)
+    flat = np.isin(M, [_MAT_NAMES.index(f) for f in _FLAT])
+    crease &= ~flat
+    out[crease] = out[crease] * 0.35 + np.asarray(outline, np.float32) * 0.65
+    edge = np.zeros_like(mask)
+    for sx, sy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+        edge |= np.roll(np.roll(mask, sx, 0), sy, 1)
+    edge &= ~mask
+    out[edge] = outline
+    alpha = np.where(mask | edge, 255, 0).astype(np.uint8)
+    s = pygame.Surface((w, h), pygame.SRCALPHA)
+    pygame.surfarray.blit_array(s, np.clip(out, 0, 255).astype(np.uint8))
+    pygame.surfarray.pixels_alpha(s)[:] = alpha
+    return s
+
+
+KI_FLAME = ((255, 110, 70), (246, 40, 24), (226, 22, 16), (206, 14, 12), (178, 8, 8), (148, 4, 6), (118, 0, 4),
+            (90, 0, 0))
+HOT_FLAME = ((255, 255, 210), (255, 236, 120), (255, 190, 60), (255, 130, 30), (240, 70, 20), (200, 30, 10),
+             (150, 10, 6), (100, 0, 0))
+
+
+def flame_aura(sprite, phase, reach=7, cols=KI_FLAME, fade_y=None, pad=None):
+    """Flames licking up around a sprite's silhouette (returns a padded copy;
+    the sprite sits at (pad, pad) in it). fade_y: below this row of the
+    sprite the flames die out."""
+    a0 = pygame.surfarray.array_alpha(sprite) > 0
+    w, h = a0.shape
+    P = reach + 2 if pad is None else pad
+    a = np.zeros((w + 2 * P, h + 2 * P), bool)
+    a[P:P + w, P:P + h] = a0
+    W2, H2 = a.shape
+    rng = np.random.default_rng(phase * 7 + 1)
+    dist = np.full(a.shape, 99, np.int16)
+    cur = a.copy()
+    dist[a] = 0
+    for k in range(1, reach + 1):
+        nxt = cur.copy()
+        nxt[:, :-1] |= cur[:, 1:]
+        if k % 2:
+            nxt[:, :-2] |= cur[:, 2:]
+        nxt[1:, :] |= cur[:-1, :]
+        nxt[:-1, :] |= cur[1:, :]
+        if k % 3 == 0:
+            nxt[:, 1:] |= cur[:, :-1]
+        dist[nxt & ~cur] = k
+        cur = nxt
+    n = rng.random((W2 + 2, H2 // 5 + 3)).repeat(5, 1)
+    sh = phase % 5
+    n = n[:W2, sh:sh + H2]
+    n2 = rng.random((W2, H2))
+    lim = (dist - 0.5) / (reach + 1) * 1.05
+    if fade_y is not None:
+        yy = np.arange(H2)[None, :] - P
+        lim = lim + np.clip((yy - fade_y) / 20.0, 0, 2)
+    keep = (dist > 0) & (dist <= reach) & (((n * 0.85 + n2 * 0.15) > lim) | ((dist == 1) & (lim < 1)))
+    out = np.zeros((W2, H2, 3), np.uint8)
+    al = np.zeros((W2, H2), np.uint8)
+    for k in range(1, reach + 1):
+        m = keep & (dist == k)
+        out[m] = cols[min(len(cols) - 1, k - 1)]
+        al[m] = 255
+    s = pygame.Surface((W2, H2), pygame.SRCALPHA)
+    pygame.surfarray.blit_array(s, out)
+    pygame.surfarray.pixels_alpha(s)[:] = al
+    s.blit(sprite, (P, P))
+    return s
+
+
+def rig_place(parts, ox, oy, s=1.0, rot=0.0, mirror=False, sy=None):
+    """Moves, turns, scales (and mirrors) a list of capsules."""
+    c, sn = math.cos(rot), math.sin(rot)
+    sy = s if sy is None else sy
+    out = []
+    for x0, y0, x1, y1, r0, r1, z, m in parts:
+        if mirror:
+            x0, x1 = -x0, -x1
+        out.append((ox + s * (x0 * c - y0 * sn), oy + sy * (x0 * sn + y0 * c),
+                    ox + s * (x1 * c - y1 * sn), oy + sy * (x1 * sn + y1 * c), r0 * s, r1 * s, z * s, m))
+    return out
+
+
+def _mirror_x(parts, cx):
+    return [(2 * cx - x0, y0, 2 * cx - x1, y1, r0, r1, z, m) for x0, y0, x1, y1, r0, r1, z, m in parts]
+
+
+# ---- Akuma's own hands and feet ------------------------------------------------
+def hand_parts(curl=0.6, spread=0.0, fist=0.0):
+    """Akuma's right hand seen from behind, wrist at (0, 0), fingers up:
+    claws hooked round a ball of ki (curl), splayed (spread) or a fist."""
+    P = [(3, 8, 14, 90, 10.5, 15, 0, "skin"), (0, -2, 2, 8, 9.5, 10, 1, "skin")]   # forearm, wrist
+    for x0, y0, x1, y1, r in ((-7, -6, -8, -17, 6.5), (-1, -5, -2, -20, 7.5), (5, -5, 5, -19, 7.0),
+                              (10, -4, 11, -15, 5.5)):
+        P.append((x0, y0, x1, y1, r, r * 0.9, 3, "skin"))                              # back of the hand
+    fingers = ((-9, -21.5, 1.0, -118), (-2.5, -24.5, 1.1, -98), (4.5, -23.5, 1.04, -78), (10.5, -19, 0.84, -58))
+    for i, (kx, ky, ls, a0) in enumerate(fingers):
+        a = math.radians(a0 + spread * (i - 1.5) * 8 - curl * (i - 1.5) * 4)
+        sgn = 1 if a0 < -90 else -1
+        x, y, z = kx, ky, 5
+        P.append((x, y + 1, x, y + 1, 4.2, 4.2, 5.5, "skin"))                         # knuckle
+        if fist >= 0.5:
+            P.append((x, y, x + math.cos(a) * 3, y + math.sin(a) * 3 - 1, 4.0, 3.8, 7, "skin"))
+            continue
+        for j, (L, r0, r1) in enumerate(((10 * ls, 4.0, 3.5), (7.5 * ls, 3.5, 3.0), (5.5 * ls, 3.0, 2.4))):
+            if j:
+                a += sgn * math.radians(20 + 30 * curl)
+            fore = 1 - curl * 0.18 * j
+            nx, ny = x + math.cos(a) * L * fore, y + math.sin(a) * L * fore
+            nz = z + (1.5 + 2 * curl) * j
+            P.append((x, y, nx, ny, r0, r1, nz, "skin"))
+            x, y, z = nx, ny, nz
+        a += sgn * math.radians(25 * curl)
+        P.append((x, y, x + math.cos(a) * 5.5, y + math.sin(a) * 5.5, 2.4, 0.3, z + 1.5, "claw"))
+    ta = math.radians(-138 + 20 * curl + 40 * fist)                                    # thumb
+    x, y = -10, -5
+    for L, r0, r1 in ((8, 4.6, 3.9), (6.5, 3.8, 3.0)):
+        nx, ny = x + math.cos(ta) * L, y + math.sin(ta) * L
+        P.append((x, y, nx, ny, r0, r1, 6, "skin"))
+        x, y = nx, ny
+        ta += math.radians(28 + 25 * curl)
+    if fist < 0.5:
+        P.append((x, y, x + math.cos(ta) * 4.0, y + math.sin(ta) * 4.0, 1.9, 0.4, 7, "claw"))
+    cx, cy, ax, ay = 1, 4, 13, 4.5                                                     # prayer beads
+    for k in range(28):
+        th = k / 28 * math.tau
+        P.append((cx + ax * math.cos(th), cy + ay * math.sin(th), cx + ax * math.cos(th + 0.25),
+                  cy + ay * math.sin(th + 0.25), 1.6, 1.6, 2 + 8 * math.sin(th), "cord"))
+    for k in range(10):
+        th = k / 10 * math.tau + 0.3
+        bx, by = cx + ax * math.cos(th), cy + ay * math.sin(th)
+        P.append((bx, by, bx, by, 4.3, 4.3, 3 + 9 * math.sin(th), "bead"))
+    return P
+
+
+def leg_parts():
+    """Akuma's right leg kicking away from the camera: ankle at (0, 0), toes up."""
+    P = [(3, 22, 16, 140, 15, 32, 0, "gi"), (16, 140, 30, 300, 32, 40, 0, "gi")]          # baggy gi trousers
+    cx, cy, ax, ay = 1, 21, 15, 5                                                      # torn cuff
+    for k in range(16):
+        th = k / 16 * math.tau
+        bx, by = cx + ax * math.cos(th), cy + ay * math.sin(th)
+        L = (5, 9, 4, 7, 10, 5, 8, 3, 6, 9, 4, 7, 5, 8, 6, 4)[k] * max(0.0, math.sin(th) * 0.8 + 0.4)
+        P.append((bx, by, bx + 0.6 * math.cos(th), by - L, 3.2, 1.2, 4 + 9 * math.sin(th), "gi"))
+    P += [(0, 0, 1, 20, 8.5, 10, 2, "skin"),                                           # shin
+          (-8.5, 1, -8.5, 1, 3.4, 3.4, 7, "skin"), (8.5, 0, 8.5, 0, 3.2, 3.2, 7, "skin")]  # ankle bones
+    cx, cy, ax, ay = 0.5, 7, 11.5, 3.6                                                 # bead anklet
+    for k in range(9):
+        th = k / 9 * math.tau + 0.2
+        bx, by = cx + ax * math.cos(th), cy + ay * math.sin(th)
+        P.append((bx, by, bx, by, 3.3, 3.3, 3 + 9 * math.sin(th), "bead"))
+    L = 20
+    P += [(0, -2, 0, -L, 10, 11.5, 6, "skin"), (-6, -4, -7, -L, 5, 6, 8, "skin"), (6, -3, 8, -L + 3, 4.5, 5, 7.5, "skin")]
+    for x, y, r in ((-7.5, -L - 8, 5.6), (1, -L - 9.5, 4.2), (6.5, -L - 8.2, 3.8), (11, -L - 6, 3.4), (14.5, -L - 2.5, 3.0)):
+        P.append((x * 0.85, y + 7, x, y, r, r * 0.95, 10, "skin"))
+        P.append((x, y + r * 0.1, x, y - r * 0.2, r * 0.38, r * 0.3, 10 + r, "nail"))
+    return P
+
+
+# ---- fireballs seen from behind / in front -------------------------------------------
+BLUE_KI = ((255, 255, 255), (200, 236, 255), (120, 190, 255), (60, 120, 250), (36, 70, 220), (24, 36, 150))
+PURPLE_KI = ((255, 240, 255), (240, 190, 255), (200, 120, 255), (150, 60, 240), (110, 30, 200), (70, 10, 130))
+FIRE_KI = ((255, 255, 220), (255, 236, 130), (255, 180, 60), (250, 110, 30), (220, 50, 16), (150, 16, 8))
+
+
+def ball_view(cols, view, phase, r=11):
+    """A ki ball seen from behind (view "back": core ringed by the flame
+    trail streaming toward the camera) or in front ("front": a hot core with
+    a short corona). Returns a (4r x 4r) RGBA surface."""
+    size = r * 4
+    X, Y = np.meshgrid(np.arange(size) + 0.5 - size / 2, np.arange(size) + 0.5 - size / 2, indexing="ij")
+    rad = np.hypot(X, Y)
+    th = np.arctan2(Y, X)
+    t = phase * 0.7
+    if view == "back":
+        core = r * 0.55
+        sw = th + rad * 0.09 + t * 0.6                       # swirl
+        tongue = (np.sin(sw * 5) * 0.5 + 0.5) ** 2 * 0.6 + (np.sin(sw * 9 + 1.3 + t) * 0.5 + 0.5) * 0.4
+        reach = core + r * (0.55 + 0.95 * tongue)
+        lvl = np.where(rad < core, (rad / core) * 1.6, 1.6 + (rad - core) / np.maximum(reach - core, 0.5) * 3.4)
+        inside = rad < reach
+    else:
+        core = r * 0.75
+        flick = (np.sin(th * 7 + t * 2) * 0.5 + 0.5) * 0.6 + (np.sin(th * 13 - t * 3) * 0.5 + 0.5) * 0.4
+        reach = core + r * (0.15 + 0.35 * flick)
+        lvl = np.where(rad < core, (rad / core) * 2.2, 2.2 + (rad - core) / np.maximum(reach - core, 0.5) * 2.8)
+        inside = rad < reach
+    dith = np.tile(_BAYER, (size // 4 + 1, size // 4 + 1))[:size, :size]
+    idx = np.clip((lvl + dith * 0.8).astype(np.int32), 0, len(cols) - 1)
+    out = np.asarray(cols, np.uint8)[idx]
+    s = pygame.Surface((size, size), pygame.SRCALPHA)
+    pygame.surfarray.blit_array(s, out)
+    pygame.surfarray.pixels_alpha(s)[:] = np.where(inside, 255, 0).astype(np.uint8)
+    return s
+
+
+# ---- the demons -----------------------------------------------------------------
+# Front views (they always face Akuma) on a canvas with the feet at the bottom
+# centre. Each builder gives the capsules for a pose: "walk" (phase 0..3),
+# "attack" (0 wind-up, 1 strike), "pain".
+def _sym(parts, cx):
+    """Both sides of a symmetric body from its left half."""
+    return parts + _mirror_x(parts, cx)
+
+
+def _imp(pose, ph):
+    cx, P = 32, []
+    step = (0, 1, 0, -1)[ph % 4] if pose == "walk" else 0
+    for side, lift in ((-1, step), (1, -step)):
+        hx = cx + side * 7
+        kx, ky = cx + side * 9, 58 - max(0, lift) * 3
+        fx, fy = cx + side * 8, 73 - max(0, lift) * 4
+        P += [(hx, 46, kx, ky, 5.5, 5, 2, "brown"), (kx, ky, fx, fy - 2, 4.6, 3.8, 3, "brown"),
+              (fx, fy - 1, fx + side * 1, fy, 3.6, 3.2, 4, "brown")]
+        for c in (-2, 0, 2):
+            P.append((fx + c * 1.4, fy, fx + c * 2.2, fy + 1.5, 1.2, 0.4, 6, "horn"))
+    P += [(cx, 44, cx, 44, 8, 8, 4, "loin"), (cx - 3, 46, cx - 4, 53, 4, 2.5, 6, "loin"),
+          (cx + 3, 46, cx + 4, 53, 4, 2.5, 6, "loin")]
+    P.append((cx, 40, cx, 26, 10.5, 12, 3, "brown"))                                 # torso
+    P += _sym([(cx - 5, 27, cx - 5, 27, 6, 6, 8, "brown"), (cx - 3, 34, cx - 3, 34, 3.4, 3.4, 9, "brown"),
+               (cx - 3, 39, cx - 3, 39, 3.2, 3.2, 8, "brown"), (cx - 13, 23, cx - 13, 23, 6.5, 6.5, 6, "brown"),
+               (cx - 14, 20, cx - 17, 13, 2.2, 0.3, 10, "horn"), (cx - 10, 20, cx - 11, 14, 1.8, 0.3, 10, "horn"),
+               (cx - 6, 31, cx - 6, 31, 1.5, 1.5, 11, "horn")], cx)
+    arms = []
+    for side in (-1, 1):
+        sx = cx + side * 14
+        if pose == "attack" and side == 1:
+            up = ph == 0
+            ex, ey = (sx + 6, 12) if up else (sx + 2, 24)
+            hx, hy = (sx + 2, 3) if up else (cx + 6, 22)
+        elif pose == "pain":
+            ex, ey, hx, hy = sx + side * 7, 20, sx + side * 6, 9
+        else:
+            sway = (0, 1, 0, -1)[ph % 4] * side if pose == "walk" else 0
+            ex, ey, hx, hy = sx + side * 5, 36 + sway, sx + side * 3 - sway, 47
+        arms += [(sx, 25, ex, ey, 4.8, 4.2, 5, "brown"), (ex, ey, hx, hy, 4.2, 3.4, 7, "brown"),
+                 (hx, hy, hx, hy, 3.8, 3.8, 8, "brown")]
+        for c in (-1, 0, 1):
+            arms.append((hx + c * 2, hy + 2, hx + c * 3, hy + 5, 1.1, 0.3, 9, "horn"))
+    P += arms
+    hx = cx + (3 if pose == "pain" else 0)
+    P += [(hx, 15, hx, 15, 7.8, 7.8, 6, "brown"), (hx, 19, hx, 21, 5, 4.5, 7, "brown")]  # head, jaw
+    P += [(hx - 4, 11, hx - 8, 6, 2.2, 0.3, 12, "horn"), (hx + 4, 11, hx + 8, 6, 2.2, 0.3, 12, "horn"),
+          (hx - 6, 14, hx - 2, 12, 1.6, 1.6, 12, "brown"), (hx + 6, 14, hx + 2, 12, 1.6, 1.6, 12, "brown"),
+          (hx - 3, 15, hx - 3, 15, 1.5, 1.5, 14, "eye_r"), (hx + 3, 15, hx + 3, 15, 1.5, 1.5, 14, "eye_r"),
+          (hx, 20.5, hx, 21.5, 3.0 if pose == "attack" else 2.2, 2.6, 13, "mouth")]
+    P += [(hx - 1.6, 19, hx - 1.6, 20.5, 0.7, 0.3, 15, "horn"), (hx + 1.6, 19, hx + 1.6, 20.5, 0.7, 0.3, 15, "horn")]
+    if pose == "attack":
+        bx, by = (cx + 16, -1) if ph == 0 else (cx + 6, 20)
+        P += [(bx, by, bx, by, 4.5, 4.5, 20, "flash2"), (bx, by, bx, by, 2.6, 2.6, 22, "flash")]
+    return P
+
+
+def _pinky(pose, ph):
+    cx, P = 36, []
+    step = (0, 1, 0, -1)[ph % 4] if pose == "walk" else 0
+    lunge = 3 if pose == "attack" and ph == 1 else 0
+    for side, lift in ((-1, step), (1, -step)):
+        hx, kx, ky = cx + side * 11, cx + side * 17, 57 - max(0, lift) * 3
+        fx, fy = cx + side * 14, 71 - max(0, lift) * 3
+        P += [(hx, 46, kx, ky, 8.5, 6.5, 3, "pink"), (kx, ky, fx, fy - 3, 5.5, 4.4, 4, "pink"),
+              (fx, fy - 1, fx, fy + 1, 4.8, 4.6, 5, "hoof")]
+    P += [(cx, 44, cx, 44, 13, 13, 4, "pink"), (cx, 40, cx, 28 + lunge, 16, 18, 3, "pink")]
+    P += _sym([(cx - 7, 30 + lunge, cx - 7, 30 + lunge, 8, 8, 10, "pink"),
+               (cx - 4, 41, cx - 4, 41, 4.5, 4.5, 11, "pink"), (cx - 18, 26 + lunge, cx - 18, 26 + lunge, 9.5, 9.5, 8, "pink")], cx)
+    for side in (-1, 1):
+        sx = cx + side * 20
+        if pose == "attack" and ph == 1:
+            ex, ey, hx, hy = sx + side * 4, 30, cx + side * 9, 32
+        elif pose == "pain":
+            ex, ey, hx, hy = sx + side * 9, 22, sx + side * 7, 12
+        else:
+            sway = (0, 1, 0, -1)[ph % 4] * side if pose == "walk" else 0
+            ex, ey, hx, hy = sx + side * 6, 40 + sway, sx + side * 3, 53 - sway
+        P += [(sx, 28 + lunge, ex, ey, 7.5, 6.2, 6, "pink"), (ex, ey, hx, hy, 6.2, 5.2, 8, "pink"),
+              (hx, hy, hx, hy, 6.0, 6.0, 10, "pink")]
+        for c in (-1, 0, 1):
+            P.append((hx + c * 3, hy + 4, hx + c * 4, hy + 7, 1.3, 0.3, 12, "horn"))
+    hy = 22 + lunge * 2
+    hx = cx + (3 if pose == "pain" else 0)
+    jaw = 9 if pose == "attack" else (6 if pose == "pain" else 4.5)
+    P += [(hx, hy - 4, hx, hy, 11, 12, 10, "pink"),
+          (hx - 13, hy - 6, hx - 19, hy - 13, 3.2, 0.5, 16, "horn"), (hx + 13, hy - 6, hx + 19, hy - 13, 3.2, 0.5, 16, "horn"),
+          (hx - 6, hy - 6, hx - 2, hy - 8, 2.2, 2.2, 19, "pink"), (hx + 6, hy - 6, hx + 2, hy - 8, 2.2, 2.2, 19, "pink"),
+          (hx - 5, hy - 4, hx - 5, hy - 4, 1.6, 1.6, 21, "eye_y"), (hx + 5, hy - 4, hx + 5, hy - 4, 1.6, 1.6, 21, "eye_y"),
+          (hx - 4, hy + 4, hx + 4, hy + 4, jaw * 0.7, jaw * 0.7, 20, "mouth")]
+    for k in range(5):                                                                 # fangs
+        tx = hx - 6 + k * 3
+        P.append((tx, hy + 4 - jaw * 0.6, tx, hy + 4 - jaw * 0.6 + 2.6, 1.2, 0.3, 24, "bone"))
+        P.append((tx + 1.5, hy + 4 + jaw * 0.6, tx + 1.5, hy + 4 + jaw * 0.6 - 2.4, 1.1, 0.3, 24, "bone"))
+    return P
+
+
+def _caco(pose, ph):
+    cx, cy, P = 30, 30, []
+    bob = (0, 1, 1, 0)[ph % 4]
+    cy += bob
+    P.append((cx, cy, cx, cy, 22, 22, 0, "red"))
+    for k in range(9):                                                                 # warty bumps
+        a = k * 2.4 + 0.5
+        rr = 14 + (k % 3) * 2
+        P.append((cx + math.cos(a) * rr, cy + math.sin(a) * rr * 0.9, cx + math.cos(a) * rr, cy + math.sin(a) * rr * 0.9,
+                  2.8, 2.8, 14, "red"))
+    for k in range(5):                                                                 # horns
+        a = math.radians(-150 + k * 30)
+        x0, y0 = cx + math.cos(a) * 19, cy + math.sin(a) * 19
+        P.append((x0, y0, cx + math.cos(a) * 27, cy + math.sin(a) * 27, 2.6, 0.4, 8, "horn"))
+    op = {"attack": 1.4 if ph else 1.0, "pain": 0.8}.get(pose, 0.65)
+    my = cy + 9
+    P.append((cx - 11, my, cx + 11, my, 5 * op, 5 * op, 18, "bluemouth"))
+    P.append((cx, my + 1, cx, my + 1, 7 * op, 7 * op, 17, "bluemouth"))
+    for k in range(9):
+        tx = cx - 12 + k * 3
+        dy = 4.6 * op
+        P.append((tx, my - dy, tx, my - dy + 3.4, 1.4, 0.3, 26, "bone"))
+        P.append((tx + 1.5, my + dy + 1, tx + 1.5, my + dy - 2.2, 1.3, 0.3, 26, "bone"))
+    if pose == "attack" and ph:
+        P += [(cx, my + 1, cx, my + 1, 4.5, 4.5, 30, "flash2"), (cx, my + 1, cx, my + 1, 2.5, 2.5, 32, "flash")]
+    ey = cy - 8
+    if pose == "pain":
+        P.append((cx - 6, ey, cx + 6, ey, 2.6, 2.6, 24, "red"))
+    else:
+        P += [(cx, ey, cx, ey, 6.5, 6.5, 18, "bone"), (cx, ey, cx, ey, 3.6, 3.6, 25, "eye_g"),
+              (cx, ey, cx, ey + 0.5, 1.6, 1.2, 27, "pupil"), (cx - 7, ey - 6, cx + 7, ey - 6, 2.6, 2.6, 23, "red")]
+    return P
+
+
+def _soul(pose, ph):
+    cx, cy, P = 18, 20, []
+    P += [(cx, cy, cx, cy - 2, 9, 9.5, 2, "bone"), (cx, cy + 6, cx, cy + 8, 6, 5, 5, "bone"),
+          (cx - 9, cy - 4, cx - 14, cy - 10, 2.4, 0.4, 8, "horn"), (cx + 9, cy - 4, cx + 14, cy - 10, 2.4, 0.4, 8, "horn"),
+          (cx - 4, cy - 1, cx - 4, cy, 2.8, 2.8, 12, "mouth"), (cx + 4, cy - 1, cx + 4, cy, 2.8, 2.8, 12, "mouth"),
+          (cx - 4, cy - 0.5, cx - 4, cy - 0.5, 1.3, 1.3, 15, "eye_r"), (cx + 4, cy - 0.5, cx + 4, cy - 0.5, 1.3, 1.3, 15, "eye_r"),
+          (cx, cy + 3.5, cx, cy + 3.5, 1.3, 1.0, 14, "mouth")]
+    jaw = 3.0 if pose == "attack" else 1.6
+    P.append((cx - 3, cy + 8, cx + 3, cy + 8, jaw, jaw, 13, "mouth"))
+    for k in range(4):
+        P.append((cx - 3 + k * 2, cy + 8 - jaw, cx - 3 + k * 2, cy + 8 - jaw + 1.6, 0.9, 0.3, 16, "bone"))
+    return P
+
+
+def _zombie(pose, ph):
+    cx, P = 30, []
+    step = (0, 1, 0, -1)[ph % 4] if pose == "walk" else 0
+    for side, lift in ((-1, step), (1, -step)):
+        hx, kx, ky = cx + side * 5, cx + side * 6, 58 - max(0, lift) * 3
+        fx, fy = cx + side * 6, 71 - max(0, lift) * 3
+        P += [(hx, 44, kx, ky, 5, 4.6, 2, "fatigue"), (kx, ky, fx, fy - 2, 4.4, 4, 3, "fatigue"),
+              (fx, fy - 1, fx + side, fy + 1, 3.8, 3.6, 5, "hoof")]
+    P += [(cx, 43, cx, 43, 7.5, 7.5, 3, "fatigue"), (cx, 40, cx, 27, 9.5, 10.5, 3, "fatigue"),
+          (cx - 9, 42, cx + 9, 42, 1.8, 1.8, 10, "hoof"),
+          (cx - 4, 32, cx - 1, 36, 2.6, 2.6, 12, "blood"), (cx + 3, 27, cx + 3, 27, 2.2, 2.2, 12, "blood")]
+    P += _sym([(cx - 11, 25, cx - 11, 25, 5, 5, 6, "fatigue")], cx)
+    aim = pose == "attack"
+    # the rifle, held across the hips (raised at Akuma to fire)
+    gy = 30 if aim else 37
+    P += [(cx - 10, gy + 4, cx + 14, gy - 1, 2.6, 2.2, 14, "metal"), (cx + 2, gy + 2, cx + 3, gy + 7, 1.8, 1.6, 13, "metal")]
+    P += [(cx - 11, 25, cx - 13, 34, 4.2, 3.8, 6, "fatigue"), (cx - 13, 34, cx - 8, gy + 4, 3.8, 3.2, 15, "pale"),
+          (cx + 11, 25, cx + 13, 33, 4.2, 3.8, 6, "fatigue"), (cx + 13, 33, cx + 8, gy + 1, 3.8, 3.2, 15, "pale")]
+    if aim and ph:
+        P += [(cx + 17, gy - 2, cx + 17, gy - 2, 5, 5, 20, "flash2"), (cx + 17, gy - 2, cx + 17, gy - 2, 3, 3, 22, "flash")]
+    hx = cx + (3 if pose == "pain" else 0)
+    P += [(hx, 19, hx, 19, 3.5, 3.5, 4, "pale"), (hx, 14, hx, 15, 6.5, 6, 6, "pale"),
+          (hx - 2.5, 14, hx - 2.5, 14, 1.2, 1.2, 13, "eye_r"), (hx + 2.5, 14, hx + 2.5, 14, 1.2, 1.2, 13, "eye_r"),
+          (hx - 2, 18, hx + 2, 18, 1.2, 1.0, 12, "mouth"), (hx + 3, 11, hx + 4, 13, 1.6, 1.4, 12, "blood")]
+    return P
+
+
+DEMONS = {
+    "imp": (_imp, 64, 76),
+    "pinky": (_pinky, 72, 76),
+    "caco": (_caco, 60, 62),
+    "soul": (_soul, 36, 36),
+    "zombie": (_zombie, 60, 76),
+}
+
+
+def _blood_pool(w, h, cx, size):
+    return [(cx - size, h - 4, cx + size, h - 4, 3.2, 2.6, -5, "blood"),
+            (cx - size * 0.4, h - 3, cx + size * 0.6, h - 3, 3.5, 3.0, -4, "blood")]
+
+
+def demon_frames(kind):
+    """{"walk": [4], "attack": [2], "pain": [1], "die": [4]} surfaces, plus the corpse."""
+    fn, w, h = DEMONS[kind]
+    out = {"walk": [rig_render(fn("walk", k), w, h) for k in range(4)],
+           "attack": [rig_render(fn("attack", k), w, h) for k in range(2)],
+           "pain": [rig_render(fn("pain", 0), w, h)]}
+    base = fn("pain", 0)
+    die = []
+    floating = kind in ("caco", "soul")
+    for k, (rot, sq) in enumerate(((0.25, 0.9), (0.6, 0.7), (1.1, 0.5), (1.5, 0.35))):
+        if floating:
+            rot = 0.0                       # drops out of the air and splats
+        if True:
+            # topples backwards: squash toward the feet and lean over
+            parts = [(w / 2 + (x0 - w / 2) * (1 + k * 0.08) + (h - y0) * rot * 0.25,
+                      h - (h - y0) * sq, w / 2 + (x1 - w / 2) * (1 + k * 0.08) + (h - y1) * rot * 0.25,
+                      h - (h - y1) * sq, r0, r1, z, m) for x0, y0, x1, y1, r0, r1, z, m in base]
+        if k >= 1:
+            parts += _blood_pool(w, h, w / 2, 6 + k * 4)
+        die.append(rig_render(parts, w, h))
+    out["die"] = die
+    out["dead"] = die[-1]
+    return out
+
+
 # ---- actors ----------------------------------------------------------------
 KINDS = {
-    "ryu": dict(cid="ryu", hp=45, speed=0.024, ranged=12, pain=0.7, name="IMP RYU"),
-    "ken": dict(cid="ken", hp=45, speed=0.027, ranged=12, pain=0.7, name="IMP KEN"),
-    "hsienko": dict(cid="hsienko", hp=60, speed=0.02, ranged=14, pain=0.5, name="HSIEN-KO"),
-    "morrigan": dict(cid="morrigan", hp=55, speed=0.032, ranged=12, pain=0.6, name="MORRIGAN"),
-    "zangief": dict(cid="zangief", hp=110, speed=0.021, melee=20, pain=0.35, name="ZANGIEF"),
-    "felicia": dict(cid="felicia", hp=45, speed=0.045, melee=10, pain=0.8, name="FELICIA"),
+    "imp": dict(hp=45, speed=0.026, ranged=12, pain=0.7, wpp=0.0118, shot="fire", name="IMP"),
+    "zombie": dict(hp=30, speed=0.02, ranged=8, pain=0.9, wpp=0.0115, shot="bullet", name="ZOMBIEMAN"),
+    "pinky": dict(hp=110, speed=0.034, melee=20, pain=0.4, wpp=0.0118, radius=0.36, name="PINKY"),
+    "caco": dict(hp=110, speed=0.018, ranged=15, pain=0.5, wpp=0.0112, fly=0.22, radius=0.36, shot="fire",
+                 name="CACODEMON"),
+    "soul": dict(hp=30, speed=0.05, melee=10, pain=0.9, wpp=0.0105, fly=0.32, radius=0.25, name="LOST SOUL"),
     "boss": dict(cid="zangief", hp=900, speed=0.022, melee=28, ranged=14, pain=0.0, boss=True,
                  wpp=0.02, radius=0.6, name="CYBER-GIEF"),
 }
@@ -776,8 +1346,10 @@ class Enemy:
         spec = KINDS[kind]
         self.kind = kind
         self.spec = spec
-        self.cid = spec["cid"]
-        self.art = CharArt(self.cid)
+        self.cid = spec.get("cid", kind)
+        self.art = CharArt(self.cid) if "cid" in spec else None       # the demons are drawn in code
+        self.fly = spec.get("fly", 0.0)
+        self.z = self.fly
         self.x, self.y = x + 0.5, y + 0.5
         self.hp = self.max_hp = spec["hp"]
         self.speed = spec["speed"]
@@ -859,6 +1431,10 @@ class DoomScene:
                 self.enemies.append(Enemy(kind, x, y, self.rng))
             else:
                 self.things.append(Thing(kind, x, y))
+        self._scatter_snacks()
+        for t in self.things:
+            if t.kind == "snack":
+                t.snack = random_snack(self.rng)
         self.boss = next(e for e in self.enemies if e.boss)
         self.total = len(self.enemies)
         self.kills = 0
@@ -869,8 +1445,11 @@ class DoomScene:
         self.result = None
         self.walk = 0.0
         self.moving = 0.0
-        self.weapon = None           # None | "hado" | "shinku" | "kick"
+        self.weapon = None           # None | "hado" | "shinku" | "punch" | "kick" | "shoryu" | "tatsu"
         self.wt = 0
+        self.punch_side = 1
+        self.spin_from = 0.0
+        self.move_hit = set()
         self.flash = 0.0
         self.hurt = 0
         self.bonus = 0
@@ -894,25 +1473,50 @@ class DoomScene:
         akuma = CharArt("akuma")
         balls = akuma.projectile_frames()
         self.hado = [balls[i] for i in range(1, len(balls), 2)] or balls
-        self.shinku = [_tinted(pygame.transform.scale_by(b, 1.0), (255, 200, 255), (60, 0, 60)) for b in self.hado]
+        self.shinku = [_tinted(b, (255, 200, 255), (60, 0, 60)) for b in self.hado]
+        # every fireball has a side view (the sprite pack's), a back view (flying
+        # away: the flame trail streams toward the camera) and a front view
+        self.hado_views = {"side": self.hado, "back": [ball_view(BLUE_KI, "back", k, 10) for k in range(4)],
+                           "front": [ball_view(BLUE_KI, "front", k, 9) for k in range(4)]}
+        self.shinku_views = {"side": self.shinku, "back": [ball_view(PURPLE_KI, "back", k, 13) for k in range(4)],
+                             "front": [ball_view(PURPLE_KI, "front", k, 12) for k in range(4)]}
         self.hado_burst = _burst_frames((230, 240, 255), (90, 120, 255))
         self.fire_burst = _burst_frames((255, 230, 120), (255, 80, 20))
-        self.onigiri = _onigiri()
-        self.ki_orb = pygame.transform.scale_by(self.hado[0], 0.45)
-        self.bigki = pygame.transform.scale_by(self.hado[1 % len(self.hado)], 0.8)
+        self.ki_orb = pygame.transform.scale_by(self.hado_views["front"][0], 0.5)
+        self.bigki = pygame.transform.scale_by(self.hado_views["front"][1], 0.8)
         self.cards = {"bluekey": _keycard((40, 90, 255)), "redkey": _keycard((230, 30, 30))}
         self.torch = _torch_frames()
         self.portal = _portal_frames()
         self.face = portrait("akuma")
         self.face_flip = pygame.transform.flip(self.face, True, False)
-        rocket = CharArt("ryu").projectile_frames() or self.hado
-        self.rocket = [_tinted(f, (255, 140, 80), (60, 10, 0)) for f in rocket]
-        self.proj = {}
+        rocket = [_tinted(f, (255, 140, 80), (60, 10, 0)) for f in (CharArt("ryu").projectile_frames() or self.hado)]
+        fire_side = [_tinted(f, (255, 170, 120), (50, 0, 0)) for f in rocket]
+        self.fire_views = {"side": fire_side, "back": [ball_view(FIRE_KI, "back", k, 9) for k in range(4)],
+                           "front": [ball_view(FIRE_KI, "front", k, 8) for k in range(4)]}
+        self.rocket_views = dict(self.fire_views, side=rocket)
+        self.demon_art = {}
         for e in self.enemies:
-            if e.cid not in self.proj:
-                fr = CharArt(e.cid).projectile_frames() or rocket
-                self.proj[e.cid] = [_tinted(f, (255, 170, 120), (50, 0, 0)) for f in fr]
+            if e.art is None and e.kind not in self.demon_art:
+                self.demon_art[e.kind] = demon_frames(e.kind)
+        if "soul" in self.demon_art:
+            # the lost soul burns: flames round every frame
+            da = self.demon_art["soul"]
+            self.soul_fire = {k: [[flame_aura(f, ph, 6, HOT_FLAME, pad=10) for ph in range(3)] for f in v]
+                              for k, v in da.items() if k in ("walk", "attack", "pain")}
+        self.fp = {}                 # first-person hand and foot sprites, built on first use
         self.bar_bg = self._bar_bg()
+
+    def _scatter_snacks(self):
+        """Japanese snacks at random spots all over the fortress (health)."""
+        m = self.map
+        taken = {(int(t.x), int(t.y)) for t in self.things} | {(int(e.x), int(e.y)) for e in self.enemies}
+        cells = [(x, y) for y in range(MAP_H) for x in range(MAP_W)
+                 if m.grid[y, x] == 0 and (x, y) not in taken and m.area_of(x, y) not in (None, "exit", "start")]
+        for x, y in self.rng.sample(cells, min(EXTRA_SNACKS, len(cells))):
+            t = Thing("snack", x, y)
+            t.x += self.rng.uniform(-0.2, 0.2)
+            t.y += self.rng.uniform(-0.2, 0.2)
+            self.things.append(t)
 
     def _sounds(self):
         try:
@@ -928,19 +1532,60 @@ class DoomScene:
         elif fallback:
             audio.play(fallback, vol)
 
+    BAR_PANELS = ((1, 35), (37, 99), (101, 147), (149, 181), (183, 245), (247, 318))
+    TEN = ["...........", ".#########.", ".....#.....", ".....#.....", "###########", ".....#.....",
+           "....#.#....", "...#...#...", "..#.....#..", ".#.......#.", "#.........#"]
+
     def _bar_bg(self):
+        """The grey stone status bar with sunken panels (Doom style), and the
+        heaven kanji on Akuma's back in the middle."""
         n = _fbm(np.random.default_rng(4), 64)
-        tile = _surface(_col((96, 92, 88), 0.6 + 0.4 * n))
+        tile = _surface(_col((112, 110, 104), 0.55 + 0.45 * n))
         s = pygame.Surface((W, BAR_H))
         for x in range(0, W, 64):
             s.blit(tile, (x, 0))
-        pygame.draw.line(s, (150, 146, 140), (0, 0), (W, 0))
-        for x0, x1 in ((1, 54), (56, 118), (202, 254), (256, 278), (280, 318)):
-            pygame.draw.rect(s, (40, 38, 36), (x0, 3, x1 - x0, BAR_H - 6))
-            pygame.draw.line(s, (150, 146, 140), (x0, BAR_H - 3), (x1, BAR_H - 3))
-            pygame.draw.line(s, (150, 146, 140), (x1, 3), (x1, BAR_H - 3))
-        pygame.draw.rect(s, (24, 22, 20), (143, 0, 34, BAR_H))
+        pygame.draw.line(s, (170, 166, 158), (0, 0), (W, 0))
+        pygame.draw.line(s, (60, 58, 54), (0, 1), (W, 1))
+        for x0, x1 in self.BAR_PANELS:
+            r = pygame.Rect(x0, 3, x1 - x0, BAR_H - 5)
+            sub = s.subsurface(r)
+            sub.fill((150, 150, 150), special_flags=pygame.BLEND_RGB_MULT)
+            pygame.draw.line(s, (40, 38, 36), r.topleft, r.topright)
+            pygame.draw.line(s, (40, 38, 36), r.topleft, r.bottomleft)
+            pygame.draw.line(s, (176, 172, 164), (r.left, r.bottom), r.bottomright)
+            pygame.draw.line(s, (176, 172, 164), (r.right, r.top), r.bottomright)
+        # arms grid
+        for i in range(6):
+            cx, cy = 106 + (i % 3) * 13, 3 + (i // 3) * 9
+            pygame.draw.rect(s, (54, 52, 48), (cx, cy, 11, 9))
+            pygame.draw.line(s, (30, 28, 26), (cx, cy), (cx + 10, cy))
+        # the kanji emblem
+        e = pygame.Rect(152, 4, 27, 25)
+        pygame.draw.ellipse(s, (16, 14, 14), e)
+        pygame.draw.ellipse(s, (60, 56, 52), e, 1)
+        for y, row in enumerate(self.TEN):
+            for x, c in enumerate(row):
+                if c == "#":
+                    s.fill((196, 20, 16), (155 + x * 2, 6 + y * 2, 2, 2))
+                    s.fill((90, 0, 0), (155 + x * 2 + 1, 6 + y * 2 + 1, 1, 1))
         return s
+
+    @staticmethod
+    def _big(text):
+        """Doom status bar numbers: chunky red digits, lit from above."""
+        img = text_surface(text, (255, 255, 255), 2).copy()
+        w, h = img.get_size()
+        g = pygame.Surface((w, h))
+        for y in range(h):
+            t = y / max(1, h - 1)
+            g.fill((int(250 - 110 * t), int(60 - 50 * t), int(40 - 30 * t)), (0, y, w, 1))
+        img.blit(g, (0, 0), special_flags=pygame.BLEND_RGB_MULT)
+        out = pygame.Surface((w + 2, h + 2), pygame.SRCALPHA)
+        sh = text_surface(text, (30, 0, 0), 2)
+        out.blit(sh, (2, 2))
+        out.blit(sh, (1, 1))
+        out.blit(img, (0, 0))
+        return out
 
     # ---- interface -------------------------------------------------------
     @property
@@ -1081,8 +1726,13 @@ class DoomScene:
         side = 0
         if strafe:
             side, turn = turn, 0
+        spinning = self.weapon == "tatsu"
+        if spinning:
+            # the hurricane kick carries Akuma forward while the view whirls round
+            turn, fwd, side = 0, max(fwd, 0) * 0.6 + 0.5, 0
         self.ang = (self.ang + turn * TURN_SPEED) % (2 * math.pi)
-        dx, dy = math.cos(self.ang), math.sin(self.ang)
+        head = self.spin_from if spinning else self.ang
+        dx, dy = math.cos(head), math.sin(head)
         mx = dx * fwd * MOVE_SPEED - dy * side * STRAFE_SPEED
         my = dy * fwd * MOVE_SPEED + dx * side * STRAFE_SPEED
         if fwd and side:
@@ -1097,54 +1747,108 @@ class DoomScene:
             moved += abs(my)
         self.walk += moved
         self.moving = min(1.0, self.moving + 0.1) if moved > 0.01 else max(0.0, self.moving - 0.08)
-        self.camz = 0.5 + math.sin(self.walk * 6.0) * 0.022 * self.moving
+        self.camz = 0.5 + math.sin(self.walk * 6.0) * 0.022 * self.moving + self._jump()
+
+    def _jump(self):
+        """Camera height offset of the shoryuken's leap (and its crouch)."""
+        if self.weapon != "shoryu":
+            return 0.0
+        t = self.wt
+        if t < 4:
+            return -0.06 * t / 4
+        f = min(1.0, (t - 4) / 26)
+        return -0.06 * (1 - f) + 0.26 * math.sin(math.pi * f)
+
+    MOVE_LEN = {"hado": 20, "shinku": 40, "punch": 16, "kick": 22, "shoryu": 32, "tatsu": 40}
+
+    def _start(self, move):
+        self.weapon, self.wt = move, 0
+        self.move_hit = set()
+        if move == "punch":
+            self.punch_side = -self.punch_side
+            self._use()
+            self._play("whiff")
+        elif move == "kick":
+            self._use()
+            self._play("whiff")
+        elif move == "shoryu":
+            self._play("shoryu", "heavy")
+            self.face_grin = 40
+        elif move == "tatsu":
+            self.spin_from = self.ang
+            self._play("tatsu", "whiff")
 
     def _weapon(self, inp):
+        P, K, S = inp.pressed("punch"), inp.pressed("kick"), inp.pressed("special")
+        # special + punch / kick pressed together (within COMBO_WINDOW frames,
+        # either order) turns the move that just started into the combo
+        if self.weapon and self.wt < COMBO_WINDOW:
+            if self.weapon == "hado" and (P or K):
+                self.ki = min(KI_MAX, self.ki + HADO_COST)          # the fireball never left the hands
+                self._start("shoryu" if P else "tatsu")
+                return
+            if self.weapon in ("punch", "kick") and S:
+                self._start("shoryu" if self.weapon == "punch" else "tatsu")
+                return
         if self.weapon:
             self.wt += 1
-            if self.weapon == "hado" and self.wt == 7:
+            w, t = self.weapon, self.wt
+            if w == "hado" and t == 7:
                 self._fire(False)
-            elif self.weapon == "shinku" and self.wt == 18:
+            elif w == "shinku" and t == 18:
                 self._fire(True)
-            elif self.weapon == "kick" and self.wt == 6:
-                self._kick()
-            done = {"hado": 20, "shinku": 40, "kick": 22}[self.weapon]
-            if self.wt >= done:
+            elif w == "punch" and t == 4:
+                self._melee(1.0, 0.75, PUNCH_DMG, 0.15, "heavy")
+            elif w == "kick" and t == 6:
+                self._melee(1.0, 0.6, KICK_DMG, 0.3, "heavy")
+            elif w == "shoryu" and 4 <= t <= 12 and t % 4 == 0:
+                self._melee(1.25, 0.55, SHORYU_DMG / 3, 0.25, "heavy", flame=True)
+            elif w == "tatsu":
+                f = min(1.0, max(0.0, (t - 4) / 32))
+                f = f * f * (3 - 2 * f)
+                self.ang = (self.spin_from + 2 * math.pi * f) % (2 * math.pi)
+                if 6 <= t <= 34 and t % 3 == 0:
+                    self._melee(1.4, -1.0, TATSU_DMG, 0.3, "heavy")
+                if t >= self.MOVE_LEN["tatsu"] - 1:
+                    self.ang = self.spin_from
+            if t >= self.MOVE_LEN[w]:
                 self.weapon = None
             else:
                 return
-        if inp.pressed("kick"):
-            self.weapon, self.wt = "kick", 0
-            self._use()
-            self._play("whiff")
-        elif inp.pressed("special") or (inp.held("special") and self.t % 2 == 0 and False):
+        if S and (P or K):
+            self._start("shoryu" if P else "tatsu")
+        elif S and inp.held("shield"):
             if self.ki >= SHINKU_COST:
                 self.ki -= SHINKU_COST
-                self.weapon, self.wt = "shinku", 0
+                self._start("shinku")
                 self._play("doom_charge", "shoryu")
                 self._alert_near(10)
             else:
                 self.say("NOT ENOUGH KI FOR A SHINKU HADOUKEN", 90)
-        elif inp.pressed("punch") or inp.held("punch"):
+        elif S or (inp.held("special") and not inp.held("shield")):
             if self.ki >= HADO_COST:
                 self.ki -= HADO_COST
-                self.weapon, self.wt = "hado", 0
+                self._start("hado")
                 self._alert_near(8)
-            elif inp.pressed("punch"):
-                self.say("OUT OF KI! KICK THEM (K)", 90)
+            elif S:
+                self.say("OUT OF KI! PUNCH AND KICK THEM", 90)
+        elif P:
+            self._start("punch")
+        elif K:
+            self._start("kick")
 
     def _fire(self, big):
         dx, dy = math.cos(self.ang), math.sin(self.ang)
         x, y = self.px + dx * 0.45, self.py + dy * 0.45
         if big:
             s = Shot(x, y, self.ang, HADO_SPEED * 0.85, "akuma", SHINKU_DMG * self.power,
-                     SHINKU_SPLASH * self.power, 0.4, True, self.shinku, 0.018, (1.2, 0.6, 1.8), 0.45)
+                     SHINKU_SPLASH * self.power, 0.4, True, self.shinku_views, 0.016, (1.2, 0.6, 1.8), 0.45)
             self.flash = 1.6
             self.face_grin = 50
             self._play("doom_shinku", "hadouken")
         else:
             s = Shot(x, y, self.ang, HADO_SPEED, "akuma", HADO_DMG * self.power, HADO_SPLASH * self.power,
-                     0.2, False, self.hado, 0.008, (0.5, 0.7, 1.5), 0.42)
+                     0.2, False, self.hado_views, 0.0085, (0.5, 0.7, 1.5), 0.42)
             self.flash = 1.0
             self._play("hadouken")
         self.shots.append(s)
@@ -1181,19 +1885,28 @@ class DoomScene:
         else:
             self._play("doom_oof", "block", 0.5)
 
-    def _kick(self):
+    def _melee(self, reach, cone, dmg, push, sound, flame=False):
+        """Hits every demon within reach whose direction is inside the cone
+        (cos of the half angle; -1 = all round). Each move hits a demon once
+        per swing, except the multi-hit shoryuken."""
         dx, dy = math.cos(self.ang), math.sin(self.ang)
+        hit = False
         for e in self.enemies:
-            if not e.alive:
+            if not e.alive or (e in self.move_hit and not flame):
                 continue
             ex, ey = e.x - self.px, e.y - self.py
-            d = math.hypot(ex, ey)
-            if d < 1.0 + e.radius and (ex * dx + ey * dy) > d * 0.6:
-                self._damage(e, KICK_DMG * self.power, (dx, dy))
-                if not e.boss and self._free(e.x + dx * 0.3, e.y + dy * 0.3, e.radius):
-                    e.x += dx * 0.3
-                    e.y += dy * 0.3
-                self._play("heavy")
+            d = math.hypot(ex, ey) or 1e-6
+            if d < reach + e.radius and (ex * dx + ey * dy) > d * cone:
+                self.move_hit.add(e)
+                self._damage(e, dmg * self.power, (ex / d, ey / d))
+                if not e.boss and self._free(e.x + ex / d * push, e.y + ey / d * push, min(e.radius, 0.3)):
+                    e.x += ex / d * push
+                    e.y += ey / d * push
+                if flame:
+                    self.effects.append(Effect(e.x, e.y, 0.5 + e.z, self.fire_burst, 0.02, 2))
+                hit = True
+        if hit:
+            self._play(sound)
 
     def _alert_near(self, r):
         for e in self.enemies:
@@ -1294,6 +2007,7 @@ class DoomScene:
         if e.flash:
             e.flash -= 1
         if e.state == "dying":
+            e.z = max(0.0, e.z - 0.02)           # fliers drop out of the air
             if e.st > 40:
                 e.set("dead")
             return
@@ -1382,16 +2096,19 @@ class DoomScene:
             return
         if e.st == span * 2 // 3:
             a = math.atan2(self.py - e.y, self.px - e.x)
+            bullet = e.spec.get("shot") == "bullet"
             if e.boss:
-                frames, angs = self.rocket, (a - 0.22, a, a + 0.22)
+                frames, angs = self.rocket_views, (a - 0.22, a, a + 0.22)
             else:
-                frames, angs = self.proj.get(e.cid) or self.rocket, (a + self.rng.uniform(-0.05, 0.05),)
+                frames, angs = self.fire_views, (a + self.rng.uniform(-0.05, 0.05),)
+            wpp = 0.014 if e.boss else (0.004 if bullet else 0.0095)
+            z = 0.75 if e.boss else (0.42 if bullet else 0.35 + e.z + (0.1 if e.kind == "caco" else 0.15))
             for an in angs:
                 self.shots.append(Shot(e.x + math.cos(an) * (e.radius + 0.1), e.y + math.sin(an) * (e.radius + 0.1),
-                                       an, ENEMY_SHOT_SPEED * (1.15 if e.boss else 1), e, e.spec["ranged"], 0,
-                                       0.18, False, frames, 0.014 if e.boss else 0.011, (1.5, 0.6, 0.2),
-                                       0.75 if e.boss else 0.5))
-            self._play("doom_imp", "fireball", 0.6)
+                                       an, ENEMY_SHOT_SPEED * (1.15 if e.boss else (2.2 if bullet else 1)), e,
+                                       e.spec["ranged"], 0, 0.15 if bullet else 0.18, False, frames, wpp,
+                                       (1.5, 0.6, 0.2), z))
+            self._play("doom_imp", "fireball", 0.6) if not e.spec.get("shot") == "bullet" else self._play("doom_pistol", "hit", 0.5)
         if e.st >= span:
             e.set("chase")
             if e.boss:
@@ -1425,17 +2142,18 @@ class DoomScene:
                 continue
             if (t.x - self.px) ** 2 + (t.y - self.py) ** 2 > 0.45 ** 2:
                 continue
-            if t.kind == "onigiri":
+            if t.kind == "snack":
                 if self.hp >= self.max_hp:
                     continue
-                self.hp = min(self.max_hp, self.hp + ONIGIRI_HEAL)
-                self.say("PICKED UP AN ONIGIRI.")
+                n = heal_amount(t.snack, self.max_hp)
+                self.hp = min(self.max_hp, self.hp + n)
+                self.say("%s +%d" % (t.snack, n), 90)
             elif t.kind in ("ki", "bigki"):
                 if self.ki >= KI_MAX:
                     continue
-                n = 6 if t.kind == "ki" else 25
+                n = KI_ORB if t.kind == "ki" else BIG_KI_ORB
                 self.ki = min(KI_MAX, self.ki + n)
-                self.say("PICKED UP A KI ORB." if n == 6 else "PICKED UP A BIG KI ORB!")
+                self.say("KI ORB +%d" % n if t.kind == "ki" else "BIG KI ORB +%d!" % n, 90)
             elif t.kind in ("bluekey", "redkey"):
                 k = t.kind[:-3]
                 self.keys.add(k)
@@ -1527,7 +2245,41 @@ class DoomScene:
             self._lit[ck] = s
         return s
 
+    def _demon_image(self, e):
+        fr = self.demon_art[e.kind]
+        st = e.state
+        if st == "chase" and e.alert:
+            pose, k = "walk", int(e.walked * 7) % 4
+        elif st == "attack":
+            pose, k = "attack", 0 if e.st < (22 * 2 // 3) else 1
+        elif st == "pain":
+            pose, k = "pain", 0
+        elif st == "dying":
+            pose, k = "die", min(3, e.st // 9)
+        elif st == "dead":
+            pose, k = "dead", 0
+        else:
+            pose, k = "walk", 0 if e.fly == 0 else (self.t // 12 + e.look_t) % 4
+        img = fr[pose][k] if pose != "dead" else fr["dead"]
+        pad = 0
+        if e.kind == "soul" and pose in self.soul_fire:
+            img = self.soul_fire[pose][k][(self.t // 4 + e.look_t) % 3]
+            pad = 10
+        flash = e.flash > 0
+        ck = (e.kind, pose, k, pad and (self.t // 4 + e.look_t) % 3, flash)
+        if flash:
+            out = self._lit.get(ck)
+            if out is None:
+                out = img.copy()
+                out.fill((120, 110, 100, 0), special_flags=pygame.BLEND_RGBA_ADD)
+                self._lit[ck] = out
+            img = out
+        w, h = img.get_size()
+        return ck, img, (w // 2, h - pad)
+
     def _enemy_image(self, e, flip):
+        if e.art is None:
+            return self._demon_image(e)
         art = e.art
         st = e.state
         clock = self.t
@@ -1568,7 +2320,8 @@ class DoomScene:
                 continue
             flip = p[0] > W / 2
             ck, img, anc = self._enemy_image(e, flip)
-            out.append((p[1], p[0], ck, img, anc, e.wpp, 0.0, e.flash == 0, e.x, e.y))
+            z = e.z + (0.03 * math.sin(self.t * 0.07 + e.look_t) if e.fly and e.alive else 0.0)
+            out.append((p[1], p[0], ck, img, anc, e.wpp, z, e.flash == 0 and e.kind != "soul", e.x, e.y))
         for t in self.things:
             if t.taken:
                 continue
@@ -1584,8 +2337,8 @@ class DoomScene:
                 img, wpp, z, lit = self.portal[k], 0.028, 0.0, False
                 if self.boss.alive:
                     img = self._lit_img(("portal", k), img, 3)
-            elif t.kind == "onigiri":
-                img, wpp, z, lit = self.onigiri, 0.018, 0.0, True
+            elif t.kind == "snack":
+                img, wpp, z, lit = snack_image(t.snack, 2), 0.011, 0.0, True
             elif t.kind == "ki":
                 img, wpp, z, lit = self.ki_orb, 0.016, 0.12 + bob, False
             elif t.kind == "bigki":
@@ -1598,11 +2351,18 @@ class DoomScene:
             p = self.project(s.x, s.y)
             if p is None or (s.owner == "akuma" and s.t < 3):
                 continue
-            fr = s.frames[(s.t // 3) % len(s.frames)]
-            if s.owner != "akuma":
+            # pick the view from the direction of flight relative to the camera:
+            # flying away shows the back (trail toward us), coming at us the front
+            rx, ry = s.x - self.px, s.y - self.py
+            c = (s.vx * rx + s.vy * ry) / ((math.hypot(s.vx, s.vy) * math.hypot(rx, ry)) or 1)
+            view = "back" if c > 0.72 else ("front" if c < -0.72 else "side")
+            frames = s.frames[view]
+            fr = frames[(s.t // 3) % len(frames)]
+            if view == "side":
                 lat = s.vx * -math.sin(self.ang) + s.vy * math.cos(self.ang)
                 if lat < 0:
                     fr = pygame.transform.flip(fr, True, False)
+            s.view = view
             h = fr.get_height()
             out.append((p[1], p[0], None, fr, (fr.get_width() // 2, h // 2), s.wpp, s.z, False, s.x, s.y))
         for fx in self.effects:
@@ -1647,116 +2407,172 @@ class DoomScene:
                 ca, cb = x0 + a, x0 + b
                 surf.blit(scaled, (ca, top), pygame.Rect(ca - left, 0, cb - ca, sh))
 
-    # ---- weapon view -----------------------------------------------------------------
-    SKIN = (186, 104, 70)
-    SKIN_D = (124, 60, 40)
-    SKIN_L = (226, 150, 108)
-    INK = (36, 14, 10)
-    BAND = (120, 22, 22)
-    BAND_D = (62, 8, 8)
+    # ---- first-person view -------------------------------------------------------------
+    # name: (rig, rig args, scale, turn, wrist bend, flames)
+    FP_POSES = {
+        "claw": ("hand", dict(curl=0.45, spread=0.9), 0.92, -0.08, 0.0, "ki"),
+        "claw2": ("hand", dict(curl=0.8, spread=0.4), 0.92, -0.08, 0.0, "ki"),
+        "cup": ("hand", dict(curl=0.45, spread=0.4), 0.95, -0.25, -0.35, "ki"),
+        "thrust": ("hand", dict(curl=0.0, spread=1.0), 0.88, -0.3, 0.55, "ki"),
+        "fist": ("hand", dict(fist=1.0), 1.05, 0.0, 0.0, "ki"),
+        "jab": ("hand", dict(fist=1.0), 0.78, -0.25, 0.1, "ki"),
+        "upper": ("hand", dict(fist=1.0), 1.15, -0.12, 0.0, "fire"),
+        "leg_up": ("leg", {}, 1.25, 0.22, 0.0, "ki"),
+        "leg_out": ("leg", {}, 1.05, 0.1, 0.0, "ki"),
+        "leg_side": ("leg", {}, 0.6, 1.15, 0.0, "ki"),
+    }
 
-    def _hand(self, surf, wx, wy, s, k):
-        """One hand seen from behind, wrist at (wx, wy); s=+1 right hand, -1 left; k scale."""
-        def P(pts):
-            return [(wx + s * x * k, wy + y * k) for x, y in pts]
-        arm = P([(-6, 0), (8, 0), (30, 60), (6, 60)])
-        pygame.draw.polygon(surf, self.SKIN, arm)
-        pygame.draw.polygon(surf, self.SKIN_D, P([(4, 4), (8, 0), (30, 60), (18, 60)]))
-        pygame.draw.polygon(surf, self.INK, arm, 1)
-        band = P([(-7, -2), (9, -2), (12, 9), (-4, 9)])
-        pygame.draw.polygon(surf, self.BAND, band)
-        pygame.draw.polygon(surf, self.BAND_D, P([(-5, 5), (11, 5), (12, 9), (-4, 9)]))
-        pygame.draw.polygon(surf, self.INK, band, 1)
-        for fx, fh in ((-8, 13), (-3, 15), (2, 14), (7, 11)):
-            f = P([(fx, -14), (fx + 4, -14), (fx + 4 - s * 0, -14 - fh), (fx + 2, -16 - fh), (fx, -14 - fh)])
-            pygame.draw.polygon(surf, self.SKIN, f)
-            pygame.draw.polygon(surf, self.INK, f, 1)
-            pygame.draw.line(surf, self.SKIN_L, (wx + s * (fx + 1) * k, wy + (-15) * k),
-                             (wx + s * (fx + 1) * k, wy + (-12 - fh) * k))
-        palm = P([(-9, -1), (-10, -12), (-7, -17), (10, -16), (12, -8), (10, -1)])
-        pygame.draw.polygon(surf, self.SKIN, palm)
-        pygame.draw.polygon(surf, self.SKIN_L, P([(-6, -14), (6, -14), (4, -10), (-5, -10)]))
-        pygame.draw.polygon(surf, self.INK, palm, 1)
-        for kx in (-6, -1, 4, 8):
-            pygame.draw.rect(surf, self.SKIN_D, (wx + s * kx * k, wy - 15 * k, max(1, k), max(1, k)))
-        thumb = P([(-9, -4), (-17, -10), (-19, -16), (-14, -15), (-8, -10)])
-        pygame.draw.polygon(surf, self.SKIN, thumb)
-        pygame.draw.polygon(surf, self.INK, thumb, 1)
+    def _fp_sprite(self, name, phase, left=False):
+        """A first-person sprite with its flames, and where its wrist (or
+        ankle) sits in it. Built once per pose and flame phase."""
+        key = (name, phase, left)
+        got = self.fp.get(key)
+        if got is not None:
+            return got
+        base = self.fp.get((name, None, False))
+        if base is None:
+            rig, args, k, rot, bend, _fl = self.FP_POSES[name]
+            parts = hand_parts(**args) if rig == "hand" else leg_parts()
+            if bend:
+                # bend the hand at the wrist, not the forearm
+                parts = parts[:1] + rig_place(parts[1:], 0, 0, 1.0, bend)
+            parts = rig_place(parts, 0, 0, k, rot)
+            xs = [p[0] for p in parts] + [p[2] for p in parts]
+            ys = [p[1] for p in parts] + [p[3] for p in parts]
+            x0, y0 = int(min(xs)) - 18, int(min(ys)) - 18
+            w, h = min(int(max(xs)) - x0 + 18, 420), min(int(max(ys)) - y0 + 18, 260)
+            img = rig_render(rig_place(parts, -x0, -y0), w, h, rim=(255, 40, 20) if _fl == "ki" else (255, 140, 40))
+            base = (img, (-x0, -y0))
+            self.fp[(name, None, False)] = base
+        img, (ax, ay) = base
+        fl = self.FP_POSES[name][5]
+        pad = 12
+        out = flame_aura(img, phase, 9 if fl == "fire" else 7, HOT_FLAME if fl == "fire" else KI_FLAME,
+                         fade_y=ay + 26, pad=pad)
+        ax, ay = ax + pad, ay + pad
+        if left:
+            out = pygame.transform.flip(out, True, False)
+            ax = out.get_width() - ax
+        got = (out, (ax, ay))
+        self.fp[key] = got
+        return got
+
+    def _put(self, surf, name, x, y, left=False):
+        img, (ax, ay) = self._fp_sprite(name, (self.t // 5) % 4, left)
+        surf.blit(img, (int(x - ax), int(y - ay)))
+
+    def _ki_ball(self, surf, x, y, size, big=False):
+        views = self.shinku_views if big else self.hado_views
+        b = views["back"][(self.t // 3) % 4]
+        bs = pygame.transform.scale_by(b, size)
+        surf.blit(bs, (int(x - bs.get_width() / 2), int(y - bs.get_height() / 2)))
 
     def _draw_hands(self, surf):
-        bobx = math.sin(self.walk * 3.0) * 6 * self.moving
+        bobx = math.sin(self.walk * 3.0) * 5 * self.moving
         boby = abs(math.cos(self.walk * 3.0)) * 4 * self.moving
-        cx, cy = W // 2 + bobx, VIEW_H - 4 + boby
-        gap, k, ball = 26, 1.2, 0.0
+        cx, by = W // 2 + bobx, VIEW_H - 12 + boby
         w, t = self.weapon, self.wt
-        if w == "hado":
-            if t < 7:                       # pull back, ki gathers
-                f = t / 7
-                gap, cy, ball = 26 + 12 * f, cy + 10 * f, f
-            else:                           # thrust out and back
-                f = max(0.0, 1 - (t - 7) / 13)
-                gap, cy, k, ball = 12 + 14 * (1 - f), cy - 20 * f, 1.2 - 0.2 * f, 0
-        elif w == "shinku":
-            if t < 18:
-                f = t / 18
-                gap, cy, ball = 26 + 18 * f, cy + 12 * f + math.sin(t) * f * 2, 1.6 * f
-            else:
-                f = max(0.0, 1 - (t - 18) / 22)
-                gap, cy, k, ball = 10 + 16 * (1 - f), cy - 26 * f, 1.2 - 0.25 * f, 0
-        elif w == "kick":
-            gap, cy = 40, cy + 18
-        if ball > 0.05:
-            b = self.hado[(self.t // 3) % len(self.hado)]
-            bs = pygame.transform.scale_by(b, 0.25 + 0.45 * ball)
-            surf.blit(bs, (cx - bs.get_width() // 2, cy - 32 - bs.get_height() // 2))
-        self._hand(surf, cx - gap, cy, -1, k)
-        self._hand(surf, cx + gap, cy, 1, k)
-        if w in ("hado", "shinku") and ((w == "hado" and 7 <= t < 11) or (w == "shinku" and 18 <= t < 23)):
-            b = self.hado[0] if w == "hado" else self.shinku[0]
-            bs = pygame.transform.scale_by(b, 0.6 if w == "hado" else 1.1)
-            surf.blit(bs, (cx - bs.get_width() // 2, cy - 40 - bs.get_height() // 2))
-        if w == "kick":
-            f = 1 - abs(t - 6) / 16 if t < 22 else 0
-            self._foot(surf, cx + 20, VIEW_H + 40 - f * 75)
+        idle = "claw2" if (self.t // 50) % 3 == 2 else "claw"
 
-    def _foot(self, surf, x, y):
-        leg = [(x - 14, y + 30), (x + 18, y + 30), (x + 34, y + 120), (x - 10, y + 120)]
-        pygame.draw.polygon(surf, (70, 70, 80), leg)
-        pygame.draw.polygon(surf, (40, 40, 48), [(x + 6, y + 30), (x + 18, y + 30), (x + 34, y + 120), (x + 18, y + 120)])
-        pygame.draw.polygon(surf, self.INK, leg, 1)
-        sole = pygame.Rect(x - 13, y - 14, 28, 44)
-        pygame.draw.ellipse(surf, self.SKIN, sole)
-        pygame.draw.ellipse(surf, self.SKIN_D, sole.inflate(-10, -16).move(2, 8))
-        pygame.draw.ellipse(surf, self.INK, sole, 1)
-        for i, tx in enumerate((-9, -3, 3, 8, 12)):
-            r = 4 if i == 0 else 3
-            pygame.draw.circle(surf, self.SKIN, (x + tx, y - 15 + abs(i - 1)), r)
-            pygame.draw.circle(surf, self.INK, (x + tx, y - 15 + abs(i - 1)), r, 1)
+        def pair(name, gap, y, lname=None):
+            self._put(surf, lname or name, cx - gap, y, left=True)
+            self._put(surf, name, cx + gap, y)
+
+        def lerp(a, b, f):
+            return a + (b - a) * max(0.0, min(1.0, f))
+
+        if w in ("hado", "shinku"):
+            fire = 7 if w == "hado" else 18
+            big = w == "shinku"
+            if t < fire:                                   # hands come together, the ki gathers
+                f = t / fire
+                pair("cup" if f > 0.25 else idle, lerp(58, 24, f * 1.6), by + 6 * f)
+                self._ki_ball(surf, cx, by - 30 + 4 * f, (0.25 + 0.5 * f) * (1.4 if big else 1.0), big)
+            elif t < fire + 6:                             # thrust: palms out, the ball leaves
+                pair("thrust", 15, by - 12)
+                if t < fire + 3:
+                    self._ki_ball(surf, cx, by - 40, 1.2 if big else 0.9, big)
+            else:                                          # back to the guard
+                f = (t - fire - 6) / (self.MOVE_LEN[w] - fire - 6)
+                pair(idle, lerp(15, 58, f), lerp(by - 12, by, f))
+        elif w == "punch":
+            s = self.punch_side
+            other = cx - s * 62
+            self._put(surf, idle, other, by + 10, left=s > 0)
+            if t < 3:
+                x, y, pose = cx + s * 54, by + 8, "fist"
+            elif t < 9:
+                x, y, pose = cx + s * 10, by - 26, "jab"
+            else:
+                f = (t - 9) / 7
+                x, y, pose = lerp(cx + s * 10, cx + s * 58, f), lerp(by - 26, by, f), "fist"
+            self._put(surf, pose, x, y, left=s < 0)
+        elif w == "shoryu":
+            self._put(surf, idle, cx - 70, by + 26, left=True)
+            if t < 4:
+                self._put(surf, "fist", cx + 34, by + 18)
+            else:
+                f = min(1.0, (t - 4) / 12)
+                y = lerp(by + 10, by - 70, f) + max(0, t - 20) * 7
+                self._put(surf, "upper", lerp(cx + 30, cx + 8, f), y)
+        elif w == "kick":
+            pair(idle, 74, by + 24)
+            if t < 4:
+                self._put(surf, "leg_up", cx + 30, VIEW_H + 40 - t * 8)
+            elif t < 13:
+                f = min(1.0, (t - 4) / 3)
+                self._put(surf, "leg_out", lerp(cx + 26, cx + 12, f), lerp(VIEW_H + 8, VIEW_H - 46, f))
+            else:
+                f = (t - 13) / 9
+                self._put(surf, "leg_up", lerp(cx + 14, cx + 34, f), lerp(VIEW_H - 30, VIEW_H + 70, f))
+        elif w == "tatsu":
+            pair(idle, 80, by + 30)
+            if 3 <= t < 37:
+                # the leg sticks straight out while the world whirls past; streaks
+                for k in range(5):
+                    yy = 58 + k * 9
+                    pygame.draw.line(surf, (255, 255, 255) if k % 2 else (150, 190, 255),
+                                     (int(cx - 140 + (t * 23 + k * 40) % 120), yy),
+                                     (int(cx - 90 + (t * 23 + k * 40) % 120), yy))
+                self._put(surf, "leg_side", W - 58, 90)
+        else:
+            pair(idle, 58, by)
 
     # ---- status bar ------------------------------------------------------------------
     def _draw_bar(self, surf):
         y0 = VIEW_H
         surf.blit(self.bar_bg, (0, y0))
-        red = (220, 30, 20)
-        draw_text(surf, "%d" % self.ki, 28, y0 + 6, red, scale=2, align="center")
-        draw_text(surf, "KI", 28, y0 + 22, (230, 230, 230), align="center")
+        grey = (200, 196, 188)
         pct = max(0, int(round(100 * self.hp / self.max_hp)))
-        draw_text(surf, "%d%%" % pct, 87, y0 + 6, red, scale=2, align="center")
-        draw_text(surf, "HEALTH", 87, y0 + 22, (230, 230, 230), align="center")
-        draw_text(surf, "%d/%d" % (self.kills, self.total), 228, y0 + 6, red, scale=2, align="center")
-        draw_text(surf, "KILLS", 228, y0 + 22, (230, 230, 230), align="center")
-        for i, (k, col) in enumerate((("blue", (40, 90, 255)), ("red", (230, 30, 30)))):
-            r = pygame.Rect(262, y0 + 5 + i * 11, 10, 9)
-            if k in self.keys:
-                pygame.draw.rect(surf, col, r)
-                pygame.draw.rect(surf, (255, 255, 255), (r.x + 2, r.y + 2, 6, 1))
-            else:
-                pygame.draw.rect(surf, (70, 66, 62), r, 1)
+        for text, cx in (("%d%%" % pct, 68), ("%d%%" % int(self.ki), 214)):
+            img = self._big(text)
+            surf.blit(img, (cx - img.get_width() // 2, y0 + 4))
+        draw_text(surf, "HEALTH", 68, y0 + 21, grey, align="center")
+        draw_text(surf, "KI", 214, y0 + 21, grey, align="center")
+        # ARMS: 2 hadouken, 3 shoryuken, 4 tatsumaki, 5 shinku (lit when there is the ki), 6/7 the keys
         ready = self.ki >= SHINKU_COST
-        draw_text(surf, "SHINKU", 299, y0 + 6, (230, 230, 230), align="center")
-        col = (120, 200, 255) if ready and (self.t // 15) % 2 else ((90, 150, 220) if ready else (90, 80, 80))
-        draw_text(surf, "READY" if ready else "%d KI" % SHINKU_COST, 299, y0 + 17, col, align="center")
-        self._draw_face(surf, 145, y0 + 1)
+        lit = {2: self.ki >= HADO_COST, 3: True, 4: True, 5: ready}
+        for i in range(6):
+            n = i + 2
+            x, y = 106 + (i % 3) * 13 + 3, y0 + 4 + (i // 3) * 9
+            if n in (6, 7):
+                k = "blue" if n == 6 else "red"
+                col = ((70, 120, 255) if k == "blue" else (240, 50, 40)) if k in self.keys else (96, 90, 84)
+            else:
+                col = (255, 214, 60) if lit[n] else (96, 90, 84)
+                if n == 5 and ready and (self.t // 15) % 2:
+                    col = (255, 250, 190)
+            draw_text(surf, str(n), x, y, col, shadow=(20, 16, 12))
+        draw_text(surf, "ARMS", 124, y0 + 23, grey, align="center")
+        # the ammo panel: what the ki buys, kills, keys
+        yel, lab = (236, 200, 60), (190, 186, 178)
+        rows = (("HADO", "%d/%d" % (self.ki // HADO_COST, KI_MAX // HADO_COST)),
+                ("SHNK", "%d/%d" % (self.ki // SHINKU_COST, KI_MAX // SHINKU_COST)),
+                ("KILL", "%d/%d" % (self.kills, self.total)))
+        for i, (a, b) in enumerate(rows):
+            draw_text(surf, a, 250, y0 + 5 + i * 8, lab, shadow=(30, 28, 26))
+            draw_text(surf, b, 316, y0 + 5 + i * 8, yel, shadow=(30, 28, 26), align="right")
+        self._draw_face(surf, 3, y0 + 2)
 
     def _draw_face(self, surf, x, y):
         self.face_t += 1

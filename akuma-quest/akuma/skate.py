@@ -1,17 +1,22 @@
-"""Level 9: the skate park, 720 Degrees style. No side-view fights here.
+"""The skate park level, 720 Degrees style. No side-view fights here.
 
 Akuma starts on foot and has to find the skateboard lying in the lot.
 Stepping on it: "SKATE OR DIEEEE!" and the one-minute clock starts. On the
-board he always rolls forward the way he faces: left / right turn him, up
+board he always rolls forward the way he faces: left / right turn him, punch
 ollies, kick pushes for speed, down brakes. Kickers launch him into the air.
 
 In the air left / right spin him; landing counts the spin in 180 degree steps
-(180, 360, 540, 720...). Special in the air kickflips the board. Every trick
-landed clean is worth 25 points (a 360 kickflip is two tricks, 50). Landing
-crooked, mid-flip or on top of something is a bail: no points. Reach 100
-points to clear the course. When the clock runs out a ghost comes for Akuma,
-faster and faster; if it touches him he dies (he can still win by reaching
-100 points while it chases him).
+(180, 360, 540, 720...). Special kickflips the board (on the ground it pops an
+ollie straight into one). Every trick landed clean is worth 25 points (a 360
+kickflip is two tricks, 50). Ollie over a hydrant (or a cone or trash can)
+and land clean for a hop bonus. Come down on a rail, a grind box or the long
+edge of a bench / planter / barrier roughly lined up with it and Akuma grinds
+it to the end (sparks!); a grind scores more the longer it is, and punch
+ollies out of it early. Landing crooked, mid-flip or on top of something
+across its length is a bail: no points. Reach 100 points to clear the course.
+When the clock runs out a ghost comes for Akuma, faster and faster; if it
+touches him he dies (he can still win by reaching 100 points while it chases
+him).
 """
 
 import math
@@ -30,10 +35,12 @@ from .pause import PauseMenu
 LEVEL_NAME = "SKATE OR DIE"
 HUD_H = 20
 VH = H - HUD_H                   # view height under the HUD
-WW, WH = 720, 460                # the park, px
+WW, WH = 1120, 740               # the park, px
 
 GOAL = 100
 TRICK_PTS = 25
+GRIND_BASE, GRIND_PX = 10, 16    # a grind: 10 points plus one per 16 px ground
+HOPS = {"hydrant": ("HYDRANT HOP", 15), "cone": ("CONE HOP", 10), "trash": ("TRASH HOP", 10)}
 TIME_LIMIT = 60 * FPS
 INTRO = 110
 
@@ -55,6 +62,11 @@ TOL = 45                         # landing: degrees off a multiple of 180 that s
 FLIP_FRAMES = 16
 BAIL_FRAMES = 70
 R = 3                            # skater footprint radius
+GRIND_SNAP = 7                   # px off a rail's line that still catches it
+GRIND_ANGLE = 40                 # degrees off the rail's line that still catches it
+GRIND_MIN = 1.0                  # grinding never slows below this
+GRIND_FRICTION = 0.004
+GRIND_POP = 1.3                  # vz when the wheels roll off the end of a rail
 GHOST_SPEED0, GHOST_ACC, GHOST_MAX = 0.8, 0.005, 3.1
 SKY = 40                         # px of night sky the camera may show above the north wall
 SK = 0.42                        # Akuma sprite scale
@@ -62,10 +74,12 @@ SK = 0.42                        # Akuma sprite scale
 CONTROLS = [
     "FIND THE SKATEBOARD AND STEP ON IT",
     "LEFT / RIGHT: TURN   (IN THE AIR: SPIN)",
-    "UP: OLLIE   DOWN: BRAKE   K / X: PUSH",
-    "L / SPACE IN THE AIR: KICKFLIP",
+    "PUNCH (J / Z): OLLIE   KICK (K / X): PUSH",
+    "SPECIAL (L / SPACE): KICKFLIP   DOWN: BRAKE",
     "SPIN 180 360 540 720... AND LAND STRAIGHT",
     "EVERY CLEAN TRICK: +25   KICKERS GO HIGHER",
+    "OLLIE ONTO RAILS, BOX LEDGES, BENCHES: GRIND",
+    "OLLIE OVER HYDRANTS: HYDRANT HOP",
     "CROOKED OR MID-FLIP LANDING = BAIL",
     "100 POINTS CLEARS THE COURSE",
     "1:00 ON THE CLOCK... THEN THE GHOST COMES",
@@ -73,32 +87,42 @@ CONTROLS = [
 
 DIRV = {"e": (1, 0), "w": (-1, 0), "s": (0, 1), "n": (0, -1)}
 
-# the park: outer walls, a warehouse block in the middle, a loop of lanes
-WALLS = [(0, 0, WW, 24), (0, WH - 16, WW, 16), (0, 0, 16, WH), (WW - 16, 0, 16, WH),
-         (150, 130, 420, 200)]
-ROUTE = [(83, 77), (637, 77), (637, 387), (83, 387)]   # clockwise lane centres
-START = (48, 64)
-BOARD = (150, 77)
-# kickers: x, y, w, h, launch direction, height
-RAMPS = [(250, 62, 40, 30, "e", 10), (400, 60, 46, 34, "e", 16),
-         (622, 170, 30, 40, "s", 10),
-         (430, 370, 46, 34, "w", 16), (240, 372, 40, 30, "w", 10),
-         (68, 270, 30, 40, "n", 10)]
-PUDDLES = [(180, 88, 34, 14), (600, 280, 30, 16), (330, 392, 40, 14), (40, 330, 28, 14)]
+# the park: outer walls, a warehouse block in the middle, a loop of wide lanes
+# around it (left / right lanes 284 px wide, top / bottom lanes 206 / 234 px)
+WAREHOUSE = (300, 230, 520, 260)
+WALLS = [(0, 0, WW, 24), (0, WH - 16, WW, 16), (0, 0, 16, WH), (WW - 16, 0, 16, WH), WAREHOUSE]
+ROUTE = [(150, 120), (960, 120), (960, 610), (150, 610)]   # clockwise lane centres
+START = (60, 70)
+BOARD = (200, 120)
+# kickers: x, y, w, h, launch direction, height (all on the painted route)
+RAMPS = [(330, 105, 40, 30, "e", 10), (620, 103, 46, 34, "e", 16),
+         (942, 250, 36, 46, "s", 16),
+         (760, 593, 46, 34, "w", 16), (460, 595, 40, 30, "w", 10),
+         (135, 470, 30, 40, "n", 10)]
+PUDDLES = [(590, 62, 34, 14), (1000, 400, 30, 16), (300, 690, 40, 14), (40, 220, 28, 14)]
+# grind rails: x, y, length, axis ("x" runs east-west, "y" north-south), height
+RAILS = [(360, 175, 400, "x", 7),      # the long one, top lane
+         (380, 665, 280, "x", 7),      # bottom lane, lines up with the grind box
+         (1040, 220, 250, "y", 7),     # right lane
+         (240, 250, 150, "y", 6)]      # left lane
+# grind boxes (concrete ledges with steel coping): x, y, w, d, height
+BOXES = [(470, 36, 90, 16, 8), (760, 657, 100, 16, 8), (860, 310, 16, 110, 8), (40, 290, 16, 110, 8)]
 # obstacles: kind, x, y (footprint top-left)
 OBSTACLES = [
-    ("cone", 340, 34), ("cone", 352, 116), ("cone", 520, 36), ("bench", 470, 116),
-    ("hydrant", 30, 116), ("trash", 680, 34), ("planter", 590, 120), ("cone", 676, 250),
-    ("trash", 590, 230), ("hydrant", 684, 400), ("bench", 520, 336), ("cone", 360, 430),
-    ("planter", 160, 422), ("bench", 300, 336), ("trash", 26, 420), ("cone", 128, 300),
-    ("barrier", 20, 220), ("hydrant", 130, 140), ("cone", 30, 30), ("planter", 680, 140),
-    ("post", 18, 172), ("post", 142, 172),
+    ("cone", 420, 44), ("cone", 700, 52), ("bench", 820, 40), ("trash", 1060, 34),
+    ("planter", 250, 34), ("hydrant", 877, 173), ("hydrant", 230, 200), ("cone", 1080, 160),
+    ("cone", 1080, 300), ("hydrant", 1000, 520), ("trash", 1070, 680), ("planter", 900, 700),
+    ("bench", 600, 512), ("hydrant", 560, 540), ("hydrant", 330, 540), ("cone", 250, 690),
+    ("trash", 26, 690), ("hydrant", 60, 540), ("barrier", 60, 440), ("planter", 1050, 460),
 ]
 SIZES = {   # footprint w, d and height
     "cone": (6, 4, 8), "hydrant": (6, 4, 10), "bench": (26, 6, 7), "trash": (10, 6, 12),
     "planter": (22, 10, 9), "barrier": (24, 5, 9), "post": (6, 6, 30),
 }
-GATE_Y = 176                      # start / finish line across the left lane
+GRINDABLE = {"rail": "RAIL GRIND", "box": "LEDGE GRIND", "bench": "BENCH GRIND",
+             "planter": "PLANTER GRIND", "barrier": "BARRIER GRIND"}
+GATE_Y = 360                      # start / finish line across the left lane
+GATE_X = (16, WAREHOUSE[0])
 
 
 def _wrap(a):
@@ -136,6 +160,9 @@ def _ensure_sfx():
     S["sk_roll"] = _sound(_noise(0.14, 0.12, 0.6, 0.07))
     S["sk_push"] = _sound(_noise(0.05, 0.18, 3, 0.25))
     S["sk_flip"] = _sound(_add(_noise(0.1, 0.2, 1, 0.2), _tone(900, 1500, 0.1, 0.15, "tri")))
+    # grinding: a gritty metal scrape (looped in short bursts while on a rail) and the "clack" on
+    S["sk_grind"] = _sound(_add(_noise(0.12, 0.22, 0.4, 0.95), _tone(1900, 1750, 0.12, 0.05, "square", 0.6)))
+    S["sk_lock"] = _sound(_add(_noise(0.06, 0.45, 3, 0.9), _tone(1200, 800, 0.06, 0.2, "square", 0.3)))
     S["sk_bail"] = _sound(_add(_noise(0.4, 0.7, 1.5, 0.3), _tone(320, 60, 0.35, 0.35, "square", 0.3)))
     S["sk_trick"] = _sound(_tone(660, 660, 0.06, 0.22, "square", 0, 0.25)
                            + _tone(880, 880, 0.06, 0.22, "square", 0, 0.25)
@@ -276,6 +303,47 @@ def _obstacle_img(kind, rng):
     return _outlined(s)
 
 
+def _rail_img(w, d, h, axis):
+    """A steel grind rail on short posts, footprint w x d, top bar at height h."""
+    steel, hi, lo, post = (196, 202, 214), (244, 244, 252), (120, 124, 140), (84, 84, 96)
+    shadow = (0, 0, 0, 90)
+    s = pygame.Surface((w + 4, d + h + 2), pygame.SRCALPHA)
+    if axis == "x":
+        s.fill(shadow, (1, d + h, w, 2))                    # its shadow on the ground
+        for x in list(range(4, w - 3, 40)) + [w - 3]:
+            s.fill(post, (x, d + 1, 2, h))
+            s.fill(lo, (x - 1, d + h, 4, 1))                # base plate
+        s.fill(steel, (1, 1, w, d))
+        s.fill(hi, (1, 1, w, 1))
+        s.fill(lo, (1, d, w, 1))
+    else:
+        s.fill(shadow, (3, h + 1, 2, d))
+        for y in list(range(4, d - 3, 40)) + [d - 3]:
+            s.fill(post, (1, y + 1, 2, h))
+        s.fill(steel, (1, 1, w, d))
+        s.fill(hi, (1, 1, 1, d))
+        s.fill(post, (1, d + 1, w, h))                      # the near post under the end
+    return _outlined(s)
+
+
+def _box_img(w, d, h):
+    """A concrete grind box with steel coping on its edges."""
+    top, face, seam, cope = (156, 156, 164), (112, 112, 122), (96, 96, 106), (214, 220, 232)
+    s = pygame.Surface((w + 2, d + h + 2), pygame.SRCALPHA)
+    s.fill(top, (1, 1, w, d))
+    s.fill(face, (1, d + 1, w, h))
+    for x in range(1 + 12, w, 12):
+        s.fill(seam, (x, d + 2, 1, h - 1))
+    if w >= d:
+        s.fill(cope, (1, 1, w, 1))
+        s.fill(cope, (1, d, w, 1))
+    else:
+        s.fill(cope, (1, 1, 1, d))
+        s.fill(cope, (w, 1, 1, d))
+    s.fill(cope, (1, d + 1, w, 1))
+    return _outlined(s)
+
+
 def _flag_img(col):
     s = pygame.Surface((12, 22), pygame.SRCALPHA)
     s.fill((200, 200, 200), (1, 0, 1, 22))
@@ -349,10 +417,10 @@ def _sky(rng):
 def _world(rng):
     s = pygame.Surface((WW, WH))
     s.fill((70, 70, 80))
-    for _ in range(5200):
+    for _ in range(WW * WH // 64):
         x, y = rng.randrange(WW), rng.randrange(WH)
         s.set_at((x, y), shade((70, 70, 80), rng.choice((0.82, 0.9, 1.1, 1.18))))
-    for _ in range(18):                                    # cracks
+    for _ in range(40):                                    # cracks
         x, y = rng.randrange(WW), rng.randrange(WH)
         pts = [(x, y)]
         for _ in range(4):
@@ -374,7 +442,7 @@ def _world(rng):
         pygame.draw.ellipse(s, (70, 100, 150), (x + 2, y + 2, w - 4, h - 4))
         s.fill((150, 180, 230), (x + w // 3, y + 3, w // 4, 1))
     # start / finish line: a checker strip across the left lane
-    for x in range(16, 150, 4):
+    for x in range(GATE_X[0], GATE_X[1], 4):
         for r in range(2):
             col = (240, 240, 240) if (x // 4 + r) % 2 else (24, 24, 30)
             s.fill(col, (x, GATE_Y - 2 + r * 2, 4, 2))
@@ -439,8 +507,15 @@ class SkateScene:
             w, d, h = SIZES[kind]
             self.obstacles.append(dict(kind=kind, rect=pygame.Rect(x, y, w, d), h=h,
                                        img=_obstacle_img(kind, orng)))
+        for x, y, n, axis, h in RAILS:
+            rc = pygame.Rect(x, y - 1, n, 2) if axis == "x" else pygame.Rect(x - 1, y, 2, n)
+            self.obstacles.append(dict(kind="rail", rect=rc, h=h, img=_rail_img(rc.w, rc.h, h, axis)))
+        for x, y, w, d, h in BOXES:
+            self.obstacles.append(dict(kind="box", rect=pygame.Rect(x, y, w, d), h=h, img=_box_img(w, d, h)))
         for r in WALLS:
             self.obstacles.append(dict(kind="wall", rect=pygame.Rect(r), h=999, img=None))
+        for o in self.obstacles:
+            o["axis"] = "x" if o["rect"].w >= o["rect"].h else "y"
         self.ramps = [dict(rect=pygame.Rect(x, y, w, h), dir=d, h=hh) for x, y, w, h, d, hh in RAMPS]
         self.puddles = [pygame.Rect(p) for p in PUDDLES]
         self.foot = MapArt("akuma", SK)
@@ -491,6 +566,11 @@ class SkateScene:
         self.shake = 0
         self.result = None
         self.laps = 0
+        self.grind = None                  # dict(o, axis, dir, len, name) while on a rail / ledge
+        self.grind_cd = 0
+        self.grinds = []                   # every finished grind: dict(name, len, pts)
+        self.hopped = set()                # obstacles cleared in the air this jump (indices)
+        self.travel = 0.0
 
     @property
     def paused(self):
@@ -639,6 +719,8 @@ class SkateScene:
             self.push_t -= 1
         if self.push_cd:
             self.push_cd -= 1
+        if self.grind_cd:
+            self.grind_cd -= 1
         if self.bail_t:
             self.bail_t -= 1
             if self.board_fly:
@@ -646,6 +728,9 @@ class SkateScene:
             if not self.bail_t:
                 self.board_fly = None
                 self.speed = 0.0
+            return
+        if self.grind:
+            self._grinding(inp)
             return
         turn = (1 if inp.held("right") else 0) - (1 if inp.held("left") else 0)
         if not self.air:
@@ -670,8 +755,11 @@ class SkateScene:
                                        (150, 190, 240)])
             if self.speed > 0.4 and self.t % 9 == 0:
                 _play("sk_roll", min(1.0, 0.25 + self.speed * 0.2))
-            if inp.pressed("up"):
+            if inp.pressed("punch"):
                 self.ollie()
+            elif inp.pressed("special"):
+                self.ollie()                    # special on the ground: pop straight into a kickflip
+                self.kickflip()
             else:
                 self._roll()
         else:
@@ -679,12 +767,17 @@ class SkateScene:
                 self.heading = (self.heading + turn * SPIN) % 360
                 self.spin += turn * SPIN
             if inp.pressed("special") and not self.flip_t:
-                self.flip_t = FLIP_FRAMES
-                self.flips += 1
-                _play("sk_flip")
+                self.kickflip()
             elif self.flip_t:
                 self.flip_t -= 1
             self._fly()
+
+    def kickflip(self):
+        if not self.air or self.flip_t:
+            return
+        self.flip_t = FLIP_FRAMES
+        self.flips += 1
+        _play("sk_flip")
 
     @staticmethod
     def _side_for(heading, keep=1):
@@ -734,9 +827,11 @@ class SkateScene:
         _play("land", 0.6)
 
     def ollie(self):
-        """Up on the ground: pop into the air (a kicker under the wheels adds to it)."""
+        """Punch on the ground (or on a rail): pop into the air (a kicker under the wheels adds to it)."""
         if self.air or self.bail_t or self.mode != "skate":
             return
+        if self.grind:
+            self._end_grind()
         vz = OLLIE_VZ
         r = self.ramp_at(self.px, self.py)
         if r and self.z > 0:
@@ -757,6 +852,7 @@ class SkateScene:
         self.flip_t = 0
         self.air_t = 0
         self.travel = self.heading
+        self.hopped = set()
 
     def air_frames_left(self):
         """Frames until touchdown on flat ground if nothing changes (bots use this)."""
@@ -774,35 +870,145 @@ class SkateScene:
         nx, ny = self.px + self.vx, self.py + self.vy
         self.vz -= G
         nz = self.z + self.vz
+        if self.vz < 0 and not self.grind_cd:
+            o = self.grind_catch(nx, ny, self.z, nz)
+            if o:
+                self._start_grind(o, nx, ny)
+                return
         hit = self.hits(nx, ny, nz)
         if hit:
             self.bail("LANDED ON A %s!" % hit["kind"].upper() if hit["kind"] != "wall" and nz > 0
                       else "SLAMMED THE WALL!")
             return
         self.px, self.py, self.z = nx, ny, nz
+        for i, o in enumerate(self.obstacles):          # clearing a hydrant / cone / trash can
+            if o["kind"] in HOPS and self.z > o["h"] and o["rect"].inflate(2 * R, 2 * R).collidepoint(nx, ny):
+                self.hopped.add(i)
         g = self.ground_at(nx, ny)
         if self.z <= g:
             self.z = g
             self.land()
 
-    def land(self):
-        self.air = False
-        self.vz = 0.0
-        net = self.spin
-        n = int(round(abs(net) / 180))
-        off = abs(abs(net) - n * 180)
-        if self.flip_t:
-            self.bail("MID-FLIP!")
+    # ---- grinding ------------------------------------------------------------
+    def grind_catch(self, x, y, z0, z1):
+        """The rail / ledge a skater coming down from z0 to z1 at x, y lands on, lined up with it."""
+        sp = math.hypot(self.vx, self.vy)
+        if sp < 0.3:
+            return None
+        lim = math.cos(math.radians(GRIND_ANGLE))
+        for o in self.obstacles:
+            if o["kind"] not in GRINDABLE:
+                continue
+            h = o["h"]
+            if not (z0 >= h - 0.5 and z1 <= h + 1.5):
+                continue
+            rc = o["rect"]
+            snap = GRIND_SNAP if o["kind"] == "rail" else 3
+            if o["axis"] == "x":
+                ok = (rc.left + 1 <= x <= rc.right - 2 and rc.top - snap <= y <= rc.bottom + snap
+                      and abs(self.vx) / sp >= lim)
+            else:
+                ok = (rc.top + 1 <= y <= rc.bottom - 2 and rc.left - snap <= x <= rc.right + snap
+                      and abs(self.vy) / sp >= lim)
+            if ok:
+                return o
+        return None
+
+    def _start_grind(self, o, x, y):
+        why = self._landing_fault()
+        if why:
+            self.px, self.py = x, y
+            self.bail(why)
             return
-        if off > TOL:
-            self.bail("CROOKED LANDING!")
-            return
-        # clean: Akuma straightens out and rides on the way he was flying
-        self.heading = math.degrees(math.atan2(self.vy, self.vx)) % 360 if (self.vx or self.vy) else \
-            round(self.heading / 180) * 180 % 360
+        names, pts, n = self._air_tricks()
+        flips = self.flips
+        rc = o["rect"]
+        rail = o["kind"] == "rail"
+        if o["axis"] == "x":
+            d = 1 if self.vx >= 0 else -1
+            line = rc.y + rc.h / 2 if rail else (rc.top + 1 if y < rc.centery else rc.bottom - 1)
+            self.px, self.py = x, float(line)
+            self.heading = 0.0 if d > 0 else 180.0
+        else:
+            d = 1 if self.vy >= 0 else -1
+            line = rc.x + rc.w / 2 if rail else (rc.left + 1 if x < rc.centerx else rc.right - 1)
+            self.px, self.py = float(line), y
+            self.heading = 90.0 if d > 0 else 270.0
         self.side = self._side_for(self.heading, self.side)
-        self.speed = min(MAX_SPEED, math.hypot(self.vx, self.vy) * 0.95)
+        self.speed = max(GRIND_MIN, min(MAX_SPEED, math.hypot(self.vx, self.vy)))
+        self.air = False
+        self.z, self.vz = float(o["h"]), 0.0
+        self.spin, self.flips, self.flip_t = 0.0, 0, 0
+        self.grind = dict(o=o, axis=o["axis"], dir=d, len=0.0, name=GRINDABLE[o["kind"]])
+        _play("sk_lock")
+        self._sparks(6)
+        if pts:
+            self._award(names, pts, n * 180, flips)
+
+    def _grinding(self, inp):
+        g = self.grind
+        if inp.pressed("punch") or inp.pressed("special"):
+            flip = not inp.pressed("punch")
+            self.ollie()                         # pop out of the grind early
+            if flip:
+                self.kickflip()
+            return
+        self.speed = max(GRIND_MIN, self.speed - GRIND_FRICTION)
+        step = self.speed * g["dir"]
+        rc = g["o"]["rect"]
+        if g["axis"] == "x":
+            self.px += step
+            off = self.px < rc.left or self.px >= rc.right
+        else:
+            self.py += step
+            off = self.py < rc.top or self.py >= rc.bottom
+        g["len"] += self.speed
+        self._sparks(1 if self.t % 2 else 2)
+        if self.t % 7 == 0:
+            _play("sk_grind", 0.5)
+        if off:
+            self._end_grind()
+            self._take_off(GRIND_POP)            # roll off the end and drop back to the ground
+
+    def _sparks(self, n):
+        g = self.grind
+        bx = -g["dir"] if g and g["axis"] == "x" else 0
+        by = -g["dir"] if g and g["axis"] == "y" else 0
+        for _ in range(n):
+            self.parts.append([self.px, self.py - self.z + 1,
+                               bx * self.rng.uniform(0.4, 1.4) + self.rng.uniform(-0.5, 0.5),
+                               by * self.rng.uniform(0.4, 1.4) - self.rng.uniform(0.2, 1.1),
+                               self.rng.randrange(6, 14),
+                               self.rng.choice(((255, 240, 140), (255, 180, 60), (255, 255, 255)))])
+
+    def _end_grind(self):
+        g = self.grind
+        self.grind = None
+        self.grind_cd = 8
+        if not g:
+            return
+        pts = GRIND_BASE + int(g["len"] / GRIND_PX)
+        self.grinds.append(dict(name=g["name"], len=g["len"], pts=pts))
+        self._award([g["name"]], pts, grind=g["len"])
+
+    # ---- landing and scoring -------------------------------------------------
+    def _landing_fault(self):
+        if self.flip_t:
+            return "MID-FLIP!"
+        n = int(round(abs(self.spin) / 180))
+        if abs(abs(self.spin) - n * 180) > TOL:
+            return "CROOKED LANDING!"
+        return None
+
+    def _air_tricks(self):
+        """Names and points of the jump just landed (spin, kickflips, things hopped over)."""
+        n = int(round(abs(self.spin) / 180))
         names, pts = [], 0
+        for i in sorted(self.hopped):
+            hop, p = HOPS[self.obstacles[i]["kind"]]
+            if hop not in names:
+                names.append(hop)
+                pts += p
         if n >= 1:
             deg = n * 180
             names.append("%d%s" % (deg, "!!" if deg == 720 else "!!!" if deg > 720 else ""))
@@ -810,30 +1016,51 @@ class SkateScene:
         if self.flips:
             names.append(("DOUBLE " if self.flips == 2 else "TRIPLE " if self.flips >= 3 else "") + "KICKFLIP")
             pts += TRICK_PTS * self.flips
-        for _ in range(6):
-            self.parts.append([self.px, self.py, self.rng.uniform(-1, 1), self.rng.uniform(-0.6, 0), 12,
-                               (160, 150, 140)])
-        if not pts:
-            _play("sk_land", 0.8)
-            return
+        self.hopped = set()
+        return names, pts, n
+
+    def _award(self, names, pts, spin=0, flips=0, grind=0.0):
         name = " ".join(names)
         if not name.endswith("!"):
             name += "!"
+        n = spin // 180
         self.score += pts
-        self.last_trick = dict(spin=n * 180, flips=self.flips, pts=pts, name=name)
+        self.last_trick = dict(spin=spin, flips=flips, pts=pts, name=name, grind=grind)
         self.tricks.append(self.last_trick)
-        _play("sk_land", 0.6)
         _play("sk_trick")
-        self._popup("%s +%d" % (name, pts), (120, 255, 140) if n < 4 else (255, 120, 255))
-        if self.score >= GOAL:
+        self._popup("%s +%d" % (name, pts),
+                    (255, 200, 90) if grind else (120, 255, 140) if n < 4 else (255, 120, 255))
+        if self.score >= GOAL and self.phase == "play":
             self.phase, self.end_t = "won", 0
             self.banner = None
             _play("encounter")
+
+    def land(self):
+        self.air = False
+        self.vz = 0.0
+        why = self._landing_fault()
+        if why:
+            self.bail(why)
+            return
+        names, pts, n = self._air_tricks()
+        # clean: Akuma straightens out and rides on the way he was flying
+        self.heading = math.degrees(math.atan2(self.vy, self.vx)) % 360 if (self.vx or self.vy) else \
+            round(self.heading / 180) * 180 % 360
+        self.side = self._side_for(self.heading, self.side)
+        self.speed = min(MAX_SPEED, math.hypot(self.vx, self.vy) * 0.95)
+        for _ in range(6):
+            self.parts.append([self.px, self.py, self.rng.uniform(-1, 1), self.rng.uniform(-0.6, 0), 12,
+                               (160, 150, 140)])
+        _play("sk_land", 0.6 if pts else 0.8)
+        if pts:
+            self._award(names, pts, n * 180, self.flips)
 
     def bail(self, why="BAIL!"):
         self.bails += 1
         self.bail_why = why
         self.bail_t = BAIL_FRAMES
+        self.grind = None
+        self.hopped = set()
         a = math.radians(self.heading)
         sp = max(self.speed, math.hypot(self.vx, self.vy) if self.air else 0)
         self.board_fly = [self.px, self.py, max(self.z, 2.0), math.cos(a) * sp * 0.8,
@@ -906,6 +1133,7 @@ class SkateScene:
 
     def caught(self):
         self.phase, self.end_t = "lost", 0
+        self.grind = None
         self.air = False
         self.z = self.ground_at(self.px, self.py)
         self.bail_t = 0
@@ -936,14 +1164,20 @@ class SkateScene:
             if (self.t // 20 + p.x) % 3 == 0:
                 surf.fill((220, 235, 255), (ox + p.x + p.w // 2 + (self.t // 7) % 5, oy + p.y + p.h // 2, 2, 1))
         # course flags at the corners
-        for i, (fx, fy) in enumerate(((30, 40), (690, 40), (690, 430), (30, 430))):
+        for i, (fx, fy) in enumerate(((30, 40), (WW - 30, 40), (WW - 30, WH - 30), (30, WH - 30))):
             surf.blit(self.flags[i % 3], (ox + fx - 2, oy + fy - 22 + (1 if (self.t // 20 + i) % 2 else 0)))
         # start / finish banner over the gate
         things = []
         for o in self.obstacles:
             if o["img"] is not None:
                 things.append((o["rect"].bottom, 0, "ob", o))
-        things.append((self.py + 0.5, 1, "akuma", None))
+        key = self.py + 0.5
+        if self.mode == "skate" and not self.bail_t:
+            for o in self.obstacles:       # up on (or over) a rail / box: draw him in front of it
+                if (o["img"] is not None and self.z >= o["h"] - 0.5
+                        and o["rect"].inflate(2 * R + 2, 2 * R + 2).collidepoint(self.px, self.py)):
+                    key = max(key, o["rect"].bottom + 0.5)
+        things.append((key, 1, "akuma", None))
         things.sort(key=lambda t: (t[0], t[1]))
         for _, _, kind, o in things:
             if kind == "ob":
@@ -967,7 +1201,7 @@ class SkateScene:
         self._hud(surf)
 
     def _draw_gate(self, surf, ox, oy):
-        x0, x1 = ox + 21, ox + 145
+        x0, x1 = ox + GATE_X[0] + 5, ox + GATE_X[1] - 5
         y = oy + GATE_Y - 34
         surf.fill((24, 24, 30), (x0, y - 1, x1 - x0, 11))
         surf.fill((220, 40, 40), (x0, y, x1 - x0, 9))
@@ -1019,12 +1253,15 @@ class SkateScene:
         surf.blit(bimg, (round(x) - bimg.get_width() // 2, round(fy) - bimg.get_height() // 2 - lift))
         if self.air:
             pose = self.poses["air_up" if self.vz > 0.8 else "air"]
-        elif self.push_t:
+        elif self.push_t or self.grind:
             pose = self.poses["crouch"]
         else:
             pose = self.poses["stand"][(self.t // 6) % len(self.poses["stand"])]
         img, (ax, ay) = pose[side]
         surf.blit(img, (round(x) - ax, round(fy) - ay - 1 - lift))
+        if self.grind:
+            draw_text(surf, "%s %d" % (self.grind["name"].split()[0], int(self.grind["len"])), round(x),
+                      round(fy) - 42, (255, 200, 90), align="center")
         if self.air and abs(self.spin) >= 30:
             n = int(round(abs(self.spin) / 180))
             ok = abs(abs(self.spin) - n * 180) <= TOL
@@ -1069,6 +1306,8 @@ class SkateScene:
             draw_text(surf, "LEVEL %d" % self.level, W // 2, 58, (255, 220, 80), scale=2, align="center")
             draw_text(surf, "THE SKATE PARK", W // 2, 76, (255, 255, 255), align="center")
             draw_text(surf, "FIND THE BOARD. LAND TRICKS. 100 POINTS!", W // 2, 88, (200, 200, 230),
+                      align="center")
+            draw_text(surf, "PUNCH OLLIE  KICK PUSH  SPECIAL KICKFLIP", W // 2, 98, (150, 220, 255),
                       align="center")
             if self.t > INTRO - 25:
                 draw_text(surf, "GO!", W // 2, 116, (255, 60, 40), scale=3, align="center")

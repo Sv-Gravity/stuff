@@ -1,11 +1,30 @@
 """Level 6: a Smash Bros. style free-for-all at a little pixel Hyrule Castle.
 
-Akuma and three challengers from Toshi's sprite pack fight on a castle roof:
-a big main floor, a raised tower, and pass-through ledges. Hits add damage %
-(0-200) instead of taking health; the higher it is, the further a hit sends
-you and the likelier one strong blow launches you clean off the screen. Fly
-past the edge of the screen (any side) and you lose a stock. Three stocks
-each; knock all three challengers out to clear the level.
+Akuma and three challengers from Toshi's sprite pack fight on a wide castle
+roof: a big main floor, a raised tower, and pass-through ledges spread out
+over it. The camera pans and zooms so everyone stays in view. Hits add
+damage % (0-200) instead of taking health; the higher it is, the further a
+hit sends you and the likelier one strong blow launches you clean off the
+stage. Fly past the blast zone (any side) and you lose a stock.
+
+Two rounds of three stocks each. Akuma clears the level if he wins at least
+one of the two rounds; losing both fails it.
+
+Items drop onto the stage like in Smash:
+  HOME-RUN BAT, BEAM SWORD: walk onto it and press PUNCH to pick it up, then
+      PUNCH swings it (the bat's swing sends people flying).
+  BOB-OMB: pick up with PUNCH, PUNCH throws it; it blows up on impact.
+  HAMMER: pick up with PUNCH; it swings by itself for a few seconds and
+      wrecks anyone it touches (no other attacks while you hold it).
+  STAR (invincibility), HEART CONTAINER (-100%) and Japanese snacks from
+      snacks.py (heal some damage %) are collected just by touching them.
+  PUNCH+KICK together throws whatever you hold.
+CPUs pick up and use items too.
+
+Akuma's specials (game-wide scheme): SPECIAL alone = hadouken (in the air:
+air fireball), SPECIAL+PUNCH = shoryuken (also his recovery), SPECIAL+KICK =
+tatsumaki hurricane kick. "Together" is within 4 frames, in either order.
+CPU fighters keep their own direction+special moves.
 
 Hit detection is pixel accurate: a fighter can be hit wherever the frame it
 is showing has pixels, and an attack strikes with the pixels of its frame
@@ -25,6 +44,7 @@ from .art import shade, mix, OUTLINE, make_fireball, make_spark
 from .config import W, H, AKUMA_MAX_HP
 from .font import draw_text, text_width
 from .pause import PauseMenu
+from .snacks import random_snack, heal_amount, snack_image
 
 LEVEL_NAME = "HYRULE CASTLE"
 
@@ -54,42 +74,51 @@ RESPAWN_WAIT = 70
 RESPAWN_HOLD = 150
 RESPAWN_INVULN = 100
 INTRO = 190
-GAME_LEN = 200
+INTRO2 = 160            # the second round's (shorter) intro
+GAME_LEN = 200          # GAME! + the round result
+FINAL_LEN = 260         # the final tally
+ROUNDS = 2
+COMBO = 4               # frames within which two buttons count as pressed together
 CPU_FOCUS = 0.6         # chance a CPU picks Akuma when it chooses a target
 CPU_ON_AKUMA = 0.85     # CPU hits on Akuma do this much of their damage (3 on 1 is rough)
 BODY_W, BODY_H = 6, 30  # terrain collision box (half width, height)
 
-BLAST_L, BLAST_R, BLAST_T, BLAST_B = -40, W + 40, -70, H + 50
-
 # --------------------------------------------------------------------------
-# the stage
+# the stage: a world bigger than the screen; the camera pans and zooms over it
 # --------------------------------------------------------------------------
-FLOOR_Y = 130
-STAGE_L, STAGE_R = 52, 268
-TOWER = pygame.Rect(200, 98, 42, 33)
+WW, WH = 448, 252       # world size (same 16:9 shape as the canvas)
+CAM_MIN_W = W           # never zoom in past 1:1
+FLOOR_Y = 182
+STAGE_L, STAGE_R = 70, 378
+MID_X = (STAGE_L + STAGE_R) // 2
+TOWER = pygame.Rect(292, 146, 52, 37)
 SOLIDS = [pygame.Rect(STAGE_L, FLOOR_Y, STAGE_R - STAGE_L, 200), TOWER]
-SOFTS = [(70, 118, 100), (124, 172, 74), (198, 244, 66)]      # x0, x1, y: drop-through
+SOFTS = [(92, 148, 146), (178, 246, 110), (288, 348, 106)]    # x0, x1, y: drop-through
 LEDGES = [(STAGE_L, FLOOR_Y, -1), (STAGE_R, FLOOR_Y, 1),
           (TOWER.left, TOWER.top, -1), (TOWER.right, TOWER.top, 1)]
-SPAWNS = [(90, FLOOR_Y), (146, 74), (184, FLOOR_Y), (222, TOWER.top)]
-HALO_Y = 40
+SPAWNS = [(114, FLOOR_Y), (212, 110), (250, FLOOR_Y), (318, TOWER.top)]
+HALO_Y = 70
+
+BLAST_L, BLAST_R, BLAST_T, BLAST_B = -34, WW + 34, -60, WH + 40
 
 SLOT_COLORS = [(232, 52, 44), (64, 110, 240), (240, 200, 40), (56, 190, 80)]
-CPU_POOL = ["ryu", "ken", "sakura", "chunli", "zangief", "morrigan", "felicia", "hsienko"]
+CPU_POOL = ["ryu", "ken", "sakura", "chunli", "zangief", "morrigan", "felicia", "hsienko", "drdoom"]
 NAMES = {"akuma": "AKUMA", "ryu": "RYU", "ken": "KEN", "sakura": "SAKURA", "chunli": "CHUN-LI",
-         "zangief": "ZANGIEF", "morrigan": "MORRIGAN", "felicia": "FELICIA", "hsienko": "HSIEN-KO"}
+         "zangief": "ZANGIEF", "morrigan": "MORRIGAN", "felicia": "FELICIA", "hsienko": "HSIEN-KO",
+         "drdoom": "DR. DOOM"}
 
 CONTROLS = [
-    "LEFT / RIGHT: MOVE AND FACE THAT WAY",
-    "UP: JUMP, AGAIN IN THE AIR: DOUBLE JUMP",
+    "LEFT / RIGHT: MOVE   UP: JUMP (TWICE)",
     "DOWN: CROUCH / DROP THROUGH A LEDGE",
     "J: JAB   K: KICK   DOWN+K: SWEEP",
     "AIR: J / K ATTACKS, DOWN+K: DIVE KICK",
-    "L: HADOUKEN   UP+L: SHORYUKEN (RECOVER)",
-    "DOWN+L: HURRICANE KICK",
-    "HOLD I: SHIELD  I+LEFT/RIGHT: ROLL  I+J: GRAB",
-    "HIGHER DAMAGE % = FLY FARTHER",
-    "KNOCK FOES OFF SCREEN. 3 STOCKS EACH",
+    "L: HADOUKEN   L+J: SHORYUKEN (RECOVER)",
+    "L+K: HURRICANE KICK",
+    "HOLD I: SHIELD  I+LEFT/RIGHT: ROLL",
+    "I+J OR J+K: GRAB",
+    "ITEMS: J ON ONE TO PICK UP, J TO USE",
+    "J+K: THROW ITEM. FOOD/STAR: TOUCH",
+    "2 ROUNDS OF 3 STOCKS: WIN ONE TO CLEAR",
 ]
 
 
@@ -271,6 +300,15 @@ def _hsienko():
     return m
 
 
+def _drdoom():
+    m = normals(p=1.1, k=1.05)
+    m.update(neutral=_hado(3.0, 9, 2.0, 2.8, x=34, y=-40, prep=6),
+             up=_sho(11, 3.0, 5.4, -6.8, vx=1.0),
+             down=M([("s", 6, "tatsu_start"), ("a", 24, "lariat_b"), ("r", 10, "tatsu_end")], 4, 2.2, 3.0, 45,
+                    zone="all", rehit=7, hits=3, box=(-36, -56, 72, 52), ev={5: dict(sound="fireball")}))
+    return m
+
+
 # name, weight, walk, air speed, jump, double jump, gravity k, moves, AI personality
 CHARS = {
     "akuma": dict(weight=1.0, walk=1.8, air=1.9, jump=-5.6, djump=-5.2, grav=1.0, moves=_akuma(),
@@ -291,6 +329,8 @@ CHARS = {
                     ai=dict(aggr=0.75, block=0.25, react=13)),
     "hsienko": dict(weight=1.0, walk=1.6, air=1.8, jump=-5.6, djump=-5.2, grav=1.0, moves=_hsienko(),
                     ai=dict(aggr=0.55, block=0.35, react=13)),
+    "drdoom": dict(weight=1.2, walk=1.5, air=1.6, jump=-5.3, djump=-5.0, grav=1.0, moves=_drdoom(),
+                   ai=dict(aggr=0.6, block=0.45, react=12)),
 }
 
 
@@ -575,6 +615,9 @@ class Smasher:
         self.flip = False
         self.draw_pos = (0, 0)
         self.prev_pose = None
+        self.item = None           # the Item held, if any
+        self.star = 0              # frames of star invincibility left
+        self.since = {"special": 99, "punch": 99, "kick": 99}   # frames since each press
 
     # ---- queries -----------------------------------------------------------
     @property
@@ -629,7 +672,7 @@ class Smasher:
         return self.phase_info()[0] == "active"
 
     def invulnerable(self):
-        if self.invuln or self.state in ("dead", "respawn", "held", "intro") or self.out:
+        if self.invuln or self.star or self.state in ("dead", "respawn", "held", "intro") or self.out:
             return True
         if self.state == "roll" and 2 <= self.t <= 15:
             return True
@@ -658,7 +701,15 @@ class Smasher:
     def pick_move(self, btn, up, down):
         Mv = self.moves
         air = self.airborne
-        if btn == "special":
+        if btn == "sho":                 # Akuma: special+punch
+            name = "up"
+        elif btn == "tatsu":             # Akuma: special+kick
+            name = "down"
+        elif btn == "pk":                # punch+kick: grab (on the ground)
+            name = "nair" if air else "grab"
+        elif btn == "special" and self.is_player:   # Akuma: special alone, whatever the stick says
+            name = "airneutral" if air and "airneutral" in Mv else "neutral"
+        elif btn == "special":
             if up:
                 name = "up"
             elif down:
@@ -680,8 +731,8 @@ class Smasher:
             return None
         return name
 
-    def start_move(self, name):
-        mv = self.moves[name]
+    def start_move(self, name, mv=None):
+        mv = mv or self.moves[name]
         if mv.get("upb"):
             self.upb_used = True
         self.move, self.move_name, self.move_t = mv, name, 0
@@ -744,15 +795,18 @@ class Smasher:
             self.flash -= 1
         if self.dmg_shake:
             self.dmg_shake -= 1
+        if self.star:
+            self.star -= 1
         # remember presses so a button pushed a few frames early still comes out
-        for btn in ("special", "punch", "kick"):
-            if getattr(it, btn):
-                self.buf = (btn, it.up, it.down, 8)
-                break
-        else:
-            if self.buf:
-                b, u, d, n = self.buf
-                self.buf = (b, u, d, n - 1) if n > 1 else None
+        cmd = self._player_command(it) if self.is_player else None
+        if cmd:
+            self.buf = (cmd, it.up, it.down, 8)
+        elif not self.is_player and (it.special or it.punch or it.kick):
+            btn = "special" if it.special else ("punch" if it.punch else "kick")
+            self.buf = (btn, it.up, it.down, 8)
+        elif self.buf:
+            b, u, d, n = self.buf
+            self.buf = (b, u, d, n - 1) if n > 1 else None
         if it.up_p:
             self.jbuf = 6
         elif self.jbuf:
@@ -782,12 +836,54 @@ class Smasher:
         getattr(self, "_st_" + st)(it)
         self._physics(it)
 
+    CANCELABLE = ("neutral", "airneutral", "jab", "crjab", "kick", "sweep", "nair", "fair", "dair")
+
+    def _player_command(self, it):
+        """Akuma's buttons -> a command: special alone = hadouken, special+punch
+        = shoryuken, special+kick = hurricane kick, punch+kick = grab/throw.
+        Two presses within COMBO frames (either order) count as together; a
+        move the first press already started is swapped for the combo."""
+        sn = self.since
+        for b in sn:
+            sn[b] = min(99, sn[b] + 1)
+        for b in ("special", "punch", "kick"):
+            if getattr(it, b):
+                sn[b] = 0
+        if not (it.special or it.punch or it.kick):
+            return None
+        if sn["special"] <= COMBO:
+            if sn["punch"] <= COMBO and (it.special or it.punch):
+                cmd = "sho"
+            elif sn["kick"] <= COMBO and (it.special or it.kick):
+                cmd = "tatsu"
+            else:
+                cmd = "special"
+        elif sn["punch"] <= COMBO and sn["kick"] <= COMBO:
+            cmd = "pk"
+        else:
+            cmd = "punch" if it.punch else "kick"
+        if cmd in ("sho", "tatsu", "pk") and self.state == "move" and self.move_t <= COMBO \
+                and self.move_name in self.CANCELABLE and not self.grabbed:
+            ok = (self.item is not None and cmd == "pk") or \
+                self.pick_move(cmd, it.up, it.down) is not None
+            if ok:                      # swap the move the first button started for the combo
+                if self.move.get("upb"):
+                    self.upb_used = False
+                self.move = None
+                self.move_vx = None
+                self.state, self.t = ("air" if self.airborne else "stand"), 0
+                self.sc.cancel_shots(self)
+        return cmd
+
     def _consume_attack(self, it):
         if not self.buf:
             return False
         btn, up, down, _ = self.buf
         if self.helpless:
             return False
+        if self.sc.item_action(self, btn, up, down, it):
+            self.buf = None
+            return True
         name = self.pick_move(btn, up, down)
         if name is None:
             self.buf = None
@@ -818,7 +914,7 @@ class Smasher:
         if d:
             self.facing = d
         if d and not it.down:
-            self.vx = d * self.walk
+            self.vx = d * self.walk * (0.8 if self.item and self.item.kind == "hammer" else 1.0)
         else:
             self.vx *= FRICTION
             if abs(self.vx) < 0.05:
@@ -839,7 +935,7 @@ class Smasher:
         if not self.helpless:
             if self._consume_attack(it):
                 return
-            if self.jbuf and self.jumps > 0:
+            if self.jbuf and self.jumps > 0 and not (self.item and self.item.kind == "hammer"):
                 self.jbuf = 0
                 self.jumps -= 1
                 self.vy = self.djump_v
@@ -1171,7 +1267,7 @@ class Shot:
         self.x += self.vx
         self.y += self.vy
         self.vy += self.grav
-        if self.t >= self.life or not (-40 < self.x < W + 40) or self.y > H + 20:
+        if self.t >= self.life or not (-40 < self.x < WW + 40) or self.y > WH + 20:
             self.alive = False
         for r in SOLIDS:
             if r.collidepoint(self.x, self.y):
@@ -1198,8 +1294,18 @@ class Brain:
         self.threat_t = 0
         self.wait = 0
         self.leave_t = rng.randint(30, 70)
+        self.goal = None          # an item it is walking over to
+        self.goal_t = 0
 
     def think(self):
+        it = self._think()
+        me = self.me
+        if me.item is not None and me.item.kind == "bomb" and it.punch and not getattr(self, "_bomb_ok", False):
+            it.punch, it.kick = False, True     # don't blow yourself up at point blank
+        self._bomb_ok = False
+        return it
+
+    def _think(self):
         me, rng = self.me, self.rng
         it = Intent()
         if me.out or me.state in ("dead", "intro", "win"):
@@ -1216,8 +1322,10 @@ class Brain:
         if self._shielding(it):
             return it
         t = self._pick_target()
+        if self._items(it, t):
+            return it
         if t is None:
-            d = sign(160 - me.x) if abs(160 - me.x) > 20 else 0
+            d = sign(MID_X - me.x) if abs(MID_X - me.x) > 20 else 0
             it.left, it.right = d < 0, d > 0
             return it
         if self.wait:
@@ -1284,6 +1392,66 @@ class Brain:
                 it.up_p = it.up = True
         return it
 
+    def _items(self, it, t):
+        """Grab, eat and use items: walk over to a nearby one, pick it up with
+        punch, lob a held bob-omb at someone a little way off."""
+        me, rng, sc = self.me, self.rng, self.sc
+        if me.state not in ("stand", "air"):
+            return False
+        held = me.item
+        if held is not None:
+            self.goal = None
+            if held.kind == "bomb" and t is not None and not me.airborne and self.cool < 20:
+                dx = t.x - me.x
+                if 34 < abs(dx) < 150 and abs(t.y - me.y) < 40 and rng.random() < 0.12:
+                    it.left, it.right = dx < 0, dx > 0
+                    it.punch = True
+                    if t.y < me.y - 20:
+                        it.up = True
+                    self._bomb_ok = True
+                    self.cool = rng.randint(20, 40)
+                    return True
+            return False
+        if me.airborne:
+            return False
+        if self.goal is not None and (self.goal not in sc.items or self.goal.state not in ("ground", "fall")
+                                      or self.goal_t <= 0):
+            self.goal = None
+        if self.goal is None:
+            best, bd = None, 9999
+            for item in sc.items:
+                if item.state != "ground" and item.kind != "star":
+                    continue
+                k = item.kind
+                if k == "food" and me.pct < 15 or k == "heart" and me.pct < 40:
+                    continue
+                d = abs(item.x - me.x) + 2 * abs(item.y - me.y)
+                rng_ok = 200 if k in ("star", "heart", "hammer") else 130
+                if d < rng_ok and d < bd:
+                    best, bd = item, d
+            if best is None or (t is not None and abs(t.x - me.x) < 30 and rng.random() < 0.7):
+                return False
+            self.goal, self.goal_t = best, 240
+        self.goal_t -= 1
+        g = self.goal
+        dx = g.x - me.x
+        dy = g.y - me.y
+        if abs(dx) <= 9 and abs(dy) < 3:
+            if g.pickable:
+                it.punch = True
+                self.goal = None
+            return True
+        if dy < -10 and abs(dx) < 50 and rng.random() < 0.15:
+            it.up_p = it.up = True
+        elif dy > 10 and on_soft(me.x, me.y) and abs(dx) < 60 and rng.random() < 0.2:
+            it.down_p = it.down = True
+            return True
+        it.left, it.right = dx < 0, dx > 0
+        for r in SOLIDS[1:]:
+            if _body_hits(me.x + sign(dx) * 6, me.y, r):
+                it.up_p = it.up = True
+        return True
+
     def _ground_attack(self, it, t, adx, d):
         me, rng = self.me, self.rng
         sc = self.sc
@@ -1316,10 +1484,8 @@ class Brain:
             it.kick = True
         elif name == "sweep":
             it.down, it.kick = True, True
-        elif name == "down":
-            it.down, it.special = True, True
-        elif name == "up":
-            it.up, it.special = True, True
+        elif name in ("down", "up"):
+            self._special(it, name)
         else:
             it.special = True
         self.cool = int(rng.randint(18, 50) * (1.4 - self.aggr))
@@ -1327,7 +1493,7 @@ class Brain:
 
     def _recover(self, it):
         me = self.me
-        side = -1 if me.x < 160 else 1
+        side = -1 if me.x < MID_X else 1
         ledge_x = STAGE_L if side < 0 else STAGE_R
         toward = -side
         it.left, it.right = toward < 0, toward > 0
@@ -1338,13 +1504,25 @@ class Brain:
         if me.jumps > 0 and me.vy >= -0.5 and (dy > -24 or dx > 40):
             it.up_p = it.up = True
         elif not me.upb_used and me.vy >= -0.5 and dy > -8 and dx < 90:
-            it.up = True
-            it.special = True
+            self._special(it, "up")
         elif (me.jumps == 0 and me.upb_used is False and dx > 60 and dy < -10
               and me.moves.get("down", {}).get("recover")):
-            it.down = True
-            it.special = True
+            self._special(it, "down")
         return it
+
+    def _special(self, it, which):
+        """Up/down special: CPUs use direction+special; Akuma (when the bot
+        drives him) uses his own special+punch / special+kick buttons."""
+        it.special = True
+        if self.me.is_player:
+            if which == "up":
+                it.punch = True
+            else:
+                it.kick = True
+        elif which == "up":
+            it.up = True
+        else:
+            it.down = True
 
     def _threat(self):
         me = self.me
@@ -1473,81 +1651,83 @@ def stage_art():
     global _STAGE
     if _STAGE is not None:
         return _STAGE
-    bg = pygame.Surface((W, H))
-    for y in range(H):
-        bg.fill(mix(SKY_TOP, SKY_BOT, y / H), (0, y, W, 1))
+    DY = FLOOR_Y - 130                      # the scenery was laid out for a floor at y=130
+    bg = pygame.Surface((WW, WH))
+    for y in range(WH):
+        bg.fill(mix(SKY_TOP, SKY_BOT, y / WH), (0, y, WW, 1))
     rng = random.Random(64)
     # far mountains
-    pts = [(0, H)]
+    pts = [(0, WH)]
     x = 0
-    while x <= W:
-        pts.append((x, 104 + rng.randint(-14, 8)))
+    while x <= WW:
+        pts.append((x, 104 + DY + rng.randint(-18, 8)))
         x += rng.randint(14, 30)
-    pts += [(W, H)]
+    pts += [(WW, WH)]
     pygame.draw.polygon(bg, (132, 162, 196), pts)
-    # distant castle silhouette (left) and hills
+    # distant castle silhouettes and hills
     sil = (112, 136, 174)
-    for tx, tw, th in ((14, 10, 54), (28, 22, 34), (52, 8, 46), (266, 10, 50), (280, 24, 30), (306, 8, 42)):
-        bg.fill(sil, (tx, 122 - th, tw, th + 20))
-        pygame.draw.polygon(bg, (98, 122, 162), [(tx - 2, 122 - th), (tx + tw // 2, 122 - th - 12),
-                                                 (tx + tw + 1, 122 - th)])
-    pts = [(0, H)]
+    for tx, tw, th in ((10, 10, 54), (24, 22, 34), (48, 8, 46), (392, 10, 50), (406, 24, 30), (432, 8, 42)):
+        bg.fill(sil, (tx, 122 + DY - th, tw, th + 20))
+        pygame.draw.polygon(bg, (98, 122, 162), [(tx - 2, 122 + DY - th), (tx + tw // 2, 122 + DY - th - 12),
+                                                 (tx + tw + 1, 122 + DY - th)])
+    pts = [(0, WH)]
     x = 0
-    while x <= W:
-        pts.append((x, 124 + int(6 * math.sin(x / 23.0)) + rng.randint(-2, 2)))
+    while x <= WW:
+        pts.append((x, 124 + DY + int(6 * math.sin(x / 23.0)) + rng.randint(-2, 2)))
         x += 8
-    pts += [(W, H)]
+    pts += [(WW, WH)]
     pygame.draw.polygon(bg, (82, 150, 104), pts)
-    for x in range(0, W, 5):               # tree line
+    for x in range(0, WW, 5):               # tree line
         hgt = rng.randint(3, 7)
-        pygame.draw.circle(bg, (56, 120, 82), (x, 128 - hgt // 2 + int(6 * math.sin(x / 23.0))), hgt // 2 + 2)
-    bg.fill((60, 126, 86), (0, 132, W, H - 132))
+        pygame.draw.circle(bg, (56, 120, 82), (x, 128 + DY - hgt // 2 + int(6 * math.sin(x / 23.0))), hgt // 2 + 2)
+    bg.fill((60, 126, 86), (0, 132 + DY, WW, WH - 132 - DY))
 
-    st = pygame.Surface((W, H), pygame.SRCALPHA)
-    # background keeps behind the soft ledges (scenery, not solid)
+    st = pygame.Surface((WW, WH), pygame.SRCALPHA)
+    # background keeps behind the two stone balconies (scenery, not solid)
     for (x0, x1, y), shadek in zip(SOFTS[:2], (0.82, 0.74)):
         rect = (x0 + 4, y + 4, x1 - x0 - 8, FLOOR_Y - y - 4)
         _bricks(st, rect, shade(STONE, shadek), shade(STONE_LT, shadek), shade(STONE_DK, shadek),
                 shade(MORTAR, shadek), seed=x0)
         cx = (x0 + x1) // 2
         _arch_window(st, cx - 4, y + 10, 8, 13, rim=shade(STONE_LT, shadek))
+        if FLOOR_Y - y > 50:
+            _arch_window(st, cx - 4, y + 36, 8, 13, rim=shade(STONE_LT, shadek))
     # tower roof pillars
     for px in (TOWER.left + 3, TOWER.right - 6):
         _bricks(st, (px, SOFTS[2][2] + 4, 3, TOWER.top - SOFTS[2][2] - 4), shade(STONE, 0.8),
                 STONE, STONE_DK, MORTAR, row=4, brick=3, seed=px)
     # main castle block
-    body = pygame.Rect(STAGE_L, FLOOR_Y, STAGE_R - STAGE_L, H - FLOOR_Y)
+    body = pygame.Rect(STAGE_L, FLOOR_Y, STAGE_R - STAGE_L, WH - FLOOR_Y)
     _bricks(st, body, STONE, STONE_LT, STONE_DK, MORTAR, seed=3)
     for bx in (STAGE_L, STAGE_R - 8):       # corner buttresses
-        st.fill(STONE_DK, (bx, FLOOR_Y + 3, 8, H))
-        st.fill(shade(STONE_DK, 1.15), (bx + 1, FLOOR_Y + 3, 2, H))
-    gx = (STAGE_L + STAGE_R) // 2 - 14     # the gate
+        st.fill(STONE_DK, (bx, FLOOR_Y + 3, 8, WH))
+        st.fill(shade(STONE_DK, 1.15), (bx + 1, FLOOR_Y + 3, 2, WH))
+    gx = MID_X - 14                          # the gate
     _arch_window(st, gx, FLOOR_Y + 12, 28, 40)
     for xx in range(gx + 3, gx + 28, 5):
         st.fill((70, 64, 76), (xx, FLOOR_Y + 22, 1, 40))
-    for wx in (STAGE_L + 22, STAGE_L + 50, STAGE_R - 58, STAGE_R - 30):
+    for wx in (STAGE_L + 22, STAGE_L + 50, STAGE_L + 78, STAGE_R - 86, STAGE_R - 58, STAGE_R - 30):
         _arch_window(st, wx, FLOOR_Y + 12, 8, 14)
     # vines
-    for vx in (STAGE_L + 14, STAGE_R - 40, gx + 34):
-        for k in range(rng.randint(10, 22)):
+    for vx in (STAGE_L + 14, STAGE_R - 40, gx + 34, STAGE_L + 66):
+        for k in range(rng.randint(10, 26)):
             st.fill((52, 128, 72) if k % 3 else (84, 164, 92), (vx + int(2 * math.sin(k / 2.0)), FLOOR_Y + 3 + k, 2, 1))
     # floor surface
     st.fill(OUTLINE, (STAGE_L - 1, FLOOR_Y - 1, STAGE_R - STAGE_L + 2, 1))
     st.fill(STONE_LT, (STAGE_L, FLOOR_Y, STAGE_R - STAGE_L, 3))
     st.fill((236, 230, 218), (STAGE_L, FLOOR_Y, STAGE_R - STAGE_L, 1))
-    st.fill(OUTLINE, (STAGE_L - 1, FLOOR_Y, 1, H))
-    st.fill(OUTLINE, (STAGE_R, FLOOR_Y, 1, H))
+    st.fill(OUTLINE, (STAGE_L - 1, FLOOR_Y, 1, WH))
+    st.fill(OUTLINE, (STAGE_R, FLOOR_Y, 1, WH))
     # tower
     _bricks(st, TOWER, STONE, STONE_LT, STONE_DK, MORTAR, seed=9)
-    for k in range(4):                     # crenellations behind the walkway
+    for k in range(5):                     # crenellations behind the walkway
         st.fill(shade(STONE, 0.78), (TOWER.left + 2 + k * 11, TOWER.top - 5, 6, 5))
     st.fill(STONE_LT, (TOWER.left, TOWER.top, TOWER.w, 3))
     st.fill((236, 230, 218), (TOWER.left, TOWER.top, TOWER.w, 1))
     pygame.draw.rect(st, OUTLINE, TOWER.inflate(2, 2), 1)
     _arch_window(st, TOWER.centerx - 4, TOWER.top + 8, 8, 14)
-    st.fill((176, 30, 40), (TOWER.left + 6, TOWER.top + 5, 6, 16))          # banners
-    st.fill((176, 30, 40), (TOWER.right - 12, TOWER.top + 5, 6, 16))
-    for bx in (TOWER.left + 6, TOWER.right - 12):
+    for bx in (TOWER.left + 6, TOWER.right - 12):                          # banners
+        st.fill((176, 30, 40), (bx, TOWER.top + 5, 6, 16))
         pygame.draw.polygon(st, (176, 30, 40), [(bx, TOWER.top + 21), (bx + 6, TOWER.top + 21),
                                                 (bx + 3, TOWER.top + 24)])
         st.fill((240, 200, 60), (bx + 2, TOWER.top + 10, 2, 2))
@@ -1564,11 +1744,258 @@ def stage_art():
     pygame.draw.line(st, OUTLINE, (x0 + 17, y - 1), (x0 + (x1 - x0) // 2, y - 11))
     pygame.draw.line(st, OUTLINE, (x0 + (x1 - x0) // 2, y - 11), (x1 - 17, y - 1))
     st.fill((240, 200, 60), (x0 + (x1 - x0) // 2 - 1, y - 15, 2, 4))
-    clouds = [_cloud(56, 18, 1), _cloud(40, 14, 2), _cloud(70, 22, 3)]
+    clouds = [_cloud(56, 18, 1), _cloud(40, 14, 2), _cloud(70, 22, 3), _cloud(48, 16, 4)]
     _STAGE = dict(bg=bg, stage=st, clouds=clouds,
                   spark=F.SPARK_HIT, spark_small=[pygame.transform.scale_by(f, 0.6) for f in F.SPARK_HIT],
-                  block=F.SPARK_BLOCK, smash=make_spark((255, 90, 40)))
+                  block=F.SPARK_BLOCK, smash=make_spark((255, 90, 40)),
+                  boom=[pygame.transform.scale_by(f, 1.6) for f in make_spark((255, 200, 60))])
     return _STAGE
+
+
+# --------------------------------------------------------------------------
+# items: they drop onto the stage every few seconds, Smash style
+# --------------------------------------------------------------------------
+ITEM_EVERY = (300, 520)     # frames between drops
+ITEM_MAX = 3                # at most this many lying around
+ITEM_LIFE = 15 * 60         # a dropped item fades after this long
+HAMMER_TIME = 8 * 60
+STAR_TIME = 8 * 60
+# kind: (display name, drop weight, picked up with punch?)
+ITEM_KINDS = {
+    "bat": ("HOME-RUN BAT", 2, True),
+    "sword": ("BEAM SWORD", 2, True),
+    "bomb": ("BOB-OMB", 3, True),
+    "hammer": ("HAMMER", 1, True),
+    "star": ("STAR", 1, False),
+    "heart": ("HEART CONTAINER", 1, False),
+    "food": ("FOOD", 5, False),
+}
+# swings of the held melee items (hit with a box in front, `reach` px long)
+SWINGS = {
+    "bat": M([("s", 12, "kick_prep"), ("a", 5, "punch"), ("r", 16, "punch_rec")], 18, 6.0, 9.0, 40,
+             item="bat", reach=32),
+    "sword": M([("s", 4, "punch_prep"), ("a", 6, "punch"), ("r", 10, "punch_rec")], 11, 2.6, 5.4, 40,
+               item="sword", reach=38),
+}
+TOSS = M([("s", 3, "punch_prep"), ("r", 12, "punch_rec")])
+PICKUP = M([("r", 8, "crouch")])
+HAMMER_HIT = dict(dmg=16, kb=4.4, kg=7.2, ang=55, item="hammer")
+BOMB_HIT = dict(dmg=20, kb=4.8, kg=7.6, ang=58)
+BOMB_R = 26
+THROWN_HIT = dict(dmg=9, kb=2.6, kg=4.2, ang=40)
+STAR_COLORS = [(255, 80, 80), (255, 200, 60), (120, 240, 90), (80, 200, 255), (200, 120, 255)]
+
+_ITEM_IMG = {}
+_ITEM_ROT = {}
+_RECTS = {}
+
+
+def _outline(img):
+    m = pygame.mask.from_surface(img, 1)
+    w, h = img.get_size()
+    edge = []
+    for y in range(h):
+        for x in range(w):
+            if m.get_at((x, y)):
+                continue
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < w and 0 <= ny < h and m.get_at((nx, ny)):
+                    edge.append((x, y))
+                    break
+    for p in edge:
+        img.set_at(p, OUTLINE)
+    return img
+
+
+def _draw_bat():
+    s = pygame.Surface((21, 7), pygame.SRCALPHA)
+    s.fill((96, 58, 30), (1, 2, 3, 3))            # knob
+    s.fill((132, 80, 40), (3, 3, 8, 2))           # grip
+    s.fill((168, 108, 56), (3, 3, 8, 1))
+    s.fill((222, 184, 118), (10, 2, 9, 4))        # barrel
+    s.fill((246, 222, 170), (11, 2, 7, 1))
+    s.fill((178, 136, 80), (10, 5, 9, 1))
+    s.fill((222, 184, 118), (19, 3, 1, 2))        # rounded tip
+    s.fill((210, 40, 40), (15, 2, 1, 4))          # red stripe
+    return _outline(s)
+
+
+def _draw_sword():
+    s = pygame.Surface((24, 7), pygame.SRCALPHA)
+    s.fill((150, 150, 172), (1, 2, 6, 3))         # hilt
+    s.fill((200, 200, 220), (1, 2, 6, 1))
+    s.fill((84, 84, 104), (7, 1, 2, 5))           # guard
+    s.fill((110, 230, 255), (9, 1, 13, 5))        # beam glow
+    s.fill((240, 252, 255), (9, 2, 13, 3))        # beam core
+    s.fill((110, 230, 255), (22, 2, 1, 3))
+    return _outline(s)
+
+
+def _draw_hammer():
+    s = pygame.Surface((22, 13), pygame.SRCALPHA)
+    s.fill((150, 96, 48), (1, 5, 12, 3))          # handle
+    s.fill((190, 130, 70), (1, 5, 12, 1))
+    s.fill((176, 112, 56), (12, 1, 8, 11))        # head
+    s.fill((214, 160, 96), (12, 1, 8, 2))
+    s.fill((214, 160, 96), (12, 1, 2, 11))
+    s.fill((128, 78, 36), (12, 10, 8, 2))
+    s.fill((96, 58, 30), (15, 1, 1, 11))          # bands
+    s.fill((96, 58, 30), (18, 1, 1, 11))
+    return _outline(s)
+
+
+def _draw_bomb():
+    s = pygame.Surface((13, 15), pygame.SRCALPHA)
+    pygame.draw.circle(s, (34, 34, 46), (6, 8), 5)
+    s.fill((96, 96, 128), (3, 5, 2, 2))           # shine
+    s.fill((250, 250, 250), (6, 6, 1, 3))         # eyes
+    s.fill((250, 250, 250), (8, 6, 1, 3))
+    s.fill((200, 190, 160), (6, 1, 1, 2))         # fuse
+    s.fill((240, 190, 60), (3, 13, 3, 1))         # feet
+    s.fill((240, 190, 60), (7, 13, 3, 1))
+    s.fill((180, 180, 196), (0, 7, 1, 3))         # wind-up key
+    return _outline(s)
+
+
+def _draw_star():
+    s = pygame.Surface((15, 15), pygame.SRCALPHA)
+    pts = []
+    for k in range(10):
+        r = 6.6 if k % 2 == 0 else 2.9
+        a = -math.pi / 2 + k * math.pi / 5
+        pts.append((7 + math.cos(a) * r, 7.5 + math.sin(a) * r))
+    pygame.draw.polygon(s, (255, 214, 40), pts)
+    s.fill((255, 246, 170), (6, 4, 2, 2))
+    s.fill((60, 40, 20), (6, 7, 1, 2))            # eyes
+    s.fill((60, 40, 20), (8, 7, 1, 2))
+    return _outline(s)
+
+
+def _draw_heart():
+    s = pygame.Surface((13, 12), pygame.SRCALPHA)
+    gold, red = (240, 200, 60), (226, 36, 56)
+    for col, r, inset in ((gold, 3, 0), (red, 2, 1)):
+        pygame.draw.circle(s, col, (4, 4), r)
+        pygame.draw.circle(s, col, (8, 4), r)
+        pygame.draw.polygon(s, col, [(1 + inset, 5), (11 - inset, 5), (6, 10 - inset)])
+    s.fill((255, 150, 160), (3, 3, 1, 1))
+    return _outline(s)
+
+
+_DRAWERS = {"bat": _draw_bat, "sword": _draw_sword, "hammer": _draw_hammer, "bomb": _draw_bomb,
+            "star": _draw_star, "heart": _draw_heart}
+
+
+def item_image(kind, snack=None):
+    if kind == "food":
+        return snack_image(snack or "ONIGIRI")
+    img = _ITEM_IMG.get(kind)
+    if img is None:
+        img = _ITEM_IMG[kind] = _DRAWERS[kind]()
+    return img
+
+
+def item_rotated(kind, flip, ang):
+    """A held weapon drawn horizontally (handle on the left) turned to `ang` degrees."""
+    ang = int(round(ang / 10.0)) * 10
+    ck = (kind, flip, ang)
+    img = _ITEM_ROT.get(ck)
+    if img is None:
+        img = item_image(kind)
+        if flip:
+            img = pygame.transform.flip(img, True, False)
+        img = _ITEM_ROT[ck] = pygame.transform.rotate(img, -ang if flip else ang)
+    return img
+
+
+def rect_mask(w, h):
+    ck = (w, h)
+    m = _RECTS.get(ck)
+    if m is None:
+        m = _RECTS[ck] = pygame.Mask((max(1, w), max(1, h)), fill=True)
+    return m
+
+
+class Item:
+    """An item on the stage: falling, lying on the ground, held or thrown.
+    (x, y) is the bottom centre, like a fighter's feet."""
+
+    def __init__(self, kind, x, y, snack=None):
+        self.kind = kind
+        self.snack = snack
+        self.name = snack if kind == "food" else ITEM_KINDS[kind][0]
+        self.pickable = ITEM_KINDS[kind][2]
+        self.x, self.y = float(x), float(y)
+        self.vx, self.vy = 0.0, 0.0
+        self.state = "fall"        # fall | ground | held | thrown | gone
+        self.holder = None
+        self.owner = None          # who threw it
+        self.life = ITEM_LIFE
+        self.timer = HAMMER_TIME if kind == "hammer" else 0
+        self.victims = {}
+        self.t = 0
+        if kind == "star":
+            self.vx = 1.1
+
+    @property
+    def gone(self):
+        return self.state == "gone"
+
+    def image(self):
+        return item_image(self.kind, self.snack)
+
+    def center(self):
+        return self.x, self.y - self.image().get_height() / 2
+
+    def land_y(self, py):
+        """The surface the item fell onto this frame, if any."""
+        land = None
+        for r in SOLIDS:
+            if r.left <= self.x <= r.right and py <= r.top + 0.01 and self.y >= r.top:
+                land = r.top if land is None else min(land, r.top)
+        for x0, x1, yy in SOFTS:
+            if x0 <= self.x <= x1 and py <= yy + 0.01 and self.y >= yy:
+                land = yy if land is None else min(land, yy)
+        return land
+
+    def in_wall(self):
+        cx, cy = self.center()
+        return any(r.collidepoint(cx, cy) for r in SOLIDS)
+
+
+# --------------------------------------------------------------------------
+# a few sounds of our own (built lazily from audio's synth helpers)
+# --------------------------------------------------------------------------
+_MYSFX = {}
+
+
+def sfx(name, vol=1.0):
+    if not getattr(audio, "_ok", False):
+        audio.play({"bat": "heavy", "star": "pickup", "eat": "pickup", "drop": "beep"}.get(name, name), vol)
+        return
+    s = _MYSFX.get(name)
+    if s is None:
+        try:
+            if name == "bat":            # the home-run "ping"
+                smp = audio._add(audio._tone(1900, 1500, 0.35, 0.3, "tri"), audio._noise(0.12, 0.5, 2.0, 0.6))
+            elif name == "star":
+                smp = []
+                for f in (523, 659, 784, 1047, 784, 1047):
+                    smp += audio._tone(f, f, 0.07, 0.22, "square", 0, 0.25)
+            elif name == "eat":
+                smp = audio._tone(500, 900, 0.07, 0.25, "square", 0, 0.5) + audio._tone(700, 1300, 0.09, 0.25,
+                                                                                         "square", 0, 0.5)
+            elif name == "drop":
+                smp = audio._tone(1200, 1500, 0.05, 0.12, "tri") + audio._tone(1500, 1800, 0.05, 0.12, "tri")
+            else:
+                return audio.play(name, vol)
+            s = _MYSFX[name] = audio._sound(smp)
+        except Exception:
+            _MYSFX[name] = s = False
+    if s:
+        s.set_volume(vol)
+        s.play()
 
 
 def pct_color(p):
@@ -1592,31 +2019,54 @@ class SmashScene:
         self.hp = self.max_hp if hp is None else hp
         self.menu = PauseMenu(game, CONTROLS)
         self.art = stage_art()
-        roster = self.rng.sample(CPU_POOL, 3)
-        self.fighters = [Smasher(self, "akuma", 0, True)] + [Smasher(self, c, i + 1)
-                                                             for i, c in enumerate(roster)]
+        self.roster = self.rng.sample(CPU_POOL, 3)
+        self.cpu_enabled = True
+        self.items_enabled = True
+        self.round = 1
+        self.round_wins = []         # True/False per finished round (Akuma's view)
+        self.round_stocks = []       # Akuma's stocks left at the end of each round
+        self._reach = {}
+        self.t = 0
+        self.result = None
+        self.cloud_x = [20.0, 150.0, 250.0, 380.0]
+        self.world = pygame.Surface((WW, WH))
+        self.cam = [MID_X, (FLOOR_Y - 40.0), float(WW)]      # centre x, centre y, width
+        self.fighters = []
+        self._start_round()
+        self.cam = self._cam_target()
+
+    def _start_round(self):
+        """Fresh fighters (same roster) on their spawn spots, stage cleared."""
+        cast = ["akuma"] + list(self.roster)
+        if [f.cid for f in self.fighters] == cast:
+            for f in self.fighters:              # reset in place: the same objects stay in play
+                f.__init__(self, f.cid, f.slot, f.is_player)
+        else:
+            self.fighters = [Smasher(self, c, i, i == 0) for i, c in enumerate(cast)]
         self.akuma = self.fighters[0]
         for f, (x, y) in zip(self.fighters, SPAWNS):
             f.x, f.y = float(x), float(y)
-            f.facing = 1 if x < 160 else -1
+            f.facing = 1 if x < MID_X else -1
         self.brains = {f: Brain(self, f, random.Random(self.rng.random())) for f in self.fighters[1:]}
-        self.cpu_enabled = True
         self.shots = []
+        self.items = []
         self.effects = []
         self.parts = []          # [x, y, vx, vy, life, color]
         self.blasts = []         # [x, y, angle, color, t]
-        self.popups = []
-        self._reach = {}
+        self.booms = []          # [x, y, r, t]
+        self.popups = []         # [text, x, y, frames, color] in world coords
         self.phase = "intro"
-        self.t = 0
         self.end_t = 0
         self.shake = 0
         self.flash = 0
-        self.result = None
         self.won = None
-        self.cloud_x = [20.0, 150.0, 250.0]
+        self.item_t = self.rng.randint(*ITEM_EVERY) // 2
         for f in self.fighters:
             f.refresh()
+
+    @property
+    def intro_len(self):
+        return INTRO if self.round == 1 else INTRO2
 
     @property
     def paused(self):
@@ -1625,6 +2075,10 @@ class SmashScene:
     @property
     def cpus(self):
         return self.fighters[1:]
+
+    @property
+    def rounds_won(self):
+        return sum(1 for w in self.round_wins if w)
 
     # ---- helpers used by fighters -----------------------------------------
     def reach(self, f, name):
@@ -1651,6 +2105,10 @@ class SmashScene:
     def spawn_shot(self, f, spec):
         self.shots.append(Shot(f, spec))
 
+    def cancel_shots(self, f):
+        """A fireball started on the frame before a combo press is taken back."""
+        self.shots = [s for s in self.shots if not (s.owner is f and s.t <= COMBO)]
+
     def puff(self, x, y):
         self.effects.append(F.Effect(F.DUST, x, y - 3, 3))
 
@@ -1672,7 +2130,7 @@ class SmashScene:
 
     def respawn(self, f):
         f.state, f.t = "respawn", 0
-        f.x = 115.0 + f.slot * 30
+        f.x = MID_X - 60.0 + f.slot * 40
         f.y = float(HALO_Y)
         f.vx = f.vy = f.lvx = f.lvy = 0.0
         f.pct = 0.0
@@ -1680,9 +2138,10 @@ class SmashScene:
         f.jumps = 1
         f.upb_used = f.helpless = f.fastfall = False
         f.shield = SHIELD_MAX
-        f.facing = 1 if f.x < 160 else -1
+        f.facing = 1 if f.x < MID_X else -1
         f.move = None
         f.grabbed = f.held_by = None
+        f.star = 0
 
     def drop_grab(self, att):
         v = att.grabbed
@@ -1701,6 +2160,278 @@ class SmashScene:
         th = att.move
         self._apply_hit(att, v, th, att.facing, (v.x, v.y - v.hgt / 2), grab_ok=True)
 
+    # ---- items -------------------------------------------------------------
+    def spawn_item(self, kind=None, x=None, y=-12.0, snack=None):
+        if kind is None:
+            kinds = list(ITEM_KINDS)
+            kind = self.rng.choices(kinds, weights=[ITEM_KINDS[k][1] for k in kinds])[0]
+        if kind == "food" and snack is None:
+            snack = random_snack(self.rng)
+        if x is None:
+            spots = [(STAGE_L + 14, STAGE_R - 14, 3)] + [(x0 + 6, x1 - 6, 1) for x0, x1, _ in SOFTS] + \
+                    [(TOWER.left + 6, TOWER.right - 6, 1)]
+            x0, x1, _ = self.rng.choices(spots, weights=[w for _, _, w in spots])[0]
+            x = self.rng.uniform(x0, x1)
+        item = Item(kind, x, y, snack)
+        if kind == "star":
+            item.vx = self.rng.choice((-1.1, 1.1))
+        self.items.append(item)
+        return item
+
+    def item_at(self, f):
+        best = None
+        for item in self.items:
+            if item.state == "ground" and item.pickable and abs(item.x - f.x) <= 14 and abs(item.y - f.y) < 4:
+                if best is None or abs(item.x - f.x) < abs(best.x - f.x):
+                    best = item
+        return best
+
+    def pickup(self, f, item):
+        item.state, item.holder, item.owner = "held", f, None
+        item.vx = item.vy = 0.0
+        f.item = item
+        sfx("pickup", 0.6)
+        if item.kind == "hammer":
+            item.timer = HAMMER_TIME
+            self.popups.append(["HAMMER!", f.x, f.y - f.hgt - 6, 50, (255, 200, 90)])
+
+    def drop_item(self, f, gone=False):
+        item = f.item
+        f.item = None
+        if item is None:
+            return
+        item.holder = None
+        if gone or item.kind == "hammer":
+            item.state = "gone"
+        else:
+            item.state = "fall"
+            item.vx, item.vy = 0.0, -1.0
+
+    def throw_item(self, f, up, down):
+        item = f.item
+        f.item = None
+        item.holder = None
+        item.owner = f
+        item.victims = {}
+        hx, hy = self._hand(f)
+        item.x, item.y = hx, hy + 4
+        if up:
+            item.vx, item.vy = f.facing * 1.2, -6.4
+        elif down and f.airborne:
+            item.vx, item.vy = 0.0, 5.0
+        else:
+            item.vx, item.vy = f.facing * 4.4 + f.vx * 0.4, -1.8
+        item.state = "thrown"
+        item.t = 0
+        f.start_move("toss", TOSS)
+        audio.play("whiff", 0.7)
+
+    def item_action(self, f, btn, up, down, it):
+        """Items take over the punch button: pick up, swing, throw. True if used."""
+        held = f.item
+        if held is not None:
+            if held.kind == "hammer":
+                return btn in ("punch", "kick", "special", "pk", "sho", "tatsu")
+            if btn == "pk" or (btn == "punch" and held.kind == "bomb"):
+                if it.dir:
+                    f.facing = it.dir
+                self.throw_item(f, up, down)
+                return True
+            if btn == "punch" and held.kind in SWINGS:
+                if it.dir:
+                    f.facing = it.dir
+                f.start_move("item", SWINGS[held.kind])
+                return True
+            return False
+        if btn == "punch" and not f.airborne:
+            item = self.item_at(f)
+            if item is not None:
+                self.pickup(f, item)
+                f.start_move("pickup", PICKUP)
+                return True
+        return False
+
+    def collect(self, f, item):
+        item.state = "gone"
+        k = item.kind
+        if k == "star":
+            f.star = STAR_TIME
+            sfx("star", 0.7)
+            self.popups.append(["STAR!", f.x, f.y - f.hgt - 6, 60, (255, 230, 80)])
+        elif k == "heart":
+            got = min(100, int(f.pct))
+            f.pct = max(0.0, f.pct - 100)
+            sfx("eat", 0.7)
+            self.popups.append(["HEART -%d%%" % got, f.x, f.y - f.hgt - 6, 70, (255, 110, 130)])
+        else:
+            heal = heal_amount(item.snack, 100)
+            f.pct = max(0.0, f.pct - heal)
+            sfx("eat", 0.7)
+            self.popups.append(["%s -%d%%" % (item.snack, heal), f.x, f.y - f.hgt - 6, 70, (140, 255, 140)])
+        for _ in range(8):
+            self.parts.append([item.x, item.y - 5, self.rng.uniform(-1.2, 1.2), self.rng.uniform(-2, -0.5),
+                               self.rng.randint(10, 20), self.rng.choice(((255, 255, 255), (255, 230, 120)))])
+
+    def explode(self, item):
+        item.state = "gone"
+        if item.holder is not None:
+            item.holder.item = None
+            item.holder = None
+        cx, cy = item.center()
+        self.booms.append([cx, cy, BOMB_R, 0])
+        for _ in range(24):
+            a = self.rng.uniform(0, math.tau)
+            sp = self.rng.uniform(1.0, 4.0)
+            self.parts.append([cx, cy, math.cos(a) * sp, math.sin(a) * sp, self.rng.randint(12, 26),
+                               self.rng.choice(((255, 240, 160), (255, 160, 40), (240, 70, 30), (70, 60, 60)))])
+        self.shake = max(self.shake, 12)
+        audio.play("boom")
+        owner = item.owner
+        cm = circle_mask(BOMB_R)
+        for vic in self.fighters:
+            h = vic.hurt() if vic.draw_key is not None else None
+            if h is None:
+                continue
+            hm, (hx, hy) = h
+            pt = hm.overlap(cm, (round(cx) - BOMB_R - hx, round(cy) - BOMB_R - hy))
+            if pt is None:
+                continue
+            att = owner if owner is not vic else None
+            self._apply_hit(att, vic, BOMB_HIT, sign(vic.x - cx) or 1, (hx + pt[0], hy + pt[1]))
+            if att is not None:
+                att.hitstop = 0
+
+    def _hand(self, f):
+        return f.x + f.facing * f.half_w * 0.9, f.y - f.hgt * 0.55
+
+    def _items_update(self):
+        if self.phase == "play" and self.items_enabled:
+            self.item_t -= 1
+            if self.item_t <= 0:
+                self.item_t = self.rng.randint(*ITEM_EVERY)
+                if sum(1 for i in self.items if i.state in ("fall", "ground")) < ITEM_MAX:
+                    self.spawn_item()
+                    sfx("drop", 0.5)
+        fs = [f for f in self.fighters if f.on_field and f.state != "held"]
+        for item in self.items:
+            item.t += 1
+            st = item.state
+            if st == "held":
+                f = item.holder
+                if f is None or not f.on_field:
+                    item.state = "gone"
+                    continue
+                item.x, item.y = self._hand(f)
+                if item.kind == "hammer":
+                    item.timer -= 1
+                    if item.timer <= 0:
+                        self.drop_item(f, gone=True)
+                        self.puff(f.x, f.y - f.hgt)
+                continue
+            if st in ("fall", "ground"):
+                item.life -= 1
+                if item.life <= 0:
+                    if item.kind == "bomb":
+                        self.explode(item)
+                    else:
+                        item.state = "gone"
+                        self.puff(item.x, item.y)
+                    continue
+                if not item.pickable:            # touch to collect
+                    for f in fs:
+                        if (abs(f.x - item.x) < f.half_w + 6 and f.y - f.hgt - 4 < item.y - 4 < f.y + 6):
+                            self.collect(f, item)
+                            break
+                    if item.gone:
+                        continue
+            if st == "ground":
+                if item.kind == "star" or ground_at(item.x, item.y) is None:
+                    item.state = "fall"
+                continue
+            # falling or flying
+            py = item.y
+            item.vy = min(4.0, item.vy + (0.18 if st == "thrown" else 0.22))
+            item.x += item.vx
+            item.y += item.vy
+            if item.x < BLAST_L or item.x > BLAST_R or item.y > BLAST_B:
+                item.state = "gone"
+                continue
+            if st == "thrown":
+                if self._thrown_hits(item, fs):
+                    continue
+                if item.in_wall():
+                    if item.kind == "bomb":
+                        self.explode(item)
+                        continue
+                    item.vx *= -0.3
+                    item.x += item.vx * 3
+                    item.state = "fall"
+            if item.vy >= 0:
+                land = item.land_y(py)
+                if land is not None:
+                    item.y = land
+                    if item.kind == "bomb" and item.state == "thrown":
+                        self.explode(item)
+                    elif item.kind == "star":
+                        item.vy = -4.4
+                    else:
+                        item.vx = item.vy = 0.0
+                        item.state = "ground"
+                        item.owner = None
+        self.items = [i for i in self.items if not i.gone]
+
+    def _thrown_hits(self, item, fs):
+        img = item.image()
+        cx, cy = item.center()
+        r = max(4, img.get_width() // 3)
+        cm = circle_mask(r)
+        for vic in fs:
+            if vic is item.owner and item.t < 30:
+                continue
+            h = vic.hurt()
+            if h is None:
+                continue
+            hm, (hx, hy) = h
+            pt = hm.overlap(cm, (round(cx) - r - hx, round(cy) - r - hy))
+            if pt is None:
+                continue
+            if item.kind == "bomb":
+                self.explode(item)
+                return True
+            att = item.owner if item.owner is not vic else None
+            self._apply_hit(att, vic, THROWN_HIT, sign(item.vx) or 1, (hx + pt[0], hy + pt[1]))
+            if att is not None:
+                att.hitstop = 0
+            item.vx *= -0.3
+            item.vy = -2.2
+            item.state = "fall"
+            item.owner = None
+            return True
+        return False
+
+    def _hammer_hits(self, hurts):
+        for f in self.fighters:
+            item = f.item
+            if item is None or item.kind != "hammer" or not f.on_field or f.state == "held":
+                continue
+            w, h = 32, round(f.hgt) + 6
+            left = round(f.x) - 6 if f.facing > 0 else round(f.x) + 6 - w
+            top = round(f.y - f.hgt) - 12
+            m = rect_mask(w, h)
+            for vic in self.fighters:
+                if vic is f or hurts.get(vic) is None:
+                    continue
+                if self.t - item.victims.get(vic, -999) < 24:
+                    continue
+                hm, (hx, hy) = hurts[vic]
+                pt = hm.overlap(m, (left - hx, top - hy))
+                if pt is None:
+                    continue
+                item.victims[vic] = self.t
+                self._apply_hit(f, vic, HAMMER_HIT, f.facing, (hx + pt[0], hy + pt[1]))
+                f.hitstop = min(f.hitstop, 4)
+                hurts[vic] = vic.hurt()
+
     # ---- hits ----------------------------------------------------------------
     def _apply_hit(self, att, vic, spec, dirx, point, grab_ok=False):
         """Returns 'hit', 'block' or None."""
@@ -1710,7 +2441,9 @@ class SmashScene:
         if vic.state == "shield" and not spec.get("grab"):
             vic.shield -= dmg * SHIELD_DMG_K + 1
             vic.lvx = dirx * min(3.0, 0.6 + dmg * 0.12)
-            vic.hitstop = att.hitstop = 4 if att else 0
+            vic.hitstop = 4
+            if att:
+                att.hitstop = 4
             self.effects.append(F.Effect(self.art["block"], point[0], point[1], 2))
             audio.play("block")
             if vic.shield <= 0:
@@ -1765,6 +2498,10 @@ class SmashScene:
         vic.hitstop = stop
         if att is not None:
             att.hitstop = stop
+        if spec.get("item") == "bat":
+            sfx("bat", 0.8)
+            if kb > 9:
+                self.popups.append(["HOME RUN!", vic.x, vic.y - vic.hgt - 8, 50, (255, 240, 120)])
         if kb > 7 or crit:
             self.shake = max(self.shake, 8 if not crit else 14)
             audio.play("heavy")
@@ -1776,6 +2513,13 @@ class SmashScene:
             self.popups.append(["SMASH!", vic.x, vic.y - vic.hgt - 8, 40, (255, 120, 40)])
         return "hit"
 
+    def _item_strike(self, att):
+        """(mask, x, y) of a held weapon's swing: a box in front, `reach` long."""
+        mv = att.move
+        w, h = mv["reach"], round(att.hgt * 0.9) + 6
+        left = round(att.x) - 2 if att.facing > 0 else round(att.x) + 2 - w
+        return rect_mask(w, h), left, round(att.y - att.hgt) - 6
+
     def _hits(self):
         fs = [f for f in self.fighters if f.draw_key is not None]
         hurts = {f: f.hurt() for f in fs}
@@ -1783,10 +2527,13 @@ class SmashScene:
             if not att.striking():
                 continue
             mv = att.move
-            m, ox, oy = strike_mask(att.art, att.draw_key, att.flip, att.k,
-                                    mv.get("base", "jump" if mv.get("air") else "idle"),
-                                    mv.get("zone", "front"), mv.get("box", (10, -40, 20, 14)))
-            sx, sy = att.draw_pos[0] + ox, att.draw_pos[1] + oy
+            if mv.get("item"):
+                m, sx, sy = self._item_strike(att)
+            else:
+                m, ox, oy = strike_mask(att.art, att.draw_key, att.flip, att.k,
+                                        mv.get("base", "jump" if mv.get("air") else "idle"),
+                                        mv.get("zone", "front"), mv.get("box", (10, -40, 20, 14)))
+                sx, sy = att.draw_pos[0] + ox, att.draw_pos[1] + oy
             for vic in fs:
                 if vic is att or hurts.get(vic) is None or att.state != "move":
                     continue
@@ -1809,6 +2556,7 @@ class SmashScene:
                 hurts[vic] = vic.hurt()
                 if res and mv.get("grab"):
                     break
+        self._hammer_hits(hurts)
         # projectiles
         for s in self.shots:
             if not s.alive:
@@ -1868,9 +2616,11 @@ class SmashScene:
                 self.ko(f)
 
     def ko(self, f):
-        bx = max(0, min(W, f.x))
-        by = max(0, min(H, f.y - f.hgt / 2))
-        ang = math.atan2(H / 2 - by, W / 2 - bx)
+        cx, cy, cw = self.cam
+        ch = cw * H / W
+        bx = max(cx - cw / 2, min(cx + cw / 2, f.x))
+        by = max(cy - ch / 2, min(cy + ch / 2, f.y - f.hgt / 2))
+        ang = math.atan2(cy - by, cx - bx)
         self.blasts.append([bx, by, ang, f.color, 0])
         for _ in range(26):
             a = ang + self.rng.uniform(-0.7, 0.7)
@@ -1886,6 +2636,9 @@ class SmashScene:
         if f.held_by is not None:
             f.held_by.grabbed = None
             f.held_by = None
+        if f.item is not None:
+            self.drop_item(f, gone=True)
+        f.star = 0
         f.stocks -= 1
         if f.last_hit_by is not None and self.t - getattr(f, "hit_t", -9999) > 600:
             f.last_hit_by = None                 # a fall long after the last hit is a self-destruct
@@ -1911,19 +2664,31 @@ class SmashScene:
         if self.flash:
             self.flash -= 1
         for i in range(len(self.cloud_x)):
-            self.cloud_x[i] = (self.cloud_x[i] + 0.06 * (i + 1)) % (W + 80)
+            self.cloud_x[i] = (self.cloud_x[i] + 0.06 * (i % 3 + 1)) % (WW + 80)
+        if self.phase == "final":
+            self.end_t += 1
+            for f in self.fighters:
+                f.refresh()
+            self._fx()
+            skip = self.end_t > 80 and inp.any_pressed("punch", "kick", "special", "start")
+            if (self.end_t >= FINAL_LEN or skip) and self.result is None:
+                self._finish()
+            return
         if self.phase == "intro":
             self.end_t += 1
-            if self.end_t in (INTRO - 90, INTRO - 60, INTRO - 30):
+            n = self.intro_len
+            if self.end_t in (n - 90, n - 60, n - 30):
                 audio.play("beep")
             for f in self.fighters:
                 f.refresh()
-            if self.end_t >= INTRO:
+            if self.end_t >= n:
                 self.phase, self.end_t = "play", 0
+                self.play_t = self.t
                 audio.play("fight")
                 for f in self.fighters:
                     f.state, f.t = "stand", 0
             self._fx()
+            self._camera()
             return
         intents = {}
         if self.phase == "play":
@@ -1941,8 +2706,10 @@ class SmashScene:
             f.refresh()
         self._hits()
         self.shots = [s for s in self.shots if s.alive]
+        self._items_update()
         self._blast_zones()
         self._fx()
+        self._camera()
         if self.phase == "play":
             if self.akuma.out:
                 self.phase, self.end_t, self.won = "game", 0, False
@@ -1956,15 +2723,26 @@ class SmashScene:
             if self.won and ak.state == "stand" and not ak.airborne and self.end_t > 30:
                 ak.state, ak.t = "win", 0
                 ak.vx = 0.0
-            skip = self.end_t > 70 and inp.any_pressed("punch", "kick", "special", "start")
+            skip = self.end_t > 110 and inp.any_pressed("punch", "kick", "special", "start")
             if self.end_t >= GAME_LEN or skip:
-                if self.won:
-                    self.result = "win"
-                    hp = max(1, round(self.hp * (0.5 + 0.5 * ak.stocks / STOCKS)))
-                    self.game.level_done(self, hp)
+                self.round_wins.append(bool(self.won))
+                self.round_stocks.append(ak.stocks if self.won else 0)
+                if self.round < ROUNDS:
+                    self.round += 1
+                    self._start_round()
                 else:
-                    self.result = "lose"
-                    self.game.level_failed(self)
+                    self.phase, self.end_t = "final", 0
+                    audio.play("encounter" if self.rounds_won else "ko", 0.7)
+
+    def _finish(self):
+        if self.rounds_won >= 1:
+            self.result = "win"
+            best = max(self.round_stocks)
+            hp = max(1, round(self.hp * (0.5 + 0.5 * best / STOCKS)))
+            self.game.level_done(self, hp)
+        else:
+            self.result = "lose"
+            self.game.level_failed(self)
 
     def _fx(self):
         for fx in self.effects:
@@ -1979,9 +2757,68 @@ class SmashScene:
         for b in self.blasts:
             b[4] += 1
         self.blasts = [b for b in self.blasts if b[4] < 40]
+        for b in self.booms:
+            b[3] += 1
+        self.booms = [b for b in self.booms if b[3] < 20]
         for pu in self.popups:
             pu[3] -= 1
         self.popups = [pu for pu in self.popups if pu[3] > 0]
+
+    # ---- camera ----------------------------------------------------------------
+    def _cam_target(self):
+        """(centre x, centre y, width) framing every fighter in play, 16:9, inside the world."""
+        pts = []
+        for f in self.fighters:
+            if f.out or f.state == "dead":
+                continue
+            if f.state == "respawn":
+                pts.append((f.x, HALO_Y - 30))
+                continue
+            x = max(BLAST_L + 20, min(BLAST_R - 20, f.x))
+            y = max(-10, min(WH, f.y))
+            pts += [(x - 34, y - f.hgt - 22), (x + 34, y + 14)]
+        if not pts:
+            return [MID_X, WH / 2, float(WW)]
+        x0 = min(p[0] for p in pts)
+        x1 = max(p[0] for p in pts)
+        y0 = min(p[1] for p in pts)
+        y1 = max(p[1] for p in pts)
+        w = max(CAM_MIN_W, x1 - x0, (y1 - y0 + 26) * W / H)    # room for the HUD at the bottom
+        w = min(float(WW), w)
+        h = w * H / W
+        cx = (x0 + x1) / 2
+        cy = (y0 + y1) / 2 + 12
+        cx = max(w / 2, min(WW - w / 2, cx))
+        cy = max(h / 2, min(WH - h / 2, cy))
+        return [cx, cy, w]
+
+    def _camera(self):
+        tx, ty, tw = self._cam_target()
+        cx, cy, cw = self.cam
+        k = 0.06
+        cw += (tw - cw) * k
+        cw = max(float(CAM_MIN_W), min(float(WW), cw))
+        h = cw * H / W
+        cx += (tx - cx) * k
+        cy += (ty - cy) * k
+        cx = max(cw / 2, min(WW - cw / 2, cx))
+        cy = max(h / 2, min(WH - h / 2, cy))
+        self.cam = [cx, cy, cw]
+
+    def cam_rect(self):
+        cx, cy, cw = self.cam
+        w = int(round(cw))
+        h = int(round(w * H / W))
+        x = int(round(cx - w / 2))
+        y = int(round(cy - h / 2))
+        x = max(0, min(WW - w, x))
+        y = max(0, min(WH - h, y))
+        return pygame.Rect(x, y, w, h)
+
+    def to_screen(self, x, y, rect=None):
+        r = rect or self.cam_rect()
+        k = W / r.w
+        return (x - r.x) * k, (y - r.y) * k
 
     # ---- draw ----------------------------------------------------------------
     def draw(self, surf):
@@ -1990,31 +2827,47 @@ class SmashScene:
             m = 1 + self.shake // 5
             sh = (self.rng.randint(-m, m), self.rng.randint(-m, m))
         a = self.art
-        surf.blit(a["bg"], (0, 0))
+        ws = self.world
+        ws.blit(a["bg"], (0, 0))
         for i, c in enumerate(a["clouds"]):
-            surf.blit(c, (round(self.cloud_x[i]) - 70, 14 + i * 17))
-        surf.blit(a["stage"], sh)
+            ws.blit(c, (round(self.cloud_x[i]) - 70, 20 + (i % 3) * 22))
+        ws.blit(a["stage"], sh)
         for f in self.fighters:
             if f.state == "respawn":
                 hx, hy = round(f.x) + sh[0], HALO_Y + sh[1]
-                pygame.draw.ellipse(surf, OUTLINE, (hx - 15, hy - 2, 30, 7))
-                pygame.draw.ellipse(surf, shade(f.color, 1.3), (hx - 14, hy - 1, 28, 5))
-                pygame.draw.ellipse(surf, (255, 255, 255), (hx - 9, hy, 18, 2))
+                pygame.draw.ellipse(ws, OUTLINE, (hx - 15, hy - 2, 30, 7))
+                pygame.draw.ellipse(ws, shade(f.color, 1.3), (hx - 14, hy - 1, 28, 5))
+                pygame.draw.ellipse(ws, (255, 255, 255), (hx - 9, hy, 18, 2))
+        for item in self.items:
+            if item.state != "held":
+                self._draw_item(ws, item, sh)
         order = sorted(self.fighters, key=lambda f: (f.is_player, f.state == "held"))
         for f in order:
-            self._draw_fighter(surf, f, sh)
+            self._draw_fighter(ws, f, sh)
+            if f.item is not None and f.draw_key is not None:
+                self._draw_held(ws, f, sh)
         for s in self.shots:
             img, _, (px, py) = s.frame()
-            surf.blit(img, (px + sh[0], py + sh[1]))
+            ws.blit(img, (px + sh[0], py + sh[1]))
         for fx in self.effects:
-            fx.draw(surf, sh)
+            fx.draw(ws, sh)
+        self._draw_booms(ws, sh)
         for p in self.parts:
-            surf.fill(p[5], (round(p[0]) + sh[0], round(p[1]) + sh[1], 2, 2))
-        self._draw_blasts(surf)
+            ws.fill(p[5], (round(p[0]) + sh[0], round(p[1]) + sh[1], 2, 2))
+        self._draw_blasts(ws)
+        # the camera: the part of the world in view, scaled to the canvas
+        r = self.cam_rect()
+        view = ws.subsurface(r)
+        if r.w == W:
+            surf.blit(view, (0, 0))
+        else:
+            pygame.transform.scale(view, (W, H), surf)
         for f in self.fighters:
-            self._tag(surf, f, sh)
+            self._tag(surf, f, sh, r)
         for text, x, y, n, col in self.popups:
-            draw_text(surf, text, round(x), round(y) - (60 - n) // 5, col, align="center")
+            sx, sy = self.to_screen(x, y, r)
+            sx = max(text_width(text) // 2 + 2, min(W - text_width(text) // 2 - 2, sx))
+            draw_text(surf, text, round(sx), max(2, round(sy) - (60 - n) // 5), col, align="center")
         if self.flash:
             fl = pygame.Surface((W, H), pygame.SRCALPHA)
             fl.fill((255, 255, 255, 90))
@@ -2023,6 +2876,72 @@ class SmashScene:
         self._overlays(surf)
         if self.menu.open:
             self.menu.draw(surf)
+
+    def _draw_item(self, surf, item, sh):
+        if item.state in ("fall", "ground") and item.life < 120 and (item.life // 4) % 2:
+            return                                   # blinking: about to vanish
+        img = item.image()
+        x = round(item.x - img.get_width() / 2) + sh[0]
+        y = round(item.y - img.get_height()) + sh[1]
+        if item.kind == "star":
+            y += round(math.sin(item.t / 5) * 1)
+        if item.state == "thrown" and item.kind in ("bat", "sword", "hammer"):
+            img = item_rotated(item.kind, item.vx < 0, (item.t * 30) % 360)
+            x = round(item.x - img.get_width() / 2) + sh[0]
+            y = round(item.y - 5 - img.get_height() / 2) + sh[1]
+        if item.state == "ground":
+            pygame.draw.ellipse(surf, (30, 26, 40), (round(item.x) - 5 + sh[0], round(item.y) - 1 + sh[1], 10, 3))
+        surf.blit(img, (x, y))
+        if item.kind == "bomb" and (item.state == "thrown" or item.life < 240):
+            col = (255, 240, 120) if (item.t // 3) % 2 else (255, 120, 40)
+            surf.fill(col, (x + 6, y - 1, 2, 2))
+        elif item.kind == "star":
+            col = STAR_COLORS[(item.t // 4) % len(STAR_COLORS)]
+            surf.fill(col, (x + (item.t // 2) % 14, y + 13, 1, 1))
+
+    def _draw_held(self, surf, f, sh):
+        item = f.item
+        hx, hy = self._hand(f)
+        hx += sh[0]
+        hy += sh[1]
+        k = item.kind
+        flip = f.facing < 0
+        if k == "bomb":
+            img = item.image()
+            surf.blit(img, (round(hx - img.get_width() / 2), round(hy - img.get_height() + 3)))
+            return
+        if k == "hammer":
+            up = (self.t // 12) % 2 == 0
+            ang = 100 if up else 0
+            if up:
+                hx, hy = f.x + sh[0] + f.facing * 2, f.y - f.hgt * 0.8 + sh[1]
+        elif f.state == "move" and f.move and f.move.get("item"):
+            kind, _, run_t, span = f.phase_info()
+            if kind == "startup":
+                ang = 120
+            elif kind == "active":
+                ang = 80 - 110 * min(1.0, run_t / max(1, span - 1))
+            else:
+                ang = -30
+        else:
+            ang = 60
+        img = item_rotated(k, flip, ang)
+        ln = item_image(k).get_width() / 2 - 3
+        dx = math.cos(math.radians(ang)) * ln * f.facing
+        dy = -math.sin(math.radians(ang)) * ln
+        surf.blit(img, (round(hx + dx - img.get_width() / 2), round(hy + dy - img.get_height() / 2)))
+
+    def _draw_booms(self, surf, sh):
+        for x, y, r, t in self.booms:
+            k = min(1.0, t / 6)
+            rr = max(2, round(r * (0.4 + 0.6 * k)))
+            cx, cy = round(x) + sh[0], round(y) + sh[1]
+            if t < 14:
+                pygame.draw.circle(surf, (240, 70, 30), (cx, cy), rr)
+                pygame.draw.circle(surf, (255, 170, 50), (cx, cy), max(1, rr - 4))
+                pygame.draw.circle(surf, (255, 246, 200), (cx, cy), max(1, rr - 10 - t))
+            else:
+                pygame.draw.circle(surf, (90, 80, 84), (cx, cy - (t - 14)), max(1, rr - (t - 14) * 3), 2)
 
     def _draw_fighter(self, surf, f, sh):
         if f.draw_key is None:
@@ -2046,7 +2965,16 @@ class SmashScene:
                 dk = img.copy()
                 dk.fill((150, 150, 170, 255), special_flags=pygame.BLEND_RGBA_MULT)
                 surf.blit(dk, (x, y))
-            if (f.invuln or f.state == "respawn") and (self.t // 3) % 2:
+            if f.star:
+                tint = flash_of(f.art, f.draw_key, f.flip, f.k).copy()
+                tint.fill(STAR_COLORS[(self.t // 3) % len(STAR_COLORS)] + (255,),
+                          special_flags=pygame.BLEND_RGBA_MULT)
+                tint.set_alpha(120 if f.star > 90 or (f.star // 4) % 2 else 40)
+                surf.blit(tint, (x, y))
+                if self.t % 3 == 0:
+                    self.parts.append([f.x + self.rng.uniform(-8, 8), f.y - self.rng.uniform(0, f.hgt), 0, -0.4,
+                                       10, STAR_COLORS[self.rng.randrange(len(STAR_COLORS))]])
+            elif (f.invuln or f.state == "respawn") and (self.t // 3) % 2:
                 wh = flash_of(f.art, f.draw_key, f.flip, f.k).copy()
                 wh.set_alpha(110)
                 surf.blit(wh, (x, y))
@@ -2068,21 +2996,21 @@ class SmashScene:
                 surf.fill((255, 230, 90), (sx - 1, sy, 3, 1))
                 surf.fill((255, 230, 90), (sx, sy - 1, 1, 3))
 
-    def _tag(self, surf, f, sh):
+    def _tag(self, surf, f, sh, rect):
         if f.out or f.state == "dead" or self.phase == "intro":
             return
         label = "P1" if f.is_player else "CPU"
-        top = f.y - f.hgt - 9
-        x, y = f.x, top
-        off = x < 0 or x > W or f.y < 0
-        if off:
+        x, top = self.to_screen(f.x, f.y - f.hgt, rect)
+        _, feet = self.to_screen(f.x, f.y, rect)
+        _, mid = self.to_screen(f.x, f.y - f.hgt / 2, rect)
+        if x < 0 or x > W or feet < 0 or top > H:
             cx = max(9, min(W - 9, x))
-            cy = max(9, min(H - 40, f.y - f.hgt / 2))
+            cy = max(9, min(H - 40, mid))
             pygame.draw.circle(surf, OUTLINE, (round(cx), round(cy)), 8)
             pygame.draw.circle(surf, f.color, (round(cx), round(cy)), 7)
             surf.blit(small_portrait(f.cid, 10), (round(cx) - 5, round(cy) - 5))
             return
-        y = max(2, y)
+        y = max(2, top - 9)
         draw_text(surf, label, round(x) + sh[0], round(y) + sh[1], f.color, align="center")
         tx, ty = round(x) + sh[0], round(y) + 8 + sh[1]
         pygame.draw.polygon(surf, f.color, [(tx - 2, ty), (tx + 2, ty), (tx, ty + 2)])
@@ -2090,9 +3018,9 @@ class SmashScene:
     def _draw_blasts(self, surf):
         if not self.blasts:
             return
-        layer = pygame.Surface((W, H), pygame.SRCALPHA)
+        layer = pygame.Surface((WW, WH), pygame.SRCALPHA)
         for bx, by, ang, col, t in self.blasts:
-            ln = min(190, 30 + t * 14)
+            ln = min(250, 30 + t * 16)
             wd = 6 + t * 1.2
             fade = max(0, 255 - t * 6)
             ca, sa = math.cos(ang), math.sin(ang)
@@ -2123,6 +3051,9 @@ class SmashScene:
             for s in range(f.stocks):          # stock icons sit on top of the panel
                 surf.blit(small_portrait(f.cid, 8), (x0 + 2 + s * 10, y0 - 10))
                 pygame.draw.rect(surf, f.color, (x0 + 1 + s * 10, y0 - 11, 10, 10), 1)
+            if f.item is not None:             # what they're holding, next to the stocks
+                ic = f.item.image()
+                surf.blit(ic, (x0 + pw - ic.get_width() - 1, y0 - ic.get_height() - 1))
             if f.out:
                 draw_text(surf, "OUT", x0 + pw - 3, y0 + 12, (150, 150, 160), align="right")
                 continue
@@ -2133,35 +3064,75 @@ class SmashScene:
                 jy = self.rng.randint(-1, 1)
             text = "%d%%" % p
             draw_text(surf, text, x0 + pw - 3 + jx, y0 + 9 + jy, pct_color(p), scale=2, align="right")
+        # round counter, top centre
+        if self.phase in ("play", "game"):
+            draw_text(surf, "ROUND %d/%d" % (self.round, ROUNDS), W // 2, 3, (255, 255, 255), align="center")
+            self._tally_pips(surf, W // 2, 12)
+
+    def _tally_pips(self, surf, cx, y):
+        for k in range(ROUNDS):
+            x = cx - (ROUNDS - 1) * 6 + k * 12
+            if k < len(self.round_wins):
+                col = (255, 80, 60) if self.round_wins[k] else (110, 110, 130)
+            else:
+                col = (40, 36, 54)
+            pygame.draw.circle(surf, OUTLINE, (x, y + 3), 4)
+            pygame.draw.circle(surf, col, (x, y + 3), 3)
+
+    def _band(self, surf, y, h, alpha=185):
+        band = pygame.Surface((W, h), pygame.SRCALPHA)
+        band.fill((8, 6, 20, alpha))
+        surf.blit(band, (0, y))
 
     def _overlays(self, surf):
         cx = W // 2
         if self.phase == "intro":
             n = self.end_t
-            if n < INTRO - 90:
-                band = pygame.Surface((W, 44), pygame.SRCALPHA)
-                band.fill((8, 6, 20, 180))
-                surf.blit(band, (0, 30))
-                draw_text(surf, "LEVEL %d" % self.level, cx, 34, (255, 220, 80), scale=2, align="center")
-                draw_text(surf, LEVEL_NAME, cx, 52, (255, 255, 255), align="center")
-                draw_text(surf, "3 STOCK FREE-FOR-ALL   HOLD I TO SHIELD", cx, 63, (180, 220, 255),
-                          align="center")
+            L = self.intro_len
+            if n < L - 90:
+                if self.round == 1:
+                    self._band(surf, 26, 54)
+                    draw_text(surf, "LEVEL %d" % self.level, cx, 30, (255, 220, 80), scale=2, align="center")
+                    draw_text(surf, LEVEL_NAME, cx, 48, (255, 255, 255), align="center")
+                    draw_text(surf, "ROUND 1 OF %d - 3 STOCKS - ITEMS ON" % ROUNDS, cx, 59, (180, 220, 255),
+                              align="center")
+                    draw_text(surf, "WIN A ROUND TO CLEAR THE LEVEL", cx, 69, (255, 190, 150), align="center")
+                else:
+                    self._band(surf, 30, 46)
+                    draw_text(surf, "ROUND %d" % self.round, cx, 34, (255, 220, 80), scale=3, align="center")
+                    w = self.rounds_won
+                    draw_text(surf, "AKUMA %d - %d CHALLENGERS" % (w, len(self.round_wins) - w), cx, 62,
+                              (255, 255, 255), align="center")
             else:
-                k = 3 - (n - (INTRO - 90)) // 30
+                k = 3 - (n - (L - 90)) // 30
                 if k >= 1:
                     draw_text(surf, str(k), cx, 50, (255, 230, 90), scale=5, align="center")
-        if self.phase == "play" and self.end_t == 0 and self.t < INTRO + 45:
+        if self.phase == "play" and self.t - getattr(self, "play_t", -999) < 45:
             draw_text(surf, "GO!", cx, 46, (255, 70, 40), scale=5, align="center")
         if self.phase == "game":
             if self.end_t < 100:
                 draw_text(surf, "GAME!", cx, 44, (255, 230, 80), scale=5, align="center")
             else:
-                band = pygame.Surface((W, 30), pygame.SRCALPHA)
-                band.fill((8, 6, 20, 190))
-                surf.blit(band, (0, 50))
+                self._band(surf, 50, 30)
                 if self.won:
-                    draw_text(surf, "AKUMA WINS!", cx, 54, (255, 80, 60), scale=2, align="center")
+                    draw_text(surf, "AKUMA WINS ROUND %d!" % self.round, cx, 54, (255, 80, 60), scale=2,
+                              align="center")
                     draw_text(surf, "THE CHALLENGERS ARE SMASHED", cx, 70, (255, 255, 255), align="center")
                 else:
-                    draw_text(surf, "AKUMA FALLS...", cx, 54, (255, 255, 255), scale=2, align="center")
-                    draw_text(surf, "OUT OF STOCKS", cx, 70, (255, 140, 120), align="center")
+                    draw_text(surf, "AKUMA LOSES ROUND %d" % self.round, cx, 54, (255, 255, 255), scale=2,
+                              align="center")
+                    nxt = "ROUND 2 IS NEXT" if self.round < ROUNDS else "OUT OF STOCKS"
+                    draw_text(surf, nxt, cx, 70, (255, 140, 120), align="center")
+        if self.phase == "final":
+            self._band(surf, 22, 78, 205)
+            w = self.rounds_won
+            draw_text(surf, "FINAL TALLY", cx, 26, (255, 220, 80), scale=2, align="center")
+            for k, won in enumerate(self.round_wins):
+                txt = "ROUND %d:  %s" % (k + 1, "AKUMA WINS" if won else "CHALLENGERS WIN")
+                draw_text(surf, txt, cx, 45 + k * 10, (255, 120, 90) if won else (170, 170, 190), align="center")
+            draw_text(surf, "AKUMA %d - %d CHALLENGERS" % (w, len(self.round_wins) - w), cx, 67,
+                      (255, 255, 255), align="center")
+            if w:
+                draw_text(surf, "LEVEL CLEAR!", cx, 80, (255, 80, 60), scale=2, align="center")
+            else:
+                draw_text(surf, "AKUMA IS DEFEATED", cx, 80, (200, 200, 220), scale=2, align="center")

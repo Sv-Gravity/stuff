@@ -335,6 +335,166 @@ def test_shop(game):
     print("metroid: altars sell strength (x%.1f) and vitality (+%d)" % (sc.dmg_mult, M.VIT_UP))
 
 
+def test_fireballs(game):
+    """Toshi's crash: a hadouken (ground or air) hitting an enemy raised
+    KeyError 'kb'. Both now hit; the air one flies 45 degrees down and dies
+    on the floor. Every move in MOVES can go through _hit_enemy."""
+    sc = _scene(game, 8)
+    x, y = _arena_floor(sc)
+    # ground fireball into a grunt
+    _put(sc, x, y)
+    sc.p.face = 1
+    _settle(game, 5)
+    e = M.Grunt(sc, x + 70, y, "ryu")
+    e.face = -1
+    sc.enemies = [e]
+    hp0 = e.hp
+    _tick(game, (), ("special",))
+    assert sc.p.state == "attack" and sc.p.move == "hado"
+    for _ in range(60):
+        _tick(game)
+        if e.hp < hp0:
+            break
+    assert e.hp < hp0, "ground hadouken never hit"
+    # air fireball: diagonal, rotated, hits a grunt below and ahead
+    sc.enemies = []
+    sc.ki = M.KI_MAX
+    _put(sc, x, y)
+    _settle(game, 20)
+    _tick(game, ("up",), ("up",))
+    for _ in range(14):
+        _tick(game, ("up",))
+    assert not sc.p.on_ground
+    e = M.Grunt(sc, sc.p.x + 60, y, "ryu")
+    e.face = -1
+    e.state = "idle"
+    sc.enemies = [e]
+    hp0 = e.hp
+    _tick(game, (), ("special",))
+    assert sc.p.move == "ahado", sc.p.move
+    shot_seen = None
+    for _ in range(60):
+        _tick(game)
+        for pr in sc.projs:
+            if pr.friendly:
+                shot_seen = pr
+        if e.hp < hp0:
+            break
+    assert shot_seen is not None and shot_seen.vy > 0 and abs(abs(shot_seen.vx) - shot_seen.vy) < 1e-6, "not 45 deg"
+    img = shot_seen.image(0)
+    assert img.get_height() > M._art()["hado"][2].get_height(), "air fireball sprite not rotated"
+    assert e.hp < hp0, "air hadouken never hit"
+    # with nothing in the way it dies on the floor
+    sc.enemies = []
+    sc.projs = []
+    sc.spawn_proj(x, y - 40, M.DIAG, M.DIAG, "hado", 18, True, sc.p, "ahado")
+    for _ in range(40):
+        _tick(game)
+        if not sc.projs:
+            break
+    assert not sc.projs, "air fireball went through the floor"
+    # every move (and an unknown name) through the hit path: no missing keys
+    for name in list(M.MOVES) + ["nonsense"]:
+        g = M.Grunt(sc, x + 20, y, "ryu")
+        g.hp = 10 ** 6
+        sc._hit_enemy(g, name, x)
+    print("metroid: ground + air hadouken hit (air one flies 45 deg down, dies on the floor); all moves hit cleanly")
+
+
+def _chord(game, sc, first, second, gap):
+    sc.ki = M.KI_MAX
+    _tick(game, (), (first,))
+    for _ in range(gap - 1):
+        _tick(game)
+    _tick(game, (), (second,))
+    _tick(game)
+    return sc.p.move if sc.p.state == "attack" else None
+
+
+def test_specials(game):
+    """special+punch = shoryuken, special+kick = tatsu, within 4 frames, either order."""
+    sc = _scene(game, 9)
+    x, y = _arena_floor(sc)
+    got = []
+    for first, second, want in (("special", "punch", "shoryu"), ("punch", "special", "shoryu"),
+                                ("special", "kick", "tatsu"), ("kick", "special", "tatsu")):
+        for gap in (1, 3):
+            _put(sc, x, y)
+            _settle(game, 60)
+            ki = sc.ki = M.KI_MAX
+            mv = _chord(game, sc, first, second, gap)
+            assert mv == want, (first, second, gap, mv)
+            assert sc.ki >= ki - 1, "cancelled fireball still cost ki"
+            got.append(mv)
+    # too far apart: the fireball stays a fireball
+    _put(sc, x, y)
+    _settle(game, 60)
+    sc.ki = M.KI_MAX
+    _tick(game, (), ("special",))
+    _settle(game, 8)
+    _tick(game, (), ("punch",))
+    assert sc.p.move == "hado"
+    # shoryuken rises and hits; tatsu travels and hits more than once
+    sc.projs = []
+    _put(sc, x, y)
+    _settle(game, 60)
+    e = M.Grunt(sc, x + 16, y, "ryu")
+    e.hp = 10 ** 6
+    e.state, e.face = "idle", -1
+    sc.enemies = [e]
+    _tick(game, (), ("special", "punch"))
+    top = sc.p.y
+    for _ in range(30):
+        _tick(game)
+        top = min(top, sc.p.y)
+    assert y - top > 30 and e.hp < 10 ** 6, ("shoryuken", y - top, e.hp)
+    _settle(game, 60)
+    _put(sc, x, y)
+    _settle(game, 30)
+    e = M.Grunt(sc, x + 30, y, "ryu")
+    e.hp = 10 ** 6
+    e.state, e.face = "idle", -1
+    sc.enemies = [e]
+    x0 = sc.p.x
+    _tick(game, (), ("special", "kick"))
+    hits = 0
+    for _ in range(50):
+        h = e.hp
+        e.x = sc.p.x + 14
+        e.state = "idle"
+        _tick(game)
+        hits += e.hp < h
+    assert sc.p.x - x0 > 30 and hits >= 2, ("tatsu", sc.p.x - x0, hits)
+    print("metroid: special+punch = shoryuken, special+kick = tatsu (either order, 1-3 frames); tatsu hit %d times"
+          % hits)
+
+
+def test_snacks(game):
+    sc = MetroidScene(game, seed=10)
+    assert len(sc.snacks) >= 5, len(sc.snacks)
+    reach = sc.lv.reachable(sc.lv.start_cell)
+    for sn in sc.snacks:
+        c, r = int(sn["x"] // T), int(sn["y"] // T) - 1
+        assert (c, r) in reach, sn
+    assert len({(int(sn["x"]) // (M.RW * T), int(sn["y"] - 1) // (M.RH * T)) for sn in sc.snacks}) == len(sc.snacks)
+    sc = _scene(game, 10, quiet=True)
+    sn = sc.snacks[0]
+    sc.hp = 10
+    _put(sc, sn["x"], sn["y"])
+    _settle(game, 3)
+    assert sn["taken"] and sc.hp > 10 and sn not in sc.snacks
+    assert any(p[0].startswith(sn["name"] + " +") for p in sc.popups), sc.popups
+    # at full health a snack stays put
+    sn = sc.snacks[0]
+    sc.hp = sc.max_hp
+    _put(sc, sn["x"], sn["y"])
+    _settle(game, 3)
+    assert not sn["taken"]
+    print("metroid: %d snacks placed in reachable rooms; %s healed %d"
+          % (len(sc.snacks) + 1, [ev for ev in sc.events if ev[1] == "snack"][0][4],
+             [ev for ev in sc.events if ev[1] == "snack"][0][5]))
+
+
 # ---------------------------------------------------------------------------
 # the bot
 # ---------------------------------------------------------------------------
@@ -547,6 +707,9 @@ def test_metroid(game):
         game.level_failed = old
     test_telegraph(game)
     test_shop(game)
+    test_fireballs(game)
+    test_specials(game)
+    test_snacks(game)
     game.scene = MetroidScene(game, seed=12)
     log, f, dealt = bot_metroid(game)
     print("metroid: bot cleared the level in %.1f s (boss %.1f s, %d damage dealt to the Warden), %d warps"

@@ -99,7 +99,7 @@ CHUNS = GHOSTS                      # old name
 # fighters from the sprite pack (assets/chars/<cid>/) who can chase Akuma
 ROSTER = {
     "chunli": "CHUN-LI", "zangief": "ZANGIEF", "morrigan": "MORRIGAN", "felicia": "FELICIA",
-    "ryu": "RYU", "ken": "KEN", "sakura": "SAKURA", "hsienko": "HSIEN-KO",
+    "ryu": "RYU", "ken": "KEN", "sakura": "SAKURA", "hsienko": "HSIEN-KO", "drdoom": "DR. DOOM",
 }
 CHASER_H, CHASER_W = 22, 26         # map sprite box (px) every fighter is scaled to fit
 
