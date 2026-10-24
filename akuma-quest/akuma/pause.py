@@ -6,6 +6,7 @@ import pygame
 from . import audio
 from .config import W, H
 from .font import draw_text
+from .inputs import PAD_LEGEND
 
 MAP_LINE = "MAP: ARROWS / WASD, TOUCH ENEMIES TO FIGHT"
 
@@ -92,6 +93,8 @@ class PauseMenu:
         surf.blit(s, (0, 0))
         if self.page == "controls":
             draw_text(surf, "CONTROLS", W // 2, 10, (255, 255, 255), scale=2, align="center")
+            if getattr(getattr(self.game, "input", None), "pad_connected", False):
+                draw_text(surf, PAD_LEGEND, W // 2, 25, (140, 220, 255), align="center")
             for k, line in enumerate(self.controls):
                 draw_text(surf, line, W // 2, 34 + k * 11, (210, 210, 230), align="center")
             draw_text(surf, "ANY BUTTON: BACK", W // 2, H - 12, (255, 230, 150), align="center")
@@ -110,5 +113,6 @@ class PauseMenu:
             sel = k == self.i
             draw_text(surf, ("> %s <" if sel else "%s") % label, W // 2, 76 + k * 13,
                       (255, 230, 90) if sel else (190, 180, 200), align="center")
-        draw_text(surf, "F1 / TAB: CONTROLS", W // 2, 82 + len(self.items) * 13, (150, 150, 170),
+        hint = "VIEW: RESUME" if getattr(getattr(self.game, "input", None), "pad_connected", False) else "F1 / TAB: CONTROLS"
+        draw_text(surf, hint, W // 2, 82 + len(self.items) * 13, (150, 150, 170),
                   align="center")

@@ -63,7 +63,12 @@ class Title:
             else:
                 self.game.running = False
         elif inp.pressed("back"):
-            self.game.running = False
+            # a pad's View button only jumps to QUIT, so one stray press can't close the game
+            if "back" in inp.pad_pressed and self.ITEMS[self.i] != "QUIT":
+                self.i = self.ITEMS.index("QUIT")
+                audio.play("select")
+            else:
+                self.game.running = False
 
     def draw(self, surf):
         surf.blit(self.bg, (0, 0))
@@ -83,9 +88,14 @@ class Title:
         sel = self.ITEMS[self.i] == "LEVEL SELECT"
         draw_text(surf, LEVELS[self.pick]["name"], cx, 131, (255, 200, 120) if sel else (120, 120, 140),
                   align="center")
-        draw_text(surf, "MOVE: ARROWS / WASD", cx, 143, (170, 160, 185), align="center")
-        draw_text(surf, "J PUNCH  K KICK  L SPECIAL", cx, 154, (170, 160, 185), align="center")
-        draw_text(surf, "ESC: PAUSE   F1: CONTROLS", cx, 165, (170, 160, 185), align="center")
+        if self.game.input.pad_connected:
+            draw_text(surf, "CONTROLLER READY", cx, 143, (140, 220, 255), align="center")
+            draw_text(surf, "X PUNCH  A KICK  B SPECIAL", cx, 154, (170, 160, 185), align="center")
+            draw_text(surf, "START: PAUSE   RT: SHIELD", cx, 165, (170, 160, 185), align="center")
+        else:
+            draw_text(surf, "MOVE: ARROWS / WASD", cx, 143, (170, 160, 185), align="center")
+            draw_text(surf, "J PUNCH  K KICK  L SPECIAL", cx, 154, (170, 160, 185), align="center")
+            draw_text(surf, "ESC: PAUSE   F1: CONTROLS", cx, 165, (170, 160, 185), align="center")
         if self.controls.page == "controls":
             self.controls.draw(surf)
 

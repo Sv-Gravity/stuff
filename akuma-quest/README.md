@@ -46,11 +46,14 @@ Double-click **`build_exe.bat`**. It installs PyInstaller and produces `dist\Aku
 | Punch | J or Z | X (or LB) |
 | Kick | K or X | A (or RB) |
 | Special | L, C or Space | B or Y |
-| Shield / block (Smash), roll (level 9), duck into a door (level 10), strafe (level 11) | I | left stick click |
-| Pause menu (resume, controls, back to main menu) | Enter or Esc | Start |
-| Controls page | F1 or Tab | |
+| Shield / block (Smash), roll (level 9), duck into a door (level 10), strafe (level 11) | I | LT / RT (or left stick click) |
+| Pause menu (resume, controls, back to main menu) | Enter or Esc | Start (View closes it) |
+| Back / skip (closes menus, skips codec calls) | Esc | View |
+| Controls page | F1 or Tab | Pause menu, CONTROLS |
 | Fullscreen | F11 | |
 | FPS counter | F3 | |
+
+An Xbox controller (or any pad SDL knows: PlayStation, Switch Pro, 8BitDo...) is used automatically as soon as it's plugged in, before or during play, and the keyboard keeps working alongside it. The title screen says CONTROLLER READY when one is detected. On the title screen View only moves the cursor to QUIT, so a stray press can't close the game.
 
 ### Fight mode
 
@@ -258,6 +261,7 @@ tests/smoke_test.py         headless tests: move mapping, damage tiers, a 5-hit 
                             combos, throws, practice menu, car roofs, Tetris repairs, bots that
                             play levels 1-4, every later level starting, and each level's test below
 tests/<level>_test.py       bomber, smash, stealth, skate, connect4, metroid, thunder, climb, doom: each level's rules plus a bot that clears it
+tests/pad_test.py           Xbox controller input with a fake pad: hot-plug, buttons, stick, triggers, menus
 ```
 
 Run the test with `python tests/smoke_test.py`. It needs no window and no sound. The game needs pygame and numpy (`run.bat` installs both).
