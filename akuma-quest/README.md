@@ -1,6 +1,6 @@
 # Akuma Quest
 
-A roguelike where every encounter turns into a Street Fighter–style duel, and every level after the first few turns into a different game. You play Akuma. There are eleven levels:
+A roguelike where every encounter turns into a Street Fighter–style duel, and every level after the first few turns into a different game. You play Akuma. There are twelve levels:
 
 1. **The Caves of Gokuentou**: explore an overhead dungeon; touching an enemy (or being touched) switches to a side-view 1-on-1 fight. Boss: **Zangief**.
 2. **The Burning Temple**: the same, but every grunt brings a partner: **2-on-1** fights. Boss (alone): **Morrigan**.
@@ -12,7 +12,8 @@ A roguelike where every encounter turns into a Street Fighter–style duel, and 
 8. **Connect Four**: against Ryu, with fireballs for pieces.
 9. **The Prisoners' Quarters**: a Dead Cells style side-scrolling metroidvania with a boss, the Warden.
 10. **Geldra's Hideout**: Rolling Thunder (NES). Two floors, maskers coming out of doors, and hadoukens instead of a gun. Boss: **Dr. Doom**.
-11. **Knee-Deep in the Demon**: Doom, shooting hadoukens. Boss: **Cyber-Gief**.
+11. **The Climb**: Fall Guys. Race four Street Fighters up a giant obstacle tower to the crown, with Smash damage % and knockback; get knocked off and you start again from the bottom.
+12. **Knee-Deep in the Demon**: Doom, shooting hadoukens. Boss: **Cyber-Gief**.
 
 The main menu has **Start Game**, **Practice** (Akuma vs a sparring Ryu), **Level** (a debug shortcut: press left/right to pick a level and start there) and **Quit**.
 
@@ -188,7 +189,17 @@ Rolling Thunder on the NES, with Akuma instead of Albatross. A long street front
 - 3 lives; dying puts Akuma back on his feet where he fell with a full bar.
 - **Dr. Doom**, master of Geldra, waits in the locked courtyard at the end: volleys of ki shots (watch his stance: crouched = low, standing = high), a charged beam, a punch up close, he flies to whichever floor you are on and his landing sends shockwaves along the floor (jump them), and he calls maskers out of the courtyard doors as his health drops. Faster below half health.
 
-### Level 11: Knee-Deep in the Demon
+### Level 11: The Climb
+
+Fall Guys meets Smash. A giant candy-coloured obstacle tower, ten screens tall, and Akuma races four random Street Fighter rivals from the floor to the **crown** on top: whoever touches the FINISH first wins. The camera flies down the whole tower before the countdown so you can see what is coming.
+
+- Mostly medium climbing: steps, moving platforms (side to side and up and down), conveyor belts, bounce pads, swinging hammers, sweeper bars, boxing-glove pistons that punch out of the walls, and cannons firing big fruit across the tower.
+- Hard spots on the way, called out when you reach them and marked red on the tower bar at the right: the **Crumble Bridge** (tiles that fall a moment after you land, under a spinning bar), the **Pillars** (a double sweeper, then thin pillars between pistons), the **Ghost Blocks** (platforms that blink on and off in turn while fruit flies through), and **the Summit** at the end (a lift, crumbling steps, a glove, fruit and a double sweeper spinning round the crown).
+- Everyone fights with their Smash moveset (same controls as level 5, no items) and has a **damage %**: hits and obstacles raise it, and the higher it is the further everything knocks you. Knock rivals off the tower to send them back to the bottom.
+- Get knocked off the side yourself and you **respawn on the floor at 0%** and have to catch up. Holding toward a ledge as you fall past grabs it.
+- The rivals plan their jumps (and time the moving platforms and obstacles), sometimes hesitate, and brawl with whoever is next to them. **3 tries**: win any one to clear the level.
+
+### Level 12: Knee-Deep in the Demon
 
 Doom with hadoukens. A hell fortress in first person under a blood-red sky: green-grey stone, keycards, doors, a secret wall, imps, pinkies, cacodemons, lost souls and zombiemen, possessed street fighters drawn with Third Strike sprites (**Ryu** throws hadoukens, **Chun-Li** dashes in with lightning legs and the odd kikoken), and **Cyber-Gief**, Mech Zangief from Marvel vs. Capcom, guarding the exit portal. Gief breathes ice in a three-way spread, headbutts you up close, and barrels in with a **shoulder charge**: sidestep it or shoryuken over him. Akuma's own clawed hands (prayer beads, red ki) and bare foot fill the bottom of the screen, above a Doom-style status bar.
 
@@ -223,7 +234,8 @@ akuma/
   connect4.py      level 8: Connect Four and Ryu's search
   metroid.py       level 9: the Dead Cells style castle
   thunder.py       level 10: the Rolling Thunder street
-  doom.py          level 11: the raycaster
+  climb.py         level 11: the Fall Guys climbing race
+  doom.py          level 12: the raycaster
   snacks.py        the Japanese snack health pickups (pixel art and how much each heals)
   pause.py         the pause menu and controls page
   assets/chars/    every character's frames, feet points, pose lists and HUD portrait
@@ -245,7 +257,7 @@ art_source/retired/          the earlier Akuma sheets' cut sprites and their too
 tests/smoke_test.py         headless tests: move mapping, damage tiers, a 5-hit combo, jump-in
                             combos, throws, practice menu, car roofs, Tetris repairs, bots that
                             play levels 1-4, every later level starting, and each level's test below
-tests/<level>_test.py       bomber, smash, stealth, skate, connect4, metroid, thunder, doom: each level's rules plus a bot that clears it
+tests/<level>_test.py       bomber, smash, stealth, skate, connect4, metroid, thunder, climb, doom: each level's rules plus a bot that clears it
 ```
 
 Run the test with `python tests/smoke_test.py`. It needs no window and no sound. The game needs pygame and numpy (`run.bat` installs both).
