@@ -12,7 +12,7 @@ refill the health flasks; dying costs one of three lives and sends him back to
 the last shrine. Cells dropped by enemies buy strength or vitality at the altar
 room. The Warden guards the exit: beat him and the gate opens.
 
-Whole-level scene like pacman.py / bomber.py: game.level_done(self, hp) when
+Whole-level scene like bomber.py: game.level_done(self, hp) when
 Akuma walks out of the exit, game.level_failed(self) when his lives run out.
 """
 

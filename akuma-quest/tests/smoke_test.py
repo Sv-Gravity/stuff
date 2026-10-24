@@ -24,9 +24,7 @@ from akuma.game import Game, EndScreen, LevelClear, Title  # noqa: E402
 from akuma.practice import PracticeScene  # noqa: E402
 from akuma.cars import CarScene  # noqa: E402
 from akuma.bomber import BomberScene  # noqa: E402
-from akuma.pacman import PacmanScene  # noqa: E402
 from tests.bomber_test import bot_bomber, test_bomber  # noqa: E402
-from tests.pacman_test import bot_dir as pacman_bot, test_pacman  # noqa: E402
 
 SHOTS = os.environ.get("SHOTS")
 
@@ -113,6 +111,8 @@ def bot_car(game, label=""):
     """Smash a car: attack the near side, jump over once it is wrecked."""
     cs = game.scene
     assert isinstance(cs, CarScene)
+    if cs.boss:         # the level's boss is the Tetris fight
+        return bot_tetris(game, label)
     inp = game.input
     frames = 0
     while game.scene is cs and frames < 60 * 90:
@@ -374,9 +374,10 @@ def test_level_select(game):
 
 
 def test_throws(game):
-    """Punch + kick up close grabs and tosses the way you hold, for 2x damage."""
+    """Punch + kick up close is Akuma's tomoe nage: he rolls back and flips
+    them over his head to land behind him, for 2x damage."""
     from akuma.fighters import KICK_DMG
-    for held, gap, side in (((), 0, 1), (("left",), 0, -1), (("right",), 1, 1), (("left",), 2, -1)):
+    for held, gap, side in (((), 0, -1), (("left",), 0, -1), (("right",), 1, -1), (("left",), 2, -1)):
         game.scene = PracticeScene(game)
         ps = game.scene
         inp = game.input
@@ -395,7 +396,7 @@ def test_throws(game):
             inp.virtual_pressed = {"kick"}
             game.tick()
         lost = 0
-        for f in range(70):
+        for f in range(90):
             inp.virtual = set()
             game.tick()
             lost = max(lost, hp - ps.e.hp)
@@ -452,34 +453,167 @@ def test_car_platform(game):
     game.to_title()
 
 
-def test_tetris_repair(game):
-    """Car boss: a puzzle piece that lands on the car locks in and repairs it."""
-    from akuma.cars import FallingPiece, CELL, REPAIR_FRAC
+def _tetris_scene(game, seed=1, hp=160):
+    """The level-3 boss fight, past its intro, with nothing falling yet."""
+    from akuma.cars import TetrisScene
     game.new_run(seed=3, start=3)
     boss = next(e for e in game.scene.enemies if e.boss)
-    cs = CarScene(game, boss, 200, 200, seed=1)
+    cs = CarScene(game, boss, hp, 160, seed=seed)
+    assert isinstance(cs, TetrisScene), cs
     game.scene = cs
     inp = game.input
     inp.virtual, inp.virtual_pressed = set(), set()
     while cs.phase == "intro":
         game.tick()
-    car = cs.car
-    car.side_hp[0] = car.side_max // 3
-    car.boss_shed()
-    hp, gone = car.hp, len(car.gone)
-    cs.drop_t = 10 ** 6
-    d = FallingPiece("O", cs.rng)
-    d.col = d.goal = round((car.x - 30) / CELL)
-    cs.drops = [d]
-    for _ in range(400):
-        inp.virtual, inp.virtual_pressed = set(), set()
+    cs.piece, cs.are = None, 10 ** 6       # each test drops its own pieces
+    return cs
+
+
+def _run(game, n, held=(), press=()):
+    inp = game.input
+    for i in range(n):
+        inp.virtual = set(held)
+        inp.virtual_pressed = set(press) if i == 0 else set()
         game.tick()
-        if not cs.drops:
-            break
-    assert car.hp == hp + round(car.max_hp * REPAIR_FRAC), ("piece did not repair the car", hp, car.hp)
-    assert len(car.gone) < gone, "repair did not put blocks back"
-    print("tetris repair: boss %d -> %d HP, %d blocks restored" % (hp, car.hp, gone - len(car.gone)))
+
+
+def test_tetris_boss(game):
+    """Level 3 boss (THE TETRIS MASTER): the stack is solid and breakable, a
+    falling piece that reaches Akuma hurts him, and a TETRIS hurts a lot more."""
+    from akuma.cars import (Piece, COLS, ROWS, WELL_COL, WELL_X, TCELL, BLOCK_HP, DROP_DMG,
+                            CLEAR_DMG, PIECE_COLORS)
+    from akuma.config import GROUND_Y
+    # -- blocks are platforms, and a kick breaks one
+    cs = _tetris_scene(game)
+    p = cs.p
+    cs.grid = [[None] * COLS for _ in range(ROWS)]
+    for r in range(ROWS - 3, ROWS):
+        for c in range(8):
+            cs.grid[r][c] = [PIECE_COLORS["O"], BLOCK_HP]
+    cs._changed()
+    _run(game, 160, {"right"})
+    assert p.y == GROUND_Y and p.x < WELL_X, ("walked into the stack", p.x)
+    _run(game, 1, {"up", "right"})
+    _run(game, 40, {"right"})
+    _run(game, 30)
+    assert p.y == GROUND_Y - 3 * TCELL and not p.airborne, ("did not land on the stack", p.x, p.y)
+    shot(game, "tetris_on_stack.png")
+    p.x = WELL_X - 14.0
+    p.y = float(GROUND_Y)
+    _run(game, 40)
+    before, hp = len(cs.cells()), cs.hp
+    _run(game, 1, press={"kick"})
+    _run(game, 30)
+    assert len(cs.cells()) == before - 1 and cs.hp == hp - 1, ("kick did not break a block", before, len(cs.cells()))
+    print("tetris: stood on the stack, a kick broke a block (boss %d -> %d)" % (hp, cs.hp))
     game.to_title()
+
+    # -- a falling piece that lands on Akuma hurts him and breaks
+    cs = _tetris_scene(game)
+    p = cs.p
+    cs.grid = [[None] * COLS for _ in range(ROWS)]
+    cs._changed()
+    p.x = WELL_X + 3 * TCELL
+    _run(game, 30)
+    hp = p.hp
+    pc = Piece("O")
+    pc.col = pc.tcol = 2
+    cs.piece = pc
+    for _ in range(400):
+        _run(game, 1)
+        if cs.piece is None:
+            break
+    assert p.hp == hp - DROP_DMG, ("falling piece did not hurt", hp, p.hp)
+    assert all(cs.grid[r][c] is None for r in range(ROWS - 4) for c in (2, 3)), "piece locked instead of breaking"
+    print("tetris: a falling piece hit Akuma for %d" % (hp - p.hp))
+    game.to_title()
+
+    # -- the Master lines up four rows and drops the I piece in the well: TETRIS
+    cs = _tetris_scene(game)
+    p = cs.p
+    p.x = 60.0
+    cs.grid = [[None] * COLS for _ in range(ROWS)]
+    for r in range(ROWS - 4, ROWS):
+        for c in range(COLS):
+            if c != WELL_COL:
+                cs.grid[r][c] = [PIECE_COLORS["J"], BLOCK_HP]
+    cs._changed()
+    _run(game, 20)
+    hp = p.hp
+    cs.next, cs.are = "I", 1
+    tetris_shot = False
+    for _ in range(600):
+        _run(game, 1)
+        if cs.banner and cs.banner[0] == "TETRIS!" and not tetris_shot:
+            _run(game, 6)
+            shot(game, "tetris_tetris.png")
+            tetris_shot = True
+        if cs.tetrises and cs.clearing is None:
+            break
+    assert cs.tetrises == 1 and cs.lines == 4, ("no TETRIS", cs.lines)
+    assert p.hp == hp - CLEAR_DMG[4], ("TETRIS did not hurt", hp, p.hp)
+    assert not cs.cells(), "the four rows did not clear"
+    print("tetris: the Master scored a TETRIS, Akuma %d -> %d" % (hp, p.hp))
+    game.to_title()
+
+    # -- the whole fight, won by a bot
+    cs = _tetris_scene(game, seed=5)
+    cs.are = 30
+    frames = bot_tetris(game, "tetris_fight.png")
+    print("tetris: bot beat the Master in %.1f s (%d lines, %d tetrises)" % (frames / 60, cs.lines, cs.tetrises))
+    game.to_title()
+
+
+def bot_tetris(game, label=""):
+    """Beat the Tetris Master: walk up to the stack and pound it, shoryuken
+    pieces that come down on top, hop onto the stack when nothing is in reach."""
+    from akuma.cars import TetrisScene, TCELL
+    cs = game.scene
+    assert isinstance(cs, TetrisScene)
+    inp = game.input
+    frames = 0
+    last_hp, stall = cs.hp, 0
+    attacks = [({"down"}, {"kick"}), (set(), {"kick"}), ({"down"}, {"punch"}), (set(), {"punch"})]
+    k = 0
+    while game.scene is cs and frames < 60 * 150:
+        p = cs.p
+        inp.virtual, inp.virtual_pressed = set(), set()
+        if cs.phase == "fight":
+            fwd = "right" if cs.aim.x > p.x else "left"
+            step = 1 if fwd == "right" else -1
+            wall = cs._floor(p.x + step * 10) < p.y - 4
+            near = abs(cs.aim.x - p.x) < 34
+            pc = cs.piece
+            above = pc is not None and abs(pc.x - p.x) < 22 and \
+                max(cs.cell_rect(pc.col + c, pc.row + r)[1] for c, r in pc.cells) + TCELL > p.y - 120
+            if cs.hp < last_hp:
+                last_hp, stall = cs.hp, 0
+            else:
+                stall += 1
+            if above and p.on_ground and frames % 4 == 0:
+                inp.virtual_pressed = {"special", "punch"}
+            elif stall > 150 and p.on_ground:
+                inp.virtual = {"up", fwd}
+                stall = 100
+            elif not p.on_ground:
+                inp.virtual = {fwd}
+                if p.vy > 0 and frames % 5 == 0:
+                    inp.virtual_pressed = {"kick"}
+            elif (wall or near) and frames % 9 == 0:
+                held, btn = attacks[k % len(attacks)]
+                k += 1
+                inp.virtual, inp.virtual_pressed = set(held), set(btn)
+            elif not wall and not near:
+                inp.virtual = {fwd}
+            if frames % 7 == 0:
+                p.hp = max(p.hp, 100)
+        game.tick()
+        frames += 1
+        if frames == 600 and label:
+            shot(game, label)
+    assert game.scene is not cs, "tetris boss fight did not finish"
+    assert cs.result == "win", cs.result
+    return frames
 
 
 def main():
@@ -497,7 +631,7 @@ def main():
     test_pause_menu(game)
     test_level_select(game)
     test_car_platform(game)
-    test_tetris_repair(game)
+    test_tetris_boss(game)
     for _ in range(20):
         game.tick()
     game.input.virtual_pressed = {"start"}
@@ -566,26 +700,12 @@ def main():
         shot(game, "level_clear%s.png" % ("" if level == 1 else level))
         game.input.virtual_pressed = {"start"}
         game.tick()
-    # level 4: the car park (bomberman), level 5: the Chun-Li maze (pac-man)
+    # level 4: the car park (bomberman)
     assert isinstance(game.scene, BomberScene), game.scene
     total_frames += bot_bomber(game)
     assert isinstance(game.scene, LevelClear), "level 4 did not lead on"
     for _ in range(50):
         game.tick()
-    game.input.virtual_pressed = {"start"}
-    game.tick()
-    sc = game.scene
-    assert isinstance(sc, PacmanScene), sc
-    n = 0
-    while game.scene is sc and n < 60 * 400:
-        if n % 60 == 0:
-            sc.hp = sc.max_hp
-        d = pacman_bot(sc) if sc.phase == "play" else None
-        game.input.virtual = {d} if d else set()
-        game.tick()
-        n += 1
-    total_frames += n
-    assert isinstance(game.scene, LevelClear), "level 5 did not lead on"
     game.input.virtual_pressed = {"start"}
     for _ in range(3):
         game.tick()
@@ -611,7 +731,6 @@ def main():
         game.tick()
     assert isinstance(game.scene, EndScreen) and not game.scene.won, "losing did not end the run"
     test_bomber(game)
-    test_pacman(game)
     test_level_starts(game)
     # every later level's own test: rules plus a bot that clears it
     from tests.smash_test import test_smash
@@ -627,10 +746,10 @@ def main():
 
 
 def test_level_starts(game):
-    """Each of levels 6-11 starts as its own kind of scene and survives a few frames;
+    """Each of levels 5-10 starts as its own kind of scene and survives a few frames;
     the last one's clear is the ending."""
     import importlib
-    for level in range(6, max(LEVELS) + 1):
+    for level in range(5, max(LEVELS) + 1):
         game.new_run(seed=50 + level, start=level)
         cfg = LEVELS[level]
         mod, cls = Game.SCENES[cfg["mode"]]
@@ -640,7 +759,7 @@ def test_level_starts(game):
             game.tick()
         print("level %d (%s) starts: %s" % (level, cfg["name"], type(game.scene).__name__))
     game.level_done(game.scene, 100)
-    assert isinstance(game.scene, EndScreen) and game.scene.won, "level 11 is not the last"
+    assert isinstance(game.scene, EndScreen) and game.scene.won, "the last level did not end the run"
     game.to_title()
 
 

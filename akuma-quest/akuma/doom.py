@@ -2482,7 +2482,7 @@ class DoomScene:
     }
     IDLE_SEQ = (0, 1, 2, 3, 4, 3, 2, 1)       # the sheet's idle claws 0-4 drawn as a ping-pong loop
     SWIPE_SEQ = (0, 0, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5)   # punch tick -> swipe frame
-    HAND_GAP = 46                             # idle claws: arm bases this far either side of centre
+    HAND_GAP = 60                             # idle claws: arm bases this far either side of centre
 
     def _fp_sprite(self, name, phase, left=False):
         """A first-person sprite with its flames, and where its wrist (or
@@ -2523,14 +2523,17 @@ class DoomScene:
         img, (ax, ay) = self._fp_sprite(name, (self.t // 5) % 4, left)
         surf.blit(img, (int(x - ax), int(y - ay)))
 
+    ONE_HAND_ROWS = ("idle_a", "idle_b", "idle_c", "swipe")
+
     def _hand(self, surf, row, i, x, y, left=False):
-        """Frame i of a hand-sheet row with its arm's base at (x, y); left
-        mirrors it (the sheet draws right hands)."""
+        """Frame i of a hand-sheet row with its arm's base at (x, y). The
+        single-hand rows are drawn as a left hand (thumb on the right), so the
+        right hand is the mirrored one."""
         key = ("sheet", row, i, left)
         got = self.fp.get(key)
         if got is None:
             img, (ax, ay) = self.hands[row][i]
-            if left:
+            if row in self.ONE_HAND_ROWS and not left:
                 img = pygame.transform.flip(img, True, False)
                 ax = img.get_width() - ax
             got = self.fp[key] = (img, (ax, ay))

@@ -33,7 +33,7 @@ FALLBACK = {
     "front_kick_rec": "front_kick_prep", "crkick_rec": "crkick_prep", "sweep_rec": "sweep_prep",
     "sho_fall": "fall", "tatsu_end": "fall", "air_hado_prep": "jpunch_prep", "air_hado": "jump_jab",
     "hado_prep": "punch_prep", "hado_fire": "punch", "grab": "punch", "grab_miss": "punch_prep",
-    "toss": "hado_fire", "lift": "sho_rise", "fling": "hado_fire", "leap_kick": "jump_kick", "hammer_up": "punch_prep",
+    "toss": "hado_fire", "tomoe_pull": "grab", "tomoe_roll": "down", "tomoe_getup": "getup", "leap_kick": "jump_kick", "hammer_up": "punch_prep",
     "hammer_down": "punch", "lariat_a": "punch", "lariat_b": "punch",
     "jpunch_prep": "jump", "jump_jab": "punch", "jkick_prep": "jump", "jump_kick": "kick",
     "front_kick_prep": "kick_prep", "front_kick": "kick", "crkick_prep": "crouch",

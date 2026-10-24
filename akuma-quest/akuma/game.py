@@ -79,9 +79,13 @@ class Title:
                 item = "LEVEL < %d >" % self.pick
                 col = (140, 220, 255) if sel else (130, 150, 170)
             draw_text(surf, ("> %s <" if sel else "%s") % item, cx, 80 + k * 13, col, align="center")
-        draw_text(surf, "MOVE: ARROWS / WASD", cx, 138, (170, 160, 185), align="center")
-        draw_text(surf, "J PUNCH  K KICK  L SPECIAL", cx, 150, (170, 160, 185), align="center")
-        draw_text(surf, "ESC: PAUSE   F1: CONTROLS", cx, 162, (170, 160, 185), align="center")
+        # the picked level's name, so you know what you're starting
+        sel = self.ITEMS[self.i] == "LEVEL SELECT"
+        draw_text(surf, LEVELS[self.pick]["name"], cx, 131, (255, 200, 120) if sel else (120, 120, 140),
+                  align="center")
+        draw_text(surf, "MOVE: ARROWS / WASD", cx, 143, (170, 160, 185), align="center")
+        draw_text(surf, "J PUNCH  K KICK  L SPECIAL", cx, 154, (170, 160, 185), align="center")
+        draw_text(surf, "ESC: PAUSE   F1: CONTROLS", cx, 165, (170, 160, 185), align="center")
         if self.controls.page == "controls":
             self.controls.draw(surf)
 
@@ -185,7 +189,7 @@ class Game:
         self.start_level(start)
 
     # whole-level scenes (no overworld): mode -> (module, class)
-    SCENES = {"bomber": ("bomber", "BomberScene"), "pacman": ("pacman", "PacmanScene"),
+    SCENES = {"bomber": ("bomber", "BomberScene"),
               "smash": ("smash", "SmashScene"), "stealth": ("stealth", "StealthScene"),
               "skate": ("skate", "SkateScene"), "connect4": ("connect4", "Connect4Scene"),
               "metroid": ("metroid", "MetroidScene"), "doom": ("doom", "DoomScene")}
@@ -205,7 +209,7 @@ class Game:
         self.scene = self.overworld
 
     def level_done(self, scene, hp):
-        """A whole-level scene (bomber, pacman) was cleared."""
+        """A whole-level scene (bomber, smash, ...) was cleared."""
         if self.level < LAST_LEVEL:
             self.scene = LevelClear(self, self.level)
         else:

@@ -1,6 +1,7 @@
 """Street-fighter style one-round battle against a map enemy and any allies it
 brought along (level 2 fights are two on one)."""
 
+import math
 import random
 
 import pygame
@@ -31,7 +32,7 @@ CONTROLS = ["J PUNCH  K KICK  L SPECIAL",
             "KICK: FRONT / BACK ROUNDHOUSE / DOWN SWEEP",
             "  DOWN-FWD = LOW KICK",
             "AIR: PUNCH, KICK, DOWN+KICK = DIVE KICK",
-            "PUNCH + KICK UP CLOSE = THROW (HOLD A DIRECTION)",
+            "PUNCH + KICK UP CLOSE = THROW (TOMOE NAGE)",
             "HOLD BACK TO BLOCK, DOWN-BACK FOR LOWS"]
 
 
@@ -359,24 +360,25 @@ class FightScene:
             dfn.state, dfn.move, dfn.vx, dfn.vy, dfn.t = "held", None, 0, 0, 0
             dfn.y = dfn._ground()
             dfn.crouching = False
-            dfn.pose = "launch"
+            dfn.pose = "hurt"
             dfn.facing = -att.facing
             dmg = m["dmg"] * (self.power if att is self.p else 1)
-            self.carries.append(dict(att=att, dfn=dfn, t=0, f=att.facing, d=att.throw_dir,
-                                     dmg=round(dmg), flying=False))
+            self.carries.append(dict(att=att, dfn=dfn, t=0, f=att.facing, dmg=round(dmg), flying=False))
             audio.play("whiff")
 
-    LIFT_AT, TOP_AT = 5, 15        # carry frames: grabbed, then up over the head
+    # carry frames of the tomoe nage: grabbed, pulled down, rolled over him, let go
+    GRAB_T, PULL_T, ROLL_T, LET_GO = 5, 13, 26, 30
 
     def _carry(self):
-        """Move every carried fighter along the throw: off the floor, up over
-        the thrower's head (and over to the far side for a back throw), then
-        let go so they fly and slam into the ground."""
+        """Move every carried fighter along the throw (Akuma's Third Strike
+        tomoe nage): grabbed, pulled in as he drops onto his back, lifted on
+        his foot and flipped over his head, then let go behind him so they
+        fly head over heels and slam into the ground."""
         for c in list(self.carries):
-            att, dfn, f, d = c["att"], c["dfn"], c["f"], c["d"]
+            att, dfn, f = c["att"], c["dfn"], c["f"]
             if c["flying"]:
                 if dfn.state == "launched":
-                    dfn.rot = (dfn.rot + 22 * d) % 360
+                    dfn.rot = (dfn.rot + 20 * f) % 360
                     continue
                 # hit the floor: the slam
                 dfn.rot = 0
@@ -394,39 +396,38 @@ class FightScene:
                 dfn.state, dfn.vy, dfn.vx, dfn.t, dfn.rot = "launched", 0, 0, 0, 0
                 self.carries.remove(c)
                 continue
-            back = d != f
-            release = self.TOP_AT + (5 if back else 1)
-            if t <= self.LIFT_AT:
-                # grabbed by the collar, feet leaving the floor
-                k = t / self.LIFT_AT
-                dfn.x, dfn.y = att.x + f * 18, floor - 6 * k
-                dfn.rot = -f * 20 * k
-            elif t <= self.TOP_AT:
-                # hoisted up and laid across his raised arm, high over his head
-                k = (t - self.LIFT_AT) / (self.TOP_AT - self.LIFT_AT)
-                dfn.x = att.x + f * (18 - 10 * k)
-                dfn.y = floor - 6 - 66 * k
-                dfn.rot = -f * (20 + 70 * k)
+            if t <= self.GRAB_T:
+                # grabbed by the collar
+                dfn.x, dfn.y, dfn.rot = att.x + f * 18, floor, 0
+            elif t <= self.PULL_T:
+                # yanked in and tipped forward as he drops back
+                k = (t - self.GRAB_T) / (self.PULL_T - self.GRAB_T)
+                dfn.x = att.x + f * (18 - 6 * k)
+                dfn.y = floor - 4 * k
+                dfn.rot = f * 35 * k
+            elif t <= self.ROLL_T:
+                # on his back, foot in their gut: up and over his head
+                k = (t - self.PULL_T) / (self.ROLL_T - self.PULL_T)
+                att.x = max(STAGE_LEFT, min(STAGE_RIGHT, att.x - f * 0.8))
+                dfn.x = att.x + f * (12 - 26 * k)
+                dfn.y = floor - 4 - 34 * math.sin(k * math.pi * 0.75)
+                dfn.rot = f * (35 + 125 * k)
             else:
-                # back throw: swung over his head to the other side, and he turns with it
-                k = (t - self.TOP_AT) / max(1, release - self.TOP_AT)
-                if back:
-                    att.facing = d
-                    dfn.x = att.x + f * (8 - 22 * k)
-                    dfn.rot = -f * (90 + 90 * k)
-                else:
-                    dfn.x = att.x + f * 8
+                k = (t - self.ROLL_T) / (self.LET_GO - self.ROLL_T)
+                dfn.x = att.x - f * (14 + 6 * k)
+                dfn.y = floor - 28 + 4 * k
+                dfn.rot = f * (160 + 30 * k)
             dfn.x = max(STAGE_LEFT, min(STAGE_RIGHT, dfn.x))
-            if t >= release:
+            if t >= self.LET_GO:
                 c["flying"] = True
                 dfn.state = "stand"        # so the hit below lands as a knockdown
                 self._resolve(att, dfn, dict(dmg=c["dmg"], hitstun=30, blockstun=0, height="mid",
                                              knockdown=True, launch=-3.0, push=0, throw=True),
-                              dfn.x - d * 4, (dfn.x, dfn.y - 20))
+                              dfn.x + f * 4, (dfn.x, dfn.y - 10))
                 dfn.state = "launched"
-                dfn.vx = 4.4 * d
-                dfn.vy = -3.0 if not dfn.ko else -4.0
-                dfn.facing = -d
+                dfn.vx = -4.2 * f
+                dfn.vy = -2.6 if not dfn.ko else -4.0
+                dfn.facing = f
 
     def _fx(self, kind, x, y):
         if kind == "dust" and DUST:

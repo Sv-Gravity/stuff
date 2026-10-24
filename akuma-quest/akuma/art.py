@@ -685,7 +685,7 @@ STAGE_PALETTES = [
 def make_stage(variant, boss=False, level=1):
     rng = random.Random(variant * 31 + (99 if boss else 0) + level * 7)
     s = pygame.Surface((W, H))
-    if level == 7:      # the frozen compound: night snow
+    if level == 6:      # the frozen compound: night snow
         top, bot, mtn, gnd, gl = (10, 16, 34), (90, 110, 150), (50, 60, 84), (190, 200, 216), (140, 150, 170)
     elif boss and level == 2:
         top, bot, mtn, gnd, gl = (8, 4, 20), (90, 30, 120), (30, 10, 40), (40, 30, 50), (24, 16, 30)

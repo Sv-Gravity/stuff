@@ -69,8 +69,8 @@ AKUMA_MOVES = {
         phases=[("startup", 3, "sho_crouch"), ("active", 8, "sho_rise"),
                 ("active", 3, "sho_top"), ("recovery", 1, "sho_fall")],
         hold_last=True, land_rec=14, invuln=(0, 8), air=True,
-        hitbox_px=(0, -84, 26, 70), dmg=SPECIAL_DMG, hitstun=30, blockstun=18, height="mid",
-        knockdown=True, launch=-6.0,
+        hitbox_px=(-6, -84, 32, 84), dmg=SPECIAL_DMG, hitstun=30, blockstun=18, height="mid",
+        knockdown=True, launch=-6.0, body_strike=True,
         events={3: dict(vy=-7.9, vxf=1.5, sound="shoryu")}),
     "tatsu": dict(
         name="Tatsumaki", cat="special",
@@ -114,11 +114,13 @@ AKUMA_MOVES = {
         name="Throw", cat="throw", grab=True, dmg=HIT * 2,
         phases=[("startup", 3, "grab"), ("active", 3, "grab"), ("recovery", 20, "grab_miss")],
         events={2: dict(sound="whiff")}),
-    # Third Strike style: grab, lift them up over the head, then fling them
+    # Third Strike style tomoe nage: grab, fall back pulling them down, plant a
+    # foot in their gut and flip them over the head, then roll back up
     "toss": dict(
         name="Throw", cat="throw",
-        phases=[("recovery", 5, "grab"), ("recovery", 11, "lift"),
-                ("recovery", 18, "fling")]),
+        phases=[("recovery", 5, "grab"), ("recovery", 8, "tomoe_pull"),
+                ("recovery", 17, "tomoe_roll"), ("recovery", 16, "tomoe_getup")],
+        invuln=(0, 30)),
     # ---- kick button: one hit, normal speed ----
     "front_kick": dict(
         name="Front Kick", cat="kick",
@@ -605,6 +607,15 @@ class Fighter:
         box = self.hitbox()
         if box is None:
             return None
+        if self.move.get("body_strike") and hasattr(self.art, "mask"):
+            # a rising uppercut hits with the whole body coming up, not just
+            # the fist: everything of the drawing inside the move's box counts
+            key = self.shown()
+            m, x, y = self._placed(self.art.mask(key, self.facing < 0), key)
+            aim, ax, ay = rect_area(box)
+            m = m.overlap_mask(aim, (ax - x, ay - y))
+            if m.count() >= MIN_STRIKE:
+                return m, x, y
         if hasattr(self.art, "strike_mask"):
             key = self.shown()
             spin = box[0] < self.x - 4 and box[0] + box[2] > self.x + 4

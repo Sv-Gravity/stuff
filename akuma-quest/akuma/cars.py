@@ -2,11 +2,14 @@
 
 Cars drive around the map instead of enemies. Touching one starts a timed
 bonus round: the car never fights back, and it has to be smashed on both
-sides (jump over it to reach the other side) before the timer runs out. The
-boss is a car built out of falling-block puzzle pieces that sheds blocks as it
-is hit. During the boss fight random pieces rain down as if someone were playing
-the puzzle game in the background: they hurt Akuma, and any that land on the
-car lock into place and repair it.
+sides (jump over it to reach the other side) before the timer runs out.
+
+The boss is THE TETRIS MASTER, a guy at an arcade cabinet playing the
+falling-block puzzle on a giant well that fills the right of the stage. He
+steers each piece like a real player and stacks toward a 4-line TETRIS, which
+blasts Akuma. Akuma breaks his stacked blocks (and smashes pieces in mid-air)
+to wreck his lines and drain his health; the blocks are solid to stand on,
+and a falling piece that lands on Akuma hurts.
 """
 
 import math
@@ -19,7 +22,7 @@ from . import audio
 from . import fight as F
 from .art import shade, mix, _outlined, OUTLINE
 from .config import W, H, FPS, GROUND_Y, HITSTOP, STAGE_LEFT, STAGE_RIGHT
-from .fighters import Fighter, overlap, contact, image_area, rect_area, CANCEL_WINDOW, HIT
+from .fighters import Fighter, overlap, contact, image_area, rect_area, CANCEL_WINDOW, HIT, STEP_UP
 from .font import draw_text
 from .pause import PauseMenu
 from .akuma_sprites import asset_dir
@@ -129,17 +132,7 @@ def explosion(kind, x, y, height, rate=4):
 
 CAR_SIDE_HITS = 5          # kicks (normal hits) to wreck one side of a car
 CAR_TIME = 30              # seconds
-BOSS_SIDE_HITS = 9
-BOSS_TIME = 45
 TIMEOUT_DMG = 20           # Akuma's penalty when a car gets away
-BOSS_TIMEOUT_DMG = 30
-DROP_DMG = 10              # a falling puzzle piece landing on Akuma
-TETRO_EVERY = (150, 240)   # frames between pieces (2.5-4 s), random
-TETRO_EVERY_MAD = (130, 200)   # once the boss is below half health
-TETRO_STEP = 6             # frames per one-cell step down (5 when enraged)
-TETRO_LOCK = 14            # a piece blinks this long on the car before repairing it
-TETRO_SETTLE = 40          # a piece on the street lingers this long, then blinks out
-REPAIR_FRAC = 0.04         # of the boss's max HP restored per piece that lands on it
 
 # falling-block pieces (cells as (col, row))
 PIECES = {
@@ -150,18 +143,7 @@ PIECES = {
 }
 PIECE_COLORS = {"I": (40, 210, 230), "O": (240, 210, 40), "T": (170, 60, 200), "S": (60, 200, 80),
                 "Z": (230, 50, 50), "J": (50, 90, 230), "L": (250, 140, 30)}
-WHEEL = (64, 62, 72)
 
-# the boss: a car silhouette 16 x 8 cells
-BOSS_MASK = ["......#####.....",
-             ".....#######....",
-             "....#########...",
-             "################",
-             "################",
-             "################",
-             ".##.........##..",
-             ".##.........##.."]
-CELL = 7
 
 
 def _rotations(cells):
@@ -333,55 +315,23 @@ def scarred(img, ldmg, rdmg, seed=0):
 
 
 # --------------------------------------------------------------------------
-# the block-car boss
+# puzzle blocks
 # --------------------------------------------------------------------------
-def _block(surf, color, x, y, c=CELL):
+TCELL = 12                 # px per block in the boss's well
+
+
+def _block(surf, color, x, y, c=TCELL):
     surf.fill(OUTLINE, (x, y, c, c))
     surf.fill(color, (x + 1, y + 1, c - 2, c - 2))
     surf.fill(shade(color, 1.35), (x + 1, y + 1, c - 2, 1))
     surf.fill(shade(color, 1.35), (x + 1, y + 1, 1, c - 2))
     surf.fill(shade(color, 0.65), (x + 1, y + c - 2, c - 2, 1))
     surf.fill(shade(color, 0.65), (x + c - 2, y + 1, 1, c - 2))
+    if c >= 8:      # a glossy glint in the corner
+        surf.fill(shade(color, 1.7), (x + 2, y + 2, 2, 1))
 
 
-def build_block_car(seed):
-    """Tile the car silhouette with falling-block pieces.
-    Returns [(cells, color)] for every piece."""
-    rng = random.Random(seed)
-    free = {(c, r) for r, row in enumerate(BOSS_MASK) for c, ch in enumerate(row) if ch == "#"}
-    pieces = []
-    # wheels are grey O pieces
-    for c0 in (1, 12):
-        cells = ((c0, 6), (c0 + 1, 6), (c0, 7), (c0 + 1, 7))
-        pieces.append((cells, WHEEL))
-        free -= set(cells)
-    shapes = [(k, rot) for k, cells in PIECES.items() for rot in _rotations(cells)]
-    order = sorted(free, key=lambda p: (p[1], p[0]))
-    for cell in order:
-        if cell not in free:
-            continue
-        rng.shuffle(shapes)
-        placed = False
-        for k, rot in shapes:
-            # anchor the piece so its first cell lands on this one
-            ax, ay = rot[0]
-            cells = tuple((cell[0] + c - ax, cell[1] + r - ay) for c, r in rot)
-            if all(p in free for p in cells):
-                pieces.append((cells, PIECE_COLORS[k]))
-                free -= set(cells)
-                placed = True
-                break
-        if not placed:
-            pieces.append(((cell,), rng.choice(list(PIECE_COLORS.values()))))
-            free.discard(cell)
-    return pieces
-
-
-BOSS_W, BOSS_H = len(BOSS_MASK[0]) * CELL, len(BOSS_MASK) * CELL
-BOSS_ANCHOR = (BOSS_W // 2, BOSS_H)
-
-
-def piece_surface(cells, color, c=CELL):
+def piece_surface(cells, color, c=TCELL):
     mx = max(x for x, _ in cells) + 1
     my = max(y for _, y in cells) + 1
     s = pygame.Surface((mx * c, my * c), pygame.SRCALPHA)
@@ -419,12 +369,19 @@ def car_map_frames(color, roof=None):
     return frames
 
 
-def boss_map_frames(pieces):
-    s = pygame.Surface((BOSS_W // CELL * 2 + 2, BOSS_H // CELL * 2 + 2), pygame.SRCALPHA)
-    for cells, color in pieces:
-        for x, y in cells:
-            s.fill(color, (1 + x * 2, 1 + y * 2, 2, 2))
-    s = pygame.transform.scale_by(_outlined(s), 1.5)
+def tetris_map_frames():
+    """The boss on the map: an arcade cabinet with blocks on its screen."""
+    s = pygame.Surface((18, 24), pygame.SRCALPHA)
+    pygame.draw.rect(s, (70, 30, 110), (1, 2, 16, 21))
+    s.fill((240, 60, 200), (1, 1, 16, 3))
+    s.fill((16, 12, 26), (3, 6, 12, 9))
+    cols = list(PIECE_COLORS.values())
+    for i, (x, y) in enumerate(((4, 13), (6, 13), (8, 13), (8, 11), (12, 13), (12, 11), (10, 7))):
+        s.fill(cols[i % len(cols)], (x, y, 2, 2))
+    s.fill((40, 40, 50), (2, 16, 14, 3))
+    s.fill((230, 40, 40), (5, 16, 2, 2))
+    s.fill((60, 160, 255), (10, 16, 2, 2))
+    s = _outlined(s)
     return {(d, k): s for d in ("up", "down", "left", "right") for k in (0, 1)}
 
 
@@ -432,9 +389,9 @@ def boss_map_frames(pieces):
 # stage + map tiles
 # --------------------------------------------------------------------------
 def make_car_stage(boss=False):
-    rng = random.Random(77 if boss else 33)
+    rng = random.Random(33)
     s = pygame.Surface((W, H))
-    top, bot = ((10, 4, 30), (120, 30, 110)) if boss else ((8, 10, 30), (60, 40, 90))
+    top, bot = ((10, 4, 30), (120, 30, 110)) if boss else ((8, 10, 30), (60, 40, 90))   # boss: the Tetris yard sky
     for y in range(GROUND_Y):
         t = round(y / GROUND_Y * 10) / 10
         pygame.draw.line(s, mix(top, bot, t), (0, y), (W, y))
@@ -461,27 +418,6 @@ def make_car_stage(boss=False):
         pygame.draw.rect(s, (60, 60, 76), (lx, GROUND_Y - 90, 3, 90))
         pygame.draw.rect(s, (60, 60, 76), (lx - 8, GROUND_Y - 90, 12, 3))
         pygame.draw.rect(s, (255, 230, 150), (lx - 8, GROUND_Y - 87, 8, 2))
-    if boss:     # the puzzle game being played behind the fight: a faint well grid
-        grid = pygame.Surface((W, GROUND_Y), pygame.SRCALPHA)
-        for gx in range(0, W + 1, CELL):
-            pygame.draw.line(grid, (180, 160, 255, 34), (gx, 7), (gx, GROUND_Y - 1))
-        for gy in range(7, GROUND_Y, CELL):
-            pygame.draw.line(grid, (180, 160, 255, 18), (0, gy), (W, gy))
-        s.blit(grid, (0, 0))
-        # a few dim leftover rows stacked at the bottom of the well, half hidden by the fence
-        for row in range(2):
-            for gx in range(0, W, CELL):
-                if rng.random() < 0.55 - row * 0.2:
-                    blk = pygame.Surface((CELL, CELL), pygame.SRCALPHA)
-                    _block(blk, shade(rng.choice(list(PIECE_COLORS.values())), 0.45), 0, 0)
-                    blk.set_alpha(110)
-                    s.blit(blk, (gx, GROUND_Y - 36 - (row + 1) * CELL))
-    if boss:     # neon frame of falling blocks along the top
-        x = 0
-        cols = list(PIECE_COLORS.values())
-        while x < W:
-            _block(s, cols[(x // 7) % len(cols)], x, 0)
-            x += 7
     # asphalt
     gnd = (52, 52, 60)
     pygame.draw.rect(s, gnd, (0, GROUND_Y, W, H - GROUND_Y))
@@ -550,12 +486,15 @@ def car_tiles(t, rng):
 # --------------------------------------------------------------------------
 # the bonus-round target
 # --------------------------------------------------------------------------
+# --------------------------------------------------------------------------
+# the bonus-round target
+# --------------------------------------------------------------------------
 class CarTarget:
     """Stands in for the opponent Fighter: Akuma faces it and hits it."""
 
     def __init__(self, enemy, power_hint=1.0):
         self.name = enemy.name
-        self.boss = enemy.boss
+        self.boss = False
         self.x = W / 2
         self.y = float(GROUND_Y)
         self.side_max = enemy.side_hp
@@ -572,26 +511,11 @@ class CarTarget:
         self.color = enemy.color
         self.model = getattr(enemy, "model", None)
         self.seed = enemy.seed
-        if self.boss:
-            self.half, self.height = BOSS_W // 2 - 4, BOSS_H - 6
-            self.pieces = enemy.pieces
-            sides = ([], [])
-            mid = len(BOSS_MASK[0]) / 2
-            for i, (cells, color) in enumerate(self.pieces):
-                cx = sum(c for c, _ in cells) / len(cells) + 0.5
-                cy = sum(r for _, r in cells) / len(cells)
-                side = 0 if cx < mid else 1
-                # outer and upper blocks fly off first, wheels last
-                key = (color == WHEEL, -abs(cx - mid), cy)
-                sides[side].append((key, i))
-            self.order = [[i for _, i in sorted(lst)] for lst in sides]
-            self.gone = set()
-        else:
-            self.half, self.height = CAR_W // 2 - 4, 36
-            if self.model and car_sprite(self.model, 0) is not None:
-                ax, ay, hw = car_anchor(self.model)
-                top = car_sprite(self.model, 0).get_bounding_rect().top
-                self.half, self.height = hw - 4, ay - top - 2
+        self.half, self.height = CAR_W // 2 - 4, 36
+        if self.model and car_sprite(self.model, 0) is not None:
+            ax, ay, hw = car_anchor(self.model)
+            top = car_sprite(self.model, 0).get_bounding_rect().top
+            self.half, self.height = hw - 4, ay - top - 2
         self._cache = {}
 
     @property
@@ -609,49 +533,7 @@ class CarTarget:
     def stages(self):
         return tuple(_stage_of(h / self.side_max) for h in self.side_hp)
 
-    def boss_shed(self):
-        """Pieces that should be gone now, by side damage. Returns newly lost pieces."""
-        lost = []
-        for side in (0, 1):
-            frac = self.side_hp[side] / self.side_max
-            order = self.order[side]
-            n = len(order) if frac <= 0 else min(len(order) - 1, int(len(order) * (1 - frac)))
-            for i in order[:n]:
-                if i not in self.gone:
-                    self.gone.add(i)
-                    lost.append(i)
-        return lost
-
-    def repair(self, side, amount):
-        """A puzzle piece locked onto this side: heal it (or the other side if this
-        one is whole) and put its lost blocks back. Returns (healed, restored pieces)."""
-        if self.side_hp[side] >= self.side_max:
-            side = 1 - side
-        before = self.hp
-        self.side_hp[side] = min(self.side_max, self.side_hp[side] + amount)
-        restored = []
-        for s in (0, 1):
-            frac = self.side_hp[s] / self.side_max
-            order = self.order[s]
-            n = len(order) if frac <= 0 else min(len(order) - 1, int(len(order) * (1 - frac)))
-            for i in order[n:]:
-                if i in self.gone:
-                    self.gone.discard(i)
-                    restored.append(i)
-        return self.hp - before, restored
-
     def image(self):
-        if self.boss:
-            key = frozenset(self.gone)
-            img = self._cache.get(key)
-            if img is None:
-                img = pygame.Surface((BOSS_W, BOSS_H), pygame.SRCALPHA)
-                for i, (cells, color) in enumerate(self.pieces):
-                    if i not in self.gone:
-                        for c, r in cells:
-                            _block(img, color, c * CELL, r * CELL)
-                self._cache = {key: img}
-            return img, BOSS_ANCHOR
         st = self.stages()
         painted = self.model is not None and car_sprite(self.model, 0) is not None
         key = (self.sheet_stage(),) + st if painted else st
@@ -691,112 +573,24 @@ class Debris:
             surf.blit(self.img, (round(self.x - self.img.get_width() / 2) + sh[0],
                                  round(self.y - self.img.get_height()) + sh[1]))
 
-
-class FallingPiece:
-    """A random puzzle piece falling in one-cell steps, as if someone were playing
-    the puzzle game behind the fight: it drifts sideways and spins on the way down."""
-
-    def __init__(self, kind, rng, step=TETRO_STEP):
-        self.kind = kind
-        self.color = PIECE_COLORS[kind]
-        self.rots = _rotations(PIECES[kind])
-        self.rot = rng.randrange(len(self.rots))
-        self.rng = rng
-        self.step = step
-        cols = W // CELL
-        self.col = rng.randrange(0, cols - 3)
-        self.goal = rng.randrange(0, cols - 3)      # where the "player" is steering it
-        self.y = -4 * CELL                          # top of the piece
-        self.t = step
-        self.state = "fall"                         # fall / lock (on the car) / settle (street)
-        self.timer = 0
-        self.alive = True
-        self._imgs = {}
-
-    @property
-    def cells(self):
-        return self.rots[self.rot]
-
-    @property
-    def img(self):
-        img = self._imgs.get(self.rot)
-        if img is None:
-            img = self._imgs[self.rot] = piece_surface(self.cells, self.color)
-        return img
-
-    @property
-    def x(self):
-        """Centre x of the piece."""
-        w = max(c for c, _ in self.cells) + 1
-        return (self.col + w / 2) * CELL
-
-    def cell_rects(self, cells=None, col=None, y=None):
-        cells = self.cells if cells is None else cells
-        col = self.col if col is None else col
-        y = self.y if y is None else y
-        return [((col + c) * CELL, y + r * CELL, CELL, CELL) for c, r in cells]
-
-    def rect(self):
-        w, h = self.img.get_size()
-        return (self.col * CELL, self.y, w, h)
-
-    def _gap(self, floor, cells=None, col=None, y=None):
-        """Smallest distance from a cell's bottom to the floor under it."""
-        return min(floor(x + w / 2) - (yy + h) for x, yy, w, h in self.cell_rects(cells, col, y))
-
-    def update(self, floor):
-        """Falls one cell every `step` frames. Returns "car"/"ground" on the frame it lands."""
-        if self.state != "fall":
-            self.timer -= 1
-            if self.timer <= 0:
-                self.alive = False
-            return None
-        self.t -= 1
-        if self.t > 0:
-            return None
-        self.t = self.step
-        rng = self.rng
-        # the unseen player: spin now and then, slide toward where they want it
-        if rng.random() < 0.18 and len(self.rots) > 1:
-            rot = (self.rot + 1) % len(self.rots)
-            w = max(c for c, _ in self.rots[rot]) + 1
-            col = min(self.col, W // CELL - w)
-            if self._gap(floor, self.rots[rot], col) >= 0:
-                self.rot, self.col = rot, col
-        if self.col != self.goal and rng.random() < 0.6:
-            col = self.col + (1 if self.goal > self.col else -1)
-            w = max(c for c, _ in self.cells) + 1
-            if 0 <= col <= W // CELL - w and self._gap(floor, col=col) >= 0:
-                self.col = col
-        elif rng.random() < 0.04:
-            self.goal = rng.randrange(0, W // CELL - 3)
-        gap = self._gap(floor)
-        if gap > CELL:
-            self.y += CELL
-            return None
-        # touch down: rest exactly on whatever is below
-        self.y += max(0, gap)
-        on_car = any(floor(x + w / 2) < GROUND_Y - 1 and abs(floor(x + w / 2) - (y + h)) < 1
-                     for x, y, w, h in self.cell_rects())
-        if on_car:
-            self.state, self.timer = "lock", TETRO_LOCK
-            return "car"
-        self.state, self.timer = "settle", TETRO_SETTLE
-        return "ground"
-
-
 class CarScene:
-    """Timed bonus round against a car that never fights back."""
+    """Timed bonus round against a car that never fights back. The level's boss
+    (enemy.boss) gets the Tetris fight instead: CarScene(...) hands back a TetrisScene."""
+
+    def __new__(cls, game=None, enemy=None, *args, **kw):
+        if cls is CarScene and getattr(enemy, "boss", False):
+            cls = TetrisScene
+        return super().__new__(cls)
 
     def __init__(self, game, enemy, akuma_hp, akuma_max, power=1.0, seed=None):
         F.init_shared()
         self.game = game
         self.enemy_ref = enemy
         self.rng = random.Random(seed)
-        self.boss = enemy.boss
-        key = ("car", self.boss)
+        self.boss = False
+        key = ("car", False)
         if key not in F._STAGES:
-            F._STAGES[key] = make_car_stage(self.boss)
+            F._STAGES[key] = make_car_stage()
         self.stage = F._STAGES[key]
         p = Fighter("AKUMA", F.AKUMA_LOOK, {}, akuma_max, walk=1.75, back_walk=1.35,
                     is_player=True, art=F._AKUMA_ART)
@@ -813,15 +607,14 @@ class CarScene:
         car.projectiles = self.projectiles
         self.effects = []
         self.debris = []
-        self.drops = []
         p.projectiles = self.projectiles
         p.effects = self._spawn_effect
         p.state = "intro"
         self.p = p
         self.power = power
-        self.time_limit = (BOSS_TIME if self.boss else CAR_TIME) * FPS
+        self.time_limit = CAR_TIME * FPS
         self.timer = self.time_limit
-        self.intro_len = 70 if self.boss else 50
+        self.intro_len = 50
         self.phase = "intro"
         self.t = 0
         self.end_t = 0
@@ -832,9 +625,6 @@ class CarScene:
         self.last_hit = -99
         self.hint = 0
         self.banner = None
-        self.drop_t = 120
-        self.repair_fx = []       # [restored piece indices, frames left]
-        self.popups = []          # [text, x, y, frames left]
         self.menu = PauseMenu(game, F.CONTROLS)
         self.lag = car.hp
         self.p_lag = p.hp
@@ -907,7 +697,7 @@ class CarScene:
                 p._to_stand()
                 p.state = "win"
             skip = self.end_t > 30 and inp.any_pressed("punch", "kick", "special", "start")
-            if self.end_t >= (130 if self.boss else 90) or skip:
+            if self.end_t >= 90 or skip:
                 self.result = {"won": "win", "escape": "escape", "lost": "lose"}[self.phase]
                 self.game.end_fight(self, self.result, max(0, p.hp))
             return
@@ -917,8 +707,6 @@ class CarScene:
         self._hold_tatsu()
         self._projectiles()
         self._melee()
-        if self.boss:
-            self._boss_drops()
         if car.hp <= 0:
             self._destroyed()
         elif self.timer <= 0:
@@ -1034,18 +822,7 @@ class CarScene:
         audio.play("heavy" if heavy else "hit")
         self.hitstop = max(self.hitstop, HITSTOP + (3 if heavy else 0))
         self.shake = max(self.shake, 6 if heavy else 3)
-        if car.boss:
-            for i in car.boss_shed():
-                cells, color = car.pieces[i]
-                img = piece_surface(cells, color)
-                mx = sum(c for c, _ in cells) / len(cells) * CELL
-                my = sum(r for _, r in cells) / len(cells) * CELL
-                x = car.x - BOSS_ANCHOR[0] + mx
-                y = car.y - BOSS_ANCHOR[1] + my + CELL
-                away = -1 if side == 0 else 1
-                self.debris.append(Debris(img, x, y, away * self.rng.uniform(-0.5, 3.0),
-                                          self.rng.uniform(-6, -2), 80))
-        elif car.stages()[side] != before or car.sheet_stage() != before_sheet:
+        if car.stages()[side] != before or car.sheet_stage() != before_sheet:
             audio.play("sweep")
             self._shards(side)
             if car.hp > 0:
@@ -1066,86 +843,6 @@ class CarScene:
             self.debris.append(Debris(img, x, car.y - 30, away * self.rng.uniform(0.3, 2.5),
                                       self.rng.uniform(-4, -1), 60))
 
-    def _boss_drops(self):
-        """Puzzle pieces rain down: they hurt Akuma, lock onto the car to repair
-        it, and can be smashed in mid-air."""
-        p, car = self.p, self.car
-        enraged = car.hp <= car.max_hp // 2
-        self.drop_t -= 1
-        if self.drop_t <= 0:
-            self.drop_t = self.rng.randint(*(TETRO_EVERY_MAD if enraged else TETRO_EVERY))
-            self.drops.append(FallingPiece(self.rng.choice(list(PIECES)), self.rng,
-                                           TETRO_STEP - 1 if enraged else TETRO_STEP))
-        hb = p.strike_area()
-        for d in self.drops:
-            was = d.state
-            landed = d.update(self._floor)
-            if landed == "car":
-                audio.play("land")
-                self.shake = max(self.shake, 2)
-            elif landed == "ground":
-                audio.play("land")
-            if was == "lock" and not d.alive:
-                self._repair(d)
-            if d.state != "fall" or not d.alive:
-                continue
-            rects = d.cell_rects()
-            # a punch or kick (or a fireball) smashes it before it lands
-            pr = next((pr for pr in self.projectiles if pr.alive
-                       and any(contact(pr.area(), rect_area(r)) for r in rects)), None)
-            if pr is not None or (hb and any(contact(hb, rect_area(r)) for r in rects)):
-                if pr is not None:
-                    pr.alive = False
-                else:
-                    p.hits_done += 1
-                    p.last_hit_t = p.move_t
-                    hb = None
-                self._break(d)
-                audio.play("hit")
-                self.hitstop = max(self.hitstop, 4)
-                continue
-            hu = p.hurt_area()
-            if hu and any(contact(rect_area(r), hu) for r in rects) and p.state not in ("hitstun", "launched", "down"):
-                self._break(d)
-                p.take_hit(DROP_DMG, 24, d.x, knockdown=True, launch=-3.5)
-                audio.play("heavy")
-                self.hitstop = max(self.hitstop, HITSTOP)
-                self.shake = max(self.shake, 8)
-                self.effects.append(F.Effect(F.SPARK_HIT, p.x, p.y - 40, 2))
-        self.drops = [d for d in self.drops if d.alive]
-        for fx in self.repair_fx:
-            fx[1] -= 1
-        self.repair_fx = [fx for fx in self.repair_fx if fx[1] > 0]
-        for pp in self.popups:
-            pp[1] -= 0.3
-            pp[3] -= 1
-        self.popups = [pp for pp in self.popups if pp[3] > 0]
-        if p.hp <= 0:
-            self.phase = "lost"
-            self.end_t = 0
-            p.ko = True
-            audio.play("ko")
-
-    def _break(self, d):
-        d.alive = False
-        for x, y, w, h in d.cell_rects():
-            self.debris.append(Debris(piece_surface(((0, 0),), d.color), x + w / 2, y + h,
-                                      self.rng.uniform(-2, 2), self.rng.uniform(-4, -1), 40))
-
-    def _repair(self, d):
-        """A piece that locked onto the car becomes part of it again."""
-        car = self.car
-        if car.ko or self.phase != "fight":
-            return
-        healed, restored = car.repair(self._side_of(d.x), max(1, round(car.max_hp * REPAIR_FRAC)))
-        if healed <= 0:
-            return
-        self.lag = car.hp
-        if restored:
-            self.repair_fx.append([restored, 24])
-        self.popups.append(["REPAIR +%d" % healed, d.x, d.y - 4, 45])
-        audio.play("pickup")
-
     def _destroyed(self):
         car = self.car
         car.ko = True
@@ -1153,39 +850,17 @@ class CarScene:
         self.end_t = 0
         self.hitstop = 14
         self.shake = 16
-        self.drops.clear()
         audio.play("ko")
         for side in (0, 1):
             self._shards(side, 16)
         # the tank goes up: one big fireball over the car, a smaller one each end
         top = car.y - car.height
-        self._boom("explode_large", car.x, top + 4, 76 if car.boss else 64, 5)
+        self._boom("explode_large", car.x, top + 4, 64, 5)
         self._boom("explode_medium", car.x - car.half * 0.7, top + 14, 40)
         self._boom("explode_medium", car.x + car.half * 0.7, top + 16, 36, 5)
-        if car.boss:
-            for i, (cells, color) in enumerate(car.pieces):
-                if i not in car.gone:
-                    car.gone.add(i)
-                    mx = sum(c for c, _ in cells) / len(cells) * CELL
-                    self.debris.append(Debris(piece_surface(cells, color),
-                                              car.x - BOSS_ANCHOR[0] + mx, car.y - 10,
-                                              self.rng.uniform(-3, 3), self.rng.uniform(-7, -2), 120))
-
     def _time_over(self):
         p = self.p
         audio.play("ko")
-        if self.boss:
-            p.hp -= BOSS_TIMEOUT_DMG
-            p.flash = 20
-            if p.hp <= 0:
-                p.hp = 0
-                p.ko = True
-                self.phase = "lost"
-                self.end_t = 0
-                return
-            self.timer = self.time_limit
-            self.banner = ["TIME OVER! -%d HP" % BOSS_TIMEOUT_DMG, 100]
-            return
         p.hp = max(1, p.hp - TIMEOUT_DMG)
         p.flash = 20
         self.phase = "escape"
@@ -1201,7 +876,7 @@ class CarScene:
         car = self.car
         # a painted car stays on the street as a smoking wreck; the old drawn ones vanish
         painted = car.model is not None and car_sprite(car.model, 0) is not None
-        if not (car.ko and not car.boss and self.end_t > 50 and not painted):
+        if not (car.ko and self.end_t > 50 and not painted):
             img, (ax, ay) = car.image()
             wob = (1 if car.wobble % 4 < 2 else -1) if car.wobble else 0
             x = round(car.x) - ax + sh[0] + wob
@@ -1211,30 +886,7 @@ class CarScene:
                 img = pygame.mask.from_surface(img).to_surface(setcolor=(255, 255, 255, 255),
                                                                unsetcolor=(0, 0, 0, 0))
             surf.blit(img, (x, y))
-            if not car.boss:
-                self._smoke(surf, sh)
-        if self.repair_fx and car.boss and not car.ko:
-            ox = round(car.x) - BOSS_ANCHOR[0] + sh[0]
-            oy = round(car.y) - BOSS_ANCHOR[1] + sh[1]
-            for idx, left in self.repair_fx:
-                if (left // 3) % 2 == 0:
-                    for i in idx:
-                        for c, r in car.pieces[i][0]:
-                            _block(surf, (255, 255, 255), ox + c * CELL, oy + r * CELL)
-        for d in self.drops:
-            if d.state == "fall":
-                # a little shadow on the street below warns where it is
-                w = d.img.get_width()
-                if d.y > -3 * CELL:
-                    pygame.draw.ellipse(surf, (20, 18, 26), (d.col * CELL + 1 + sh[0], GROUND_Y - 2 + sh[1], w - 2, 4))
-            elif d.state == "lock" and d.timer % 4 < 2:
-                img = pygame.mask.from_surface(d.img).to_surface(setcolor=(255, 255, 255, 255),
-                                                                 unsetcolor=(0, 0, 0, 0))
-                surf.blit(img, (d.col * CELL + sh[0], round(d.y) + sh[1]))
-                continue
-            elif d.state == "settle" and d.timer < 18 and d.timer % 4 < 2:
-                continue
-            surf.blit(d.img, (d.col * CELL + sh[0], round(d.y) + sh[1]))
+            self._smoke(surf, sh)
         self.p.draw(surf, sh)
         for pr in self.projectiles:
             pr.draw(surf, sh)
@@ -1242,9 +894,6 @@ class CarScene:
             d.draw(surf, sh)
         for fx in self.effects:
             fx.draw(surf, sh)
-        for text, x, y, left in self.popups:
-            if left > 10 or left % 2:
-                draw_text(surf, text, round(x), round(y), (120, 255, 140), align="center")
         self._hud(surf)
 
     def _smoke(self, surf, sh):
@@ -1282,7 +931,7 @@ class CarScene:
         self._bar(surf, 40, 10, bw, p.hp, self.p_lag, p.max_hp, False)
         self._bar(surf, W - 8 - bw, 10, bw, car.hp, self.lag, car.max_hp, True)
         draw_text(surf, "AKUMA", 40, 21, (255, 90, 90))
-        draw_text(surf, car.name, W - 8, 21, (255, 230, 120) if car.boss else (220, 220, 255), align="right")
+        draw_text(surf, car.name, W - 8, 21, (220, 220, 255), align="right")
         # each side's own little gauge
         sw = bw // 2 - 4
         for side in (0, 1):
@@ -1297,7 +946,7 @@ class CarScene:
         draw_text(surf, "%02d" % secs, W // 2, 6, col, scale=2, align="center")
         if self.phase == "intro":
             if self.t < self.intro_len - 18:
-                draw_text(surf, "BOSS!" if car.boss else "BONUS ROUND", W // 2, 64, (255, 220, 80),
+                draw_text(surf, "BONUS ROUND", W // 2, 64, (255, 220, 80),
                           scale=2, align="center")
                 draw_text(surf, car.name, W // 2, 84, (255, 255, 255), align="center")
                 draw_text(surf, "WRECK BOTH SIDES BEFORE TIME RUNS OUT", W // 2, 96,
@@ -1323,6 +972,893 @@ class CarScene:
 
 
 # --------------------------------------------------------------------------
+# the boss: THE TETRIS MASTER
+# --------------------------------------------------------------------------
+# He plays the falling-block puzzle at an arcade cabinet on the left; his well
+# fills the right of the stage. The pieces are real blocks: they fall on Akuma,
+# lock into a stack he can stand on, and break when he hits them.
+COLS, ROWS = 10, 9
+WELL_W, WELL_H = COLS * TCELL, ROWS * TCELL
+WELL_X = STAGE_RIGHT - WELL_W      # 186: the well's right wall is the stage edge
+WELL_TOP = GROUND_Y - WELL_H       # 50
+WELL_COL = COLS - 1                # the column he keeps open for the long I piece
+BOSS_HP = 40                       # blocks to break; a piece smashed in mid-air counts SMASH_HP
+SMASH_HP = 2
+BLOCK_HP = 2                       # a punch cracks a block, a kick or a special breaks it
+BOSS_TIME = 60                     # seconds; running out costs Akuma BOSS_TIMEOUT_DMG
+BOSS_TIMEOUT_DMG = 30
+DROP_DMG = 12                      # a falling piece landing on Akuma
+CLEAR_DMG = {1: 0, 2: 0, 3: 10, 4: 40}       # his line clears hit Akuma: a TETRIS hits hard
+CLEAR_NAMES = {1: "SINGLE", 2: "DOUBLE", 3: "TRIPLE!", 4: "TETRIS!"}
+GRAV, GRAV_MAD = 18, 13            # frames per row while he lines a piece up
+SOFT, SOFT_MAD = 5, 4              # frames per row once it is lined up (soft drop)
+SHIFT = 6                          # frames per sideways step or turn
+ARE, ARE_MAD = 26, 18              # pause before the next piece
+CLEAR_FLASH = 24                   # full rows flash this long, then vanish
+LOCK_DELAY = 6                     # gravity ticks a resting piece can still be slid along
+TOPOUT_DMG = 6                     # if he ever tops out his board is wiped and he loses this
+MASTER_X = 34                      # his feet, at the cabinet on the left (background)
+CAB_X = MASTER_X + 12              # the cabinet's left edge
+
+
+def _width(cells):
+    return max(c for c, _ in cells) + 1
+
+
+def _place(occ, cells, col, row):
+    """The well after dropping `cells` at (col, row) and clearing full rows:
+    (new occupancy, lines cleared, cells in the open column, landing height), or None if it tops out."""
+    occ = [line[:] for line in occ]
+    for c, r in cells:
+        if row + r < 0:
+            return None
+        occ[row + r][col + c] = True
+    full = [r for r in range(ROWS) if all(occ[r])]
+    if full:
+        occ = [[False] * COLS for _ in full] + [occ[r] for r in range(ROWS) if r not in full]
+    land = ROWS - row - sum(r for _, r in cells) / len(cells)     # how high it sits
+    return occ, len(full), sum(1 for c, _ in cells if col + c == WELL_COL), land
+
+
+def _score(occ, lines, in_well, land=0.0):
+    """How much the Tetris Master likes a board: flat and hole-free, the right-hand
+    column kept open, rows lined up for it, and above all a 4-line clear."""
+    heights, holes = [], 0
+    for c in range(COLS):
+        h = 0
+        for r in range(ROWS):
+            if occ[r][c]:
+                if not h:
+                    h = ROWS - r
+            elif h:
+                holes += 1
+        heights.append(h)
+    play = heights[:WELL_COL]
+    bump = sum(abs(a - b) for a, b in zip(play, play[1:]))
+    tallest = max(heights)
+    ready = sum(1 for r in range(ROWS) if not occ[r][WELL_COL]
+                and all(occ[r][c] for c in range(COLS) if c != WELL_COL))
+    score = (-0.5 * sum(play) - 4.0 * holes - 0.35 * bump + 1.2 * ready - 1.0 * land
+             - 3.0 * max(0, tallest - (ROWS - 4)) - 2.0 * heights[WELL_COL])
+    if lines >= 4:
+        score += 60
+    else:   # burning the well on less is a waste, unless the height penalty says otherwise
+        score -= 3 * lines + 4 * in_well
+    return score
+
+
+def _placements(occ, cells_list, spawn_row):
+    """Every (rot, col, row) a piece can be dropped to straight down from the top."""
+    def fits(cells, col, row):
+        for c, r in cells:
+            cc, rr = col + c, row + r
+            if cc < 0 or cc >= COLS or rr >= ROWS or (rr >= 0 and occ[rr][cc]):
+                return False
+        return True
+    for rot, cells in enumerate(cells_list):
+        for col in range(COLS - _width(cells) + 1):
+            if not fits(cells, col, spawn_row):
+                continue
+            row = spawn_row
+            while fits(cells, col, row + 1):
+                row += 1
+            yield rot, col, row
+
+
+class Piece:
+    """The piece he is steering: (rot, col) is where he wants it."""
+
+    def __init__(self, kind):
+        self.kind = kind
+        self.color = PIECE_COLORS[kind]
+        self.rots = _rotations(PIECES[kind])
+        self.rot = 0
+        self.col = (COLS - 1 - _width(self.rots[0])) // 2
+        self.row = -1
+        self.trot, self.tcol = 0, self.col
+        self.fall_t = GRAV
+        self.shift_t = SHIFT + 4      # a beat to "think" before moving
+        self.stuck = 0                # gravity ticks spent resting on the stack before it locks
+
+    @property
+    def cells(self):
+        return self.rots[self.rot]
+
+    @property
+    def x(self):
+        return WELL_X + (self.col + _width(self.cells) / 2) * TCELL
+
+
+class _Aim:
+    """Akuma's 'opponent' while he fights the stack: the point he turns to face."""
+    state, move, airborne, on_ground, ko = "stand", None, False, True, False
+
+    def __init__(self):
+        self.x, self.y = WELL_X + WELL_W / 2, float(GROUND_Y)
+
+    def hurtbox(self):
+        return None
+
+    def phase(self):
+        return None, None
+
+
+def draw_master(surf, x, g, pose, t):
+    """THE TETRIS MASTER, side on, facing his cabinet on the right."""
+    skin, hood, jeans, cap = (236, 186, 146), (210, 44, 70), (44, 64, 128), (40, 50, 210)
+    slump = 3 if pose == "lose" else 0
+    # legs and shoes
+    surf.fill(jeans, (x - 5, g - 16, 4, 15))
+    surf.fill(jeans, (x + 1, g - 16, 4, 15))
+    surf.fill((235, 235, 235), (x - 6, g - 2, 6, 2))
+    surf.fill((235, 235, 235), (x + 1, g - 2, 6, 2))
+    # hoodie
+    pygame.draw.rect(surf, hood, (x - 6, g - 33 + slump, 12, 18), border_radius=2)
+    surf.fill(shade(hood, 0.7), (x - 7, g - 32 + slump, 3, 8))          # the hood down his back
+    surf.fill(shade(hood, 0.7), (x - 6, g - 17, 12, 2))
+    # head, backwards cap, an eye on the screen
+    hx, hy = x - 4 + slump, g - 42 + slump * 2
+    surf.fill(skin, (hx, hy, 9, 9))
+    surf.fill(cap, (hx - 1, hy - 2, 10, 4))
+    surf.fill(cap, (hx - 4, hy, 4, 2))                                     # brim at the back
+    surf.fill((20, 20, 20), (hx + 6, hy + (5 if pose == "lose" else 3), 2, 1 if pose == "lose" else 2))
+    if pose == "mad":
+        surf.fill((20, 20, 20), (hx + 5, hy + 2, 3, 1))                    # angry brow
+    if pose == "cheer":
+        surf.fill((120, 20, 20), (hx + 6, hy + 6, 2, 2))                   # yelling
+    sx, sy = x + 2, g - 30 + slump
+    def arm(ex, ey):
+        pygame.draw.line(surf, hood, (sx, sy), (ex, ey), 3)
+        surf.fill(skin, (ex - 1, ey - 1, 3, 3))
+    if pose == "cheer":
+        jump = 1 if (t // 5) % 2 else 0
+        arm(x - 4, g - 50 - jump)
+        arm(x + 8, g - 51 + jump)
+    elif pose == "mad":
+        arm(x + 11, g - 27)
+        arm(x + 9 + (t // 3) % 2 * 2, g - 46)                               # shaking his fist
+    elif pose == "lose":
+        arm(x + 4, g - 16)
+    else:   # mashing the stick and buttons
+        arm(x + 11, g - 27 - ((t // 6) % 2))
+        arm(x + 9, g - 26 + ((t // 4) % 2))
+
+
+def make_tetris_stage():
+    s = make_car_stage(True)
+    # the giant well on the right
+    panel = pygame.Surface((WELL_W, WELL_H), pygame.SRCALPHA)
+    panel.fill((10, 6, 26, 215))
+    for gx in range(0, WELL_W, TCELL):
+        pygame.draw.line(panel, (110, 80, 190, 70), (gx, 0), (gx, WELL_H))
+    for gy in range(0, WELL_H, TCELL):
+        pygame.draw.line(panel, (110, 80, 190, 50), (0, gy), (WELL_W, gy))
+    s.blit(panel, (WELL_X, WELL_TOP))
+    s.fill((22, 14, 40), (STAGE_RIGHT + 3, WELL_TOP - 6, W - STAGE_RIGHT, GROUND_Y - WELL_TOP + 6))
+    for x in (WELL_X - 3, STAGE_RIGHT):
+        s.fill((120, 30, 110), (x - 1, WELL_TOP - 6, 5, GROUND_Y - WELL_TOP + 6))
+        s.fill((255, 90, 220), (x, WELL_TOP - 6, 3, GROUND_Y - WELL_TOP + 6))
+        s.fill((255, 210, 250), (x + 1, WELL_TOP - 6, 1, GROUND_Y - WELL_TOP + 6))
+    # his cabinet, its screen drawn live; a cable runs from it to the well
+    g = GROUND_Y
+    pygame.draw.line(s, (20, 16, 30), (CAB_X + 26, g - 2), (WELL_X - 4, g - 2), 2)
+    pygame.draw.rect(s, (64, 26, 104), (CAB_X, g - 74, 26, 74))
+    s.fill((92, 44, 140), (CAB_X, g - 74, 3, 74))
+    s.fill((36, 14, 60), (CAB_X + 23, g - 74, 3, 74))
+    s.fill((255, 70, 200), (CAB_X - 2, g - 80, 30, 8))
+    s.fill((255, 190, 240), (CAB_X - 2, g - 80, 30, 1))
+    for i, k in enumerate("TOIJ"):
+        s.fill(PIECE_COLORS[k], (CAB_X + 3 + i * 6, g - 77, 4, 3))
+    s.fill((12, 10, 18), (CAB_X + 1, g - 64, 24, 22))
+    s.fill((30, 30, 44), (CAB_X - 8, g - 40, 12, 5))                      # control panel
+    s.fill((220, 40, 40), (CAB_X - 6, g - 45, 3, 3))                      # stick
+    s.fill((70, 70, 80), (CAB_X - 5, g - 42, 1, 2))
+    s.fill((60, 170, 255), (CAB_X - 1, g - 41, 2, 1))
+    s.fill((30, 20, 44), (CAB_X + 4, g - 20, 18, 10))                     # coin door
+    s.fill((255, 200, 60), (CAB_X + 8, g - 17, 3, 3))
+    s.fill((255, 200, 60), (CAB_X + 15, g - 17, 3, 3))
+    return s
+
+
+_TSTAGE = []
+
+
+class TetrisScene(CarScene):
+    """Level 3 boss: break THE TETRIS MASTER's blocks before he scores a TETRIS."""
+
+    def __init__(self, game, enemy, akuma_hp, akuma_max, power=1.0, seed=None):
+        F.init_shared()
+        self.game = game
+        self.enemy_ref = enemy
+        self.rng = random.Random(seed)
+        self.boss = True
+        self.name = enemy.name
+        if not _TSTAGE:
+            _TSTAGE.append(make_tetris_stage())
+        self.stage = _TSTAGE[0]
+        p = Fighter("AKUMA", F.AKUMA_LOOK, {}, akuma_max, walk=1.75, back_walk=1.35,
+                    is_player=True, art=F._AKUMA_ART)
+        p.hp = akuma_hp
+        p.x, p.facing = 112.0, 1
+        self.aim = _Aim()
+        p.opponent = self.aim
+        p.floor = self._floor
+        p.multi_hit = {"Tatsumaki": (6, 99)}
+        self.projectiles = []
+        self.effects = []
+        self.debris = []
+        self.waves = []               # TETRIS shockwaves: [x, y, radius]
+        p.projectiles = self.projectiles
+        p.effects = self._spawn_effect
+        p.state = "intro"
+        self.p = p
+        self.power = power
+        self.time_limit = BOSS_TIME * FPS
+        self.timer = self.time_limit
+        self.intro_len = 100
+        self.phase = "intro"
+        self.t = self.end_t = self.hitstop = self.shake = self.flash = 0
+        self.combo = self.combo_show = self.hint = 0
+        self.last_hit = -99
+        self.banner = None            # [text, frames left, color]
+        self.max_hp = self.hp = BOSS_HP
+        self.lag = self.hp
+        self.p_lag = p.hp
+        self.grid = [[None] * COLS for _ in range(ROWS)]
+        self._runs = None
+        self.lines = 0
+        self.tetrises = 0
+        self.piece = None
+        self.are = 30
+        self.clearing = None          # [full rows, frames left]
+        self.mood, self.mood_t = "play", 0
+        self.menu = PauseMenu(game, F.CONTROLS)
+        self.result = None
+        self._garbage()
+        self.bag = []
+        self.next = self._draw_kind()
+
+    # ---- the board ---------------------------------------------------------
+    def _draw_kind(self):
+        # he's the master: with rows lined up the long I piece has a way of turning up
+        if len(self.ready_rows()) >= 3 and "I" in self.bag and self.rng.random() < 0.4:
+            self.bag.remove("I")
+            return "I"
+        if not self.bag:
+            self.bag = list(PIECES)
+            self.rng.shuffle(self.bag)
+        return self.bag.pop()
+
+    def _garbage(self):
+        """He's mid-game when Akuma walks in: two rows ready for a TETRIS, a few blocks on top."""
+        cols = list(PIECE_COLORS.values())
+        for r in (ROWS - 1, ROWS - 2):
+            for c in range(WELL_COL):
+                self.grid[r][c] = [self.rng.choice(cols), BLOCK_HP]
+        for c in range(4):
+            self.grid[ROWS - 3][c] = [PIECE_COLORS["L" if c < 3 else "J"], BLOCK_HP]
+        self._changed()
+
+    def _changed(self):
+        self._runs = None
+
+    def cell_rect(self, c, r):
+        return (WELL_X + c * TCELL, WELL_TOP + r * TCELL, TCELL, TCELL)
+
+    def cells(self):
+        return [(c, r) for r in range(ROWS) for c in range(COLS) if self.grid[r][c] is not None]
+
+    def fits(self, cells, col, row):
+        for c, r in cells:
+            cc, rr = col + c, row + r
+            if cc < 0 or cc >= COLS or rr >= ROWS:
+                return False
+            if rr >= 0 and self.grid[rr][cc] is not None:
+                return False
+        return True
+
+    def drop_row(self, cells, col, row):
+        while self.fits(cells, col, row + 1):
+            row += 1
+        return row
+
+    def ready_rows(self):
+        """Rows full but for the open column: one I piece away from clearing."""
+        return [r for r in range(ROWS) if self.grid[r][WELL_COL] is None
+                and all(self.grid[r][c] is not None for c in range(COLS) if c != WELL_COL)]
+
+    def _choose(self, pc):
+        """Pick where this piece goes, looking one piece ahead (the NEXT box)."""
+        occ = [[v is not None for v in line] for line in self.grid]
+        nxt = _rotations(PIECES[self.next])
+        best, pick = None, (0, pc.col)
+        for rot, col, row in _placements(occ, pc.rots, pc.row):
+            first = _place(occ, pc.rots[rot], col, row)
+            if first is None:
+                continue
+            score = _score(*first)
+            occ1 = first[0]
+            ahead = None
+            for r2, c2, row2 in _placements(occ1, nxt, -1):
+                second = _place(occ1, nxt[r2], c2, row2)
+                if second is not None:
+                    v = _score(*second)
+                    ahead = v if ahead is None else max(ahead, v)
+            score = score * 0.4 + (ahead if ahead is not None else score - 50) * 0.6
+            score += self.rng.uniform(0, 0.15)
+            if best is None or score > best:
+                best, pick = score, (rot, col)
+        pc.trot, pc.tcol = pick
+
+    # ---- Akuma on the stack -------------------------------------------------
+    def _runs_of(self):
+        if self._runs is None:
+            runs = []
+            for c in range(COLS):
+                col, r = [], 0
+                while r < ROWS:
+                    if self.grid[r][c] is None:
+                        r += 1
+                        continue
+                    top = r
+                    while r < ROWS and self.grid[r][c] is not None:
+                        r += 1
+                    col.append((WELL_TOP + top * TCELL, WELL_TOP + r * TCELL))
+                runs.append(col)
+            self._runs = runs
+        return self._runs
+
+    def _floor(self, x):
+        """Floor under x for Akuma's feet: the top of the block pile he stands on,
+        or of one right at his feet (so the stack is a wall he can't walk into).
+        Blocks hanging above his head don't count: he can walk under them."""
+        feet = self.p.y - STEP_UP
+        best = float(GROUND_Y)
+        runs = self._runs_of()
+        c0 = math.floor((x - FOOT - WELL_X) / TCELL)
+        c1 = math.floor((x + FOOT - 1 - WELL_X) / TCELL)
+        for c in range(max(0, c0), min(COLS - 1, c1) + 1):
+            for top, bot in runs[c]:
+                if top <= feet < bot or top >= feet:
+                    best = min(best, float(top))
+                    break
+        return best
+
+    def _spinning(self):
+        return False
+
+    def _face(self):
+        """Akuma turns to the nearest block at body height (else the falling piece)."""
+        p = self.p
+        best, bx = None, None
+        for c, r in self.cells():
+            x, y, w, h = self.cell_rect(c, r)
+            if y + h <= p.y - 70 or y >= p.y - 2:
+                continue
+            d = abs(x + w / 2 - p.x)
+            if best is None or d < best:
+                best, bx = d, x + w / 2
+        if bx is None:
+            bx = self.piece.x if self.piece else WELL_X + WELL_W / 2
+        self.aim.x = bx
+
+    # ---- update ------------------------------------------------------------
+    def update(self, inp):
+        if self.menu.open:
+            self.menu.update(inp)
+            return
+        if self.phase == "fight" and self.menu.toggle(inp):
+            return
+        self.t += 1
+        p = self.p
+        self.lag = max(self.hp, self.lag - 0.3) if self.lag > self.hp else self.hp
+        self.p_lag = max(p.hp, self.p_lag - 0.6) if self.p_lag > p.hp else p.hp
+        for v in ("shake", "combo_show", "flash", "mood_t"):
+            if getattr(self, v):
+                setattr(self, v, getattr(self, v) - 1)
+        if not self.mood_t and self.phase == "fight":
+            self.mood = "play"
+        if p.flash:
+            p.flash -= 1
+        for fx in self.effects:
+            fx.update()
+        self.effects = [fx for fx in self.effects if fx.alive]
+        for d in self.debris:
+            d.update()
+        self.debris = [d for d in self.debris if d.life > 0]
+        for wv in self.waves:
+            wv[2] += 7
+        self.waves = [wv for wv in self.waves if wv[2] < 360]
+        if self.banner:
+            self.banner[1] -= 1
+            if self.banner[1] <= 0:
+                self.banner = None
+
+        if self.phase == "intro":
+            p.update({})
+            if self.t == self.intro_len - 18:
+                audio.play("fight")
+            if self.t >= self.intro_len:
+                self.phase = "fight"
+                p._to_stand()
+            return
+        if self.hitstop > 0:
+            self.hitstop -= 1
+            if self.phase == "fight":
+                p.feed_buffer(self._intent(inp))
+            return
+        if self.phase in ("won", "lost"):
+            self.end_t += 1
+            p.update({})
+            if self.phase == "won" and self.end_t == 40:
+                p._to_stand()
+                p.state = "win"
+            skip = self.end_t > 30 and inp.any_pressed("punch", "kick", "special", "start")
+            if self.end_t >= 150 or skip:
+                self.result = "win" if self.phase == "won" else "lose"
+                self.game.end_fight(self, self.result, max(0, p.hp))
+            return
+
+        self.timer -= 1
+        self._face()
+        p.update(self._intent(inp))
+        self._projectiles()
+        self._melee()
+        self._play()
+        if self.hp <= 0:
+            self._beaten()
+        elif p.hp <= 0:
+            self._lose()
+        elif self.timer <= 0:
+            self._time_over()
+
+    # ---- Akuma's attacks ---------------------------------------------------
+    def _piece_rects(self, pc=None, shrink=0):
+        pc = pc or self.piece
+        out = []
+        for c, r in pc.cells:
+            x, y, w, h = self.cell_rect(pc.col + c, pc.row + r)
+            out.append((x + shrink, y + shrink, w - 2 * shrink, h - 2 * shrink))
+        return out
+
+    def _touched_cells(self, area):
+        busy = set(self.clearing[0]) if self.clearing else ()
+        return [(c, r) for c, r in self.cells()
+                if r not in busy and contact(area, rect_area(self.cell_rect(c, r)))]
+
+    def _projectiles(self):
+        for pr in self.projectiles:
+            pr.update()
+            if not pr.alive:
+                continue
+            a = pr.area()
+            if self.piece and any(contact(a, rect_area(rc)) for rc in self._piece_rects()):
+                pr.alive = False
+                self._smash_piece()
+                continue
+            hit = self._touched_cells(a)
+            if hit:
+                hit.sort(key=lambda cr: abs(self.cell_rect(*cr)[0] + TCELL / 2 - pr.x))
+                self._damage_block(*hit[0], BLOCK_HP, heavy=True)
+                pr.pierce = getattr(pr, "pierce", 2) - 1       # a fireball goes through two blocks
+                if pr.pierce <= 0:
+                    pr.alive = False
+        self.projectiles[:] = [pr for pr in self.projectiles if pr.alive]
+
+    def _connect(self, m):
+        p = self.p
+        p.hits_done += 1
+        p.last_hit_t = p.move_t
+        if m.get("cat") in ("punch", "kick"):
+            p.cancel = CANCEL_WINDOW
+        if m.get("bounce"):
+            p.vy = -2.2
+            p.vx = -0.4 * p.facing
+            p.bounced = True
+
+    def _melee(self):
+        p = self.p
+        strike = p.strike_area()
+        if strike is None:
+            return
+        m = p.move
+        if self.piece and any(contact(strike, rect_area(rc)) for rc in self._piece_rects()):
+            self._connect(m)
+            self._smash_piece()
+            return
+        touched = self._touched_cells(strike)
+        if not touched:
+            return
+        self._connect(m)
+        ax, ay = p.x + p.facing * 18, p.y - 30
+        touched.sort(key=lambda cr: (self.cell_rect(*cr)[0] + TCELL / 2 - ax) ** 2
+                     + (self.cell_rect(*cr)[1] + TCELL / 2 - ay) ** 2)
+        if m.get("name") == "Tatsumaki" or m["dmg"] < HIT:
+            n, dmg = 1, 1                 # punches and each spin of the hurricane kick crack one
+        elif m["dmg"] > HIT:
+            n, dmg = 3, BLOCK_HP          # a shoryuken ploughs through up to three
+        else:
+            n, dmg = 1, BLOCK_HP          # a kick breaks one
+        for c, r in touched[:n]:
+            self._damage_block(c, r, dmg, heavy=dmg >= BLOCK_HP)
+
+    def _damage_block(self, c, r, dmg, heavy=False):
+        cell = self.grid[r][c]
+        if cell is None:
+            return
+        x, y, w, h = self.cell_rect(c, r)
+        self.effects.append(F.Effect(F.SPARK_HIT, x + w / 2, y + h / 2, 2))
+        cell[1] -= dmg
+        if self.t - self.last_hit < 50:
+            self.combo += 1
+        else:
+            self.combo = 1
+        self.last_hit = self.t
+        if self.combo >= 2:
+            self.combo_show = 70
+        self.hitstop = max(self.hitstop, HITSTOP - 2 + (2 if heavy else 0))
+        self.shake = max(self.shake, 4 if heavy else 2)
+        if cell[1] > 0:
+            audio.play("hit")
+            return
+        self.grid[r][c] = None
+        self._changed()
+        self.hp = max(0, self.hp - 1)
+        audio.play("heavy" if heavy else "hit")
+        self._shatter(cell[0], x, y)
+        self.mood, self.mood_t = "mad", 40
+
+    def _shatter(self, color, x, y, n=4, life=50):
+        for k in range(n):
+            img = piece_surface(((0, 0),), color, TCELL // 2)
+            self.debris.append(Debris(img, x + (k % 2 + 0.5) * TCELL / 2, y + (k // 2 + 1) * TCELL / 2,
+                                      self.rng.uniform(-2.5, 2.5), self.rng.uniform(-5, -1.5), life))
+
+    def _smash_piece(self):
+        pc = self.piece
+        for x, y, w, h in self._piece_rects():
+            self._shatter(pc.color, x, y, 2, 40)
+        self.piece = None
+        self.are = self._are()
+        self.hp = max(0, self.hp - SMASH_HP)
+        audio.play("heavy")
+        self.hitstop = max(self.hitstop, 6)
+        self.shake = max(self.shake, 5)
+        self.mood, self.mood_t = "mad", 50
+
+    # ---- his play ------------------------------------------------------------
+    def _mad(self):
+        return self.hp <= self.max_hp // 2
+
+    def _are(self):
+        return ARE_MAD if self._mad() else ARE
+
+    def _spawn(self):
+        pc = Piece(self.next)
+        self.next = self._draw_kind()
+        if not self.fits(pc.cells, pc.col, pc.row):
+            self._top_out()
+            return
+        self._choose(pc)
+        self.piece = pc
+
+    def _play(self):
+        if self.clearing:
+            self.clearing[1] -= 1
+            if self.clearing[1] <= 0:
+                self._collapse(self.clearing[0])
+                self.clearing = None
+                self.are = self._are()
+            return
+        pc = self.piece
+        if pc is None:
+            self.are -= 1
+            if self.are <= 0:
+                self._spawn()
+            return
+        pc.shift_t -= 1
+        if pc.shift_t <= 0:
+            pc.shift_t = SHIFT
+            step = 1 if pc.tcol > pc.col else -1
+            if pc.col != pc.tcol and 0 <= pc.col + step <= COLS - _width(pc.cells) \
+                    and self.fits(pc.cells, pc.col + step, pc.row):
+                pc.col += step              # slide it over while it's still high up
+            elif pc.rot != pc.trot:
+                # turn it, nudging it sideways (toward where it's going) if it has to
+                rot = (pc.rot + 1) % len(pc.rots)
+                cells = pc.rots[rot]
+                cols = [c for c in range(pc.col - 3, pc.col + 4) if 0 <= c <= COLS - _width(cells)]
+                cols.sort(key=lambda c: (abs(c - pc.tcol), abs(c - pc.col)))
+                col = next((c for c in cols if self.fits(cells, c, pc.row)), None)
+                if col is None:
+                    pc.trot = pc.rot            # boxed in: settle for what it is
+                else:
+                    pc.rot, pc.col = rot, col
+            elif pc.col != pc.tcol:
+                pc.tcol = pc.col
+        aligned = pc.rot == pc.trot and pc.col == pc.tcol
+        pc.fall_t -= 1
+        if pc.fall_t <= 0:
+            mad = self._mad()
+            pc.fall_t = (SOFT_MAD if mad else SOFT) if aligned else (GRAV_MAD if mad else GRAV)
+            if self.fits(pc.cells, pc.col, pc.row + 1):
+                pc.row += 1
+                pc.stuck = 0
+            elif aligned or pc.stuck >= LOCK_DELAY:
+                self._lock()
+                return
+            else:
+                pc.stuck += 1               # resting on the stack: he still slides it into place
+                pc.fall_t = SHIFT
+        self._crush()
+
+    def _crush(self):
+        """A falling piece that reaches Akuma lands on him and breaks."""
+        p = self.p
+        if p.ko or p.state in ("launched", "down", "ko"):
+            return
+        hu = p.hurt_area()
+        if hu is None or not any(contact(rect_area(rc), hu) for rc in self._piece_rects(shrink=1)):
+            return
+        pc = self.piece
+        p.take_hit(DROP_DMG, 24, pc.x, knockdown=True, launch=-3.5)
+        for x, y, w, h in self._piece_rects():
+            self._shatter(pc.color, x, y, 2, 40)
+        self.piece = None
+        self.are = self._are()
+        audio.play("heavy")
+        self.hitstop = max(self.hitstop, HITSTOP)
+        self.shake = max(self.shake, 8)
+        self.effects.append(F.Effect(F.SPARK_HIT, p.x, p.y - 40, 2))
+        self.mood, self.mood_t = "cheer", 50
+
+    def _lock(self):
+        pc = self.piece
+        self.piece = None
+        if any(pc.row + r < 0 for _, r in pc.cells):
+            self._top_out()
+            return
+        for c, r in pc.cells:
+            self.grid[pc.row + r][pc.col + c] = [pc.color, BLOCK_HP]
+        self._changed()
+        audio.play("land")
+        full = [r for r in range(ROWS) if all(self.grid[r])]
+        if not full:
+            self.are = self._are()
+            return
+        n = min(4, len(full))
+        self.clearing = [full, CLEAR_FLASH]
+        self.lines += len(full)
+        dmg = CLEAR_DMG[n]
+        col = (255, 255, 255) if n == 4 else (255, 220, 80)
+        self.banner = [CLEAR_NAMES[n], 110 if n == 4 else 60, col]
+        audio.play("pickup")
+        if n == 4:
+            self.tetrises += 1
+            self.flash = 16
+            self.shake = 24
+            audio.play("boom")
+            self.waves.append([WELL_X + WELL_W / 2, WELL_TOP + min(full) * TCELL + 24, 0])
+            self.mood, self.mood_t = "cheer", 120
+        elif n == 3:
+            self.shake = 10
+            self.mood, self.mood_t = "cheer", 60
+        p = self.p
+        if dmg and not p.ko:
+            p.take_hit(dmg, 40 if n == 4 else 20, WELL_X + WELL_W, knockdown=n == 4, launch=-5.0)
+            p.flash = 20
+            self.hitstop = max(self.hitstop, 10)
+            self.effects.append(F.Effect(F.SPARK_HIT, p.x, p.y - 40, 2))
+
+    def _collapse(self, rows):
+        keep = [self.grid[r] for r in range(ROWS) if r not in rows]
+        self.grid = [[None] * COLS for _ in rows] + keep
+        self._changed()
+
+    def _top_out(self):
+        """He stacked to the ceiling: his game is over, the board is wiped, he starts again."""
+        for c, r in self.cells():
+            x, y, _, _ = self.cell_rect(c, r)
+            self._shatter(self.grid[r][c][0], x, y, 1, 40)
+        self.grid = [[None] * COLS for _ in range(ROWS)]
+        self._changed()
+        self.piece = None
+        self.hp = max(0, self.hp - TOPOUT_DMG)
+        self.banner = ["HE TOPPED OUT!", 90, (120, 255, 140)]
+        self.are = 60
+        audio.play("ko")
+        self.mood, self.mood_t = "mad", 90
+
+    # ---- endings -------------------------------------------------------------
+    def _beaten(self):
+        self.phase = "won"
+        self.end_t = 0
+        self.hitstop = 14
+        self.shake = 16
+        self.mood, self.mood_t = "lose", 10 ** 6
+        self.banner = None
+        audio.play("ko")
+        for c, r in self.cells():
+            x, y, _, _ = self.cell_rect(c, r)
+            self._shatter(self.grid[r][c][0], x, y, 2, 110)
+        if self.piece:
+            for x, y, w, h in self._piece_rects():
+                self._shatter(self.piece.color, x, y, 2, 110)
+        self.grid = [[None] * COLS for _ in range(ROWS)]
+        self._changed()
+        self.piece = None
+        self.clearing = None
+        self._boom("explode_large", WELL_X + WELL_W / 2, GROUND_Y - 40, 80, 5)
+        self._boom("explode_medium", WELL_X + 24, GROUND_Y - 20, 40)
+        self._boom("explode_medium", WELL_X + WELL_W - 24, GROUND_Y - 24, 36, 5)
+
+    def _lose(self):
+        p = self.p
+        p.hp = 0
+        p.ko = True
+        self.phase = "lost"
+        self.end_t = 0
+        self.mood, self.mood_t = "cheer", 10 ** 6
+        audio.play("ko")
+
+    def _time_over(self):
+        p = self.p
+        audio.play("ko")
+        p.hp -= BOSS_TIMEOUT_DMG
+        p.flash = 20
+        if p.hp <= 0:
+            self._lose()
+            return
+        self.timer = self.time_limit
+        self.banner = ["TIME OVER! -%d HP" % BOSS_TIMEOUT_DMG, 100, (255, 80, 60)]
+
+    # ---- drawing -------------------------------------------------------------
+    def draw(self, surf):
+        sh = (0, 0)
+        if self.shake:
+            sh = (self.rng.choice((-2, -1, 1, 2)), self.rng.choice((-1, 0, 1)))
+        surf.blit(self.stage, sh)
+        self._draw_master(surf, sh)
+        # the open column glows next to every row that's ready for a TETRIS
+        ready = self.ready_rows() if self.phase == "fight" else []
+        if ready:
+            glow = 90 + int(60 * math.sin(self.t / 5))
+            g = pygame.Surface((TCELL, TCELL), pygame.SRCALPHA)
+            g.fill((255, 140, 230, max(0, min(255, glow // (1 if len(ready) >= 3 else 2)))))
+            for r in ready:
+                x, y, _, _ = self.cell_rect(WELL_COL, r)
+                surf.blit(g, (x + sh[0], y + sh[1]))
+        clearing = set(self.clearing[0]) if self.clearing else ()
+        for c, r in self.cells():
+            color, hp = self.grid[r][c]
+            x, y, _, _ = self.cell_rect(c, r)
+            x, y = x + sh[0], y + sh[1]
+            if r in clearing:
+                color = (255, 255, 255) if (self.clearing[1] // 3) % 2 else shade(color, 1.4)
+            _block(surf, color, x, y)
+            if hp < BLOCK_HP:     # cracked
+                dark = shade(color, 0.35)
+                pygame.draw.lines(surf, dark, False, [(x + 2, y + 3), (x + 5, y + 6), (x + 4, y + 9), (x + 8, y + 10)])
+                pygame.draw.line(surf, dark, (x + 5, y + 6), (x + 9, y + 4))
+        pc = self.piece
+        if pc:
+            # where it's going to land: a faint ghost, and a shadow if Akuma's under it
+            row = self.drop_row(pc.cells, pc.col, pc.row)
+            for c, r in pc.cells:
+                if row + r >= 0:
+                    x, y, w, h = self.cell_rect(pc.col + c, row + r)
+                    pygame.draw.rect(surf, shade(pc.color, 0.8), (x + 1 + sh[0], y + 1 + sh[1], w - 2, h - 2), 1)
+            for c, r in pc.cells:
+                x, y, _, _ = self.cell_rect(pc.col + c, pc.row + r)
+                _block(surf, pc.color, x + sh[0], y + sh[1])
+        self.p.draw(surf, sh)
+        for pr in self.projectiles:
+            pr.draw(surf, sh)
+        for d in self.debris:
+            d.draw(surf, sh)
+        for fx in self.effects:
+            fx.draw(surf, sh)
+        for x, y, rad in self.waves:
+            for k, col in ((0, (255, 255, 255)), (6, (120, 230, 255)), (12, (255, 90, 220))):
+                if rad - k > 2:
+                    pygame.draw.circle(surf, col, (round(x) + sh[0], round(y) + sh[1]), round(rad - k), 2)
+        if self.flash and self.flash % 4 < 2:
+            fl = pygame.Surface((W, H), pygame.SRCALPHA)
+            fl.fill((255, 255, 255, 150))
+            surf.blit(fl, (0, 0))
+        self._hud(surf)
+
+    def _draw_master(self, surf, sh):
+        g = GROUND_Y + sh[1]
+        # his screen shows the same game, small
+        sx, sy = CAB_X + 3 + sh[0], g - 62
+        surf.fill((8, 6, 16), (sx, sy, COLS * 2, ROWS * 2))
+        for c, r in self.cells():
+            surf.fill(self.grid[r][c][0], (sx + c * 2, sy + r * 2, 2, 2))
+        if self.piece:
+            for c, r in self.piece.cells:
+                if self.piece.row + r >= 0:
+                    surf.fill(self.piece.color, (sx + (self.piece.col + c) * 2, sy + (self.piece.row + r) * 2, 2, 2))
+        if self.phase == "won" and (self.t // 10) % 2:
+            surf.fill((200, 20, 30), (sx, sy + 7, COLS * 2, 4))
+        pose = self.mood if self.phase != "intro" else "play"
+        draw_master(surf, MASTER_X + sh[0], g, pose, self.t)
+
+    def _hud(self, surf):
+        p = self.p
+        surf.blit(F._PORTRAIT, (4, 4))
+        pygame.draw.rect(surf, (10, 6, 14), (3, 3, F._PORTRAIT.get_width() + 2, F._PORTRAIT.get_height() + 2), 1)
+        bw = F.BAR_W
+        self._bar(surf, 40, 10, bw, p.hp, self.p_lag, p.max_hp, False)
+        self._bar(surf, W - 8 - bw, 10, bw, self.hp, self.lag, self.max_hp, True, col=(120, 230, 255))
+        draw_text(surf, "AKUMA", 40, 21, (255, 90, 90))
+        draw_text(surf, self.name, W - 8, 21, (255, 230, 120), align="right")
+        draw_text(surf, "LINES %d" % self.lines, W - 8 - bw, 31, (200, 200, 230))
+        # the next piece, under the clock
+        bx, by = W // 2 - 4, 26
+        pygame.draw.rect(surf, (10, 6, 14), (bx - 1, by - 1, 24, 14))
+        pygame.draw.rect(surf, (120, 90, 200), (bx - 1, by - 1, 24, 14), 1)
+        draw_text(surf, "NEXT", bx - 4, by + 3, (200, 200, 230), align="right")
+        cells = PIECES[self.next]
+        w, h = _width(cells), max(r for _, r in cells) + 1
+        ox, oy = bx + 11 - w * 2, by + 6 - h * 2
+        for c, r in cells:
+            _block(surf, PIECE_COLORS[self.next], ox + c * 4, oy + r * 4, 4)
+        secs = max(0, (self.timer + FPS - 1) // FPS)
+        col = (255, 60, 40) if secs <= 5 and (self.t // 8) % 2 else (255, 230, 120)
+        draw_text(surf, "%02d" % secs, W // 2, 6, col, scale=2, align="center")
+        if self.phase == "intro":
+            if self.t < self.intro_len - 18:
+                draw_text(surf, "BOSS!", W // 2, 56, (255, 220, 80), scale=2, align="center")
+                draw_text(surf, self.name, W // 2, 76, (255, 255, 255), align="center")
+                draw_text(surf, "BREAK HIS BLOCKS BEFORE HE", W // 2, 88, (200, 200, 230), align="center")
+                draw_text(surf, "SCORES A TETRIS!", W // 2, 97, (200, 200, 230), align="center")
+            else:
+                draw_text(surf, "SMASH IT!", W // 2, 70, (255, 60, 40), scale=3, align="center")
+        elif self.phase == "fight" and len(self.ready_rows()) >= 3 and (self.t // 10) % 2:
+            draw_text(surf, "TETRIS READY!" if len(self.ready_rows()) >= 4 else "TETRIS DANGER!",
+                      100, 50, (255, 120, 220), align="center")
+        if self.combo_show and self.combo >= 2:
+            draw_text(surf, "%d HIT COMBO" % self.combo, 6, 40, (255, 200, 40), scale=2)
+        if self.banner:
+            text, left, col = self.banner
+            if text == "TETRIS!":
+                cols = list(PIECE_COLORS.values())
+                col = cols[(self.t // 4) % len(cols)]
+                draw_text(surf, text, W // 2, 60, col, scale=4, align="center")
+                draw_text(surf, "-%d HP" % CLEAR_DMG[4], W // 2, 92, (255, 255, 255), align="center")
+            else:
+                draw_text(surf, text, W // 2, 64, col, scale=2, align="center")
+        if self.phase == "won" and self.end_t > 10:
+            draw_text(surf, "GAME OVER!", W // 2, 60, (255, 220, 60), scale=3, align="center")
+            draw_text(surf, "THE MASTER IS BEATEN", W // 2, 88, (255, 255, 255), align="center")
+        if self.phase == "lost" and self.end_t > 10:
+            draw_text(surf, "AKUMA FALLS...", W // 2, 64, (255, 255, 255), scale=2, align="center")
+        if self.menu.open:
+            self.menu.draw(surf)
+
+
+# --------------------------------------------------------------------------
 # map side
 # --------------------------------------------------------------------------
 _MODEL_OFFSET = 0
@@ -1334,10 +1870,9 @@ def setup_map_car(e, rng, boss, cfg, index=0):
     e.seed = rng.randrange(1 << 20)
     if boss:
         e.name = cfg["boss_name"]
-        e.pieces = build_block_car(e.seed)
-        e.side_hp = HIT * BOSS_SIDE_HITS
-        e.color = (200, 200, 200)
-        e.frames = boss_map_frames(e.pieces)
+        e.side_hp = BOSS_HP // 2         # (the fight itself counts blocks: TetrisScene)
+        e.color = (240, 70, 200)
+        e.frames = tetris_map_frames()
         e.speed = 0.0
     else:
         global _MODEL_OFFSET

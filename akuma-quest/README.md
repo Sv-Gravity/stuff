@@ -1,18 +1,17 @@
 # Akuma Quest
 
-A roguelike where every encounter turns into a Street Fighter–style duel, and every level after the first few turns into a different game. You play Akuma. There are eleven levels:
+A roguelike where every encounter turns into a Street Fighter–style duel, and every level after the first few turns into a different game. You play Akuma. There are ten levels:
 
 1. **The Caves of Gokuentou**: explore an overhead dungeon; touching an enemy (or being touched) switches to a side-view 1-on-1 fight. Boss: **Zangief**.
 2. **The Burning Temple**: the same, but every grunt brings a partner: **2-on-1** fights. Boss (alone): **Morrigan**.
-3. **The Wrecking Yard**: cars drive around instead of enemies; touching one starts an SF2-style car-smashing bonus round. Boss: **The Block Cruiser**, which Tetris pieces keep repairing.
+3. **The Wrecking Yard**: cars drive around instead of enemies; touching one starts an SF2-style car-smashing bonus round. Boss: **The Tetris Master**, who plays Tetris on a giant well; break his blocks before he scores a TETRIS.
 4. **The Car Park**: Bomberman. Plant hadouken bombs; one blast wrecks a car.
-5. **The Fighter Maze**: Pac-Man, chased by four of the cast (it changes every run).
-6. **Hyrule Castle**: Smash Bros 64. Akuma vs three CPUs, damage %, bubble shield, 3 stocks.
-7. **The Frozen Compound**: Metal Gear Solid. Sneak past guards and cameras; get spotted and their rifles nearly one-shot you. There's a cardboard box.
-8. **Skate or Die**: 720° skateboarding. 100 trick points in a minute or the ghost comes.
-9. **Connect Four**: against Ryu, with fireballs for pieces.
-10. **The Prisoners' Quarters**: a Dead Cells style side-scrolling metroidvania with a boss, the Warden.
-11. **Knee-Deep in the Demon**: Doom, shooting hadoukens. Boss: **Cyber-Gief**.
+5. **Hyrule Castle**: Smash Bros 64. Akuma vs three CPUs, damage %, bubble shield, 3 stocks.
+6. **The Frozen Compound**: Metal Gear Solid. Sneak past guards and cameras; get spotted and their rifles nearly one-shot you. There's a cardboard box.
+7. **Skate or Die**: 720° skateboarding. 100 trick points in a minute or the ghost comes.
+8. **Connect Four**: against Ryu, with fireballs for pieces.
+9. **The Prisoners' Quarters**: a Dead Cells style side-scrolling metroidvania with a boss, the Warden.
+10. **Knee-Deep in the Demon**: Doom, shooting hadoukens. Boss: **Cyber-Gief**.
 
 The main menu has **Start Game**, **Practice** (Akuma vs a sparring Ryu), **Level** (a debug shortcut: press left/right to pick a level and start there) and **Quit**.
 
@@ -45,7 +44,7 @@ Double-click **`build_exe.bat`**. It installs PyInstaller and produces `dist\Aku
 | Punch | J or Z | X (or LB) |
 | Kick | K or X | A (or RB) |
 | Special | L, C or Space | B or Y |
-| Shield / block (Smash), roll (level 10), strafe (level 11) | I | left stick click |
+| Shield / block (Smash), roll (level 9), strafe (level 10) | I | left stick click |
 | Pause menu (resume, controls, back to main menu) | Enter or Esc | Start |
 | Controls page | F1 or Tab | |
 | Fullscreen | F11 | |
@@ -61,7 +60,7 @@ Double-click **`build_exe.bat`**. It installs PyInstaller and produces `dist\Aku
 
 **Special + Punch** together is the **Goshoryuken** (dragon punch). **Special + Kick** together is the **Tatsumaki** (hurricane kick). "Together" means within 4 frames of each other, in either order, so a fireball that has only just started turns into the dragon punch or hurricane kick. Directions no longer change specials.
 
-**Punch + Kick together** up close is a **throw**, Third Strike style: Akuma grabs the enemy, lifts them up over his head and flings them the way you are holding (left or right; neutral throws forward, back swings them over his head to the other side). They spin through the air and slam into the floor. It does double damage and can't be blocked.
+**Punch + Kick together** up close is a **throw**, Akuma's Third Strike tomoe nage: he grabs them, drops onto his back, plants a foot in their gut and flips them over his head so they land behind him, then rolls back up. It does double damage and can't be blocked.
 
 **Down-forward + Kick** is a small, fast crouching kick that hits low and combos. **Down-back + Kick** is the sweep.
 
@@ -101,7 +100,7 @@ Practice puts Akuma against a sparring Ryu that never dies. Its health refills w
 - Fights start and end quickly: a short flash, a quick "FIGHT!", and straight back to the map after the K.O. (press any attack button to skip it).
 - Akuma's health carries over between fights. You heal 25% after each win, **Japanese snacks** are scattered all over the map (ramen, mochi, onigiri, dango, taiyaki, takoyaki, Pocky, melon pan, dorayaki and the rare bento; bigger meals heal more), and **Satsui orbs** raise max HP and damage.
 - Each level's **boss** waits on a throne in the biggest room. **Zangief** (level 1) takes **15 hits** and hits three times as hard as a grunt. He has 7 attacks, including a big energy push, a rush punch and a multi-hit Double Lariat. **Morrigan** (level 2) takes 18 hits, is faster and more aggressive, adds a leap kick, and hits even harder. Both get **enraged** at half health.
-- Beating a level restores Akuma's health and opens the next one. Clear level 11 to win the run.
+- Beating a level restores Akuma's health and opens the next one. Clear level 10 to win the run.
 
 ### Hitboxes
 
@@ -115,8 +114,12 @@ A small parking garage with only **5 cars** driving around it instead of enemies
 - Five cars a run come from seven models drawn on Toshi's car sheet: **Toyota AE86**, **Toyota MR2 SW20**, **Mazda Miata NA**, **Honda S2000**, **VW GTI Mk2**, **Mazda RX-7 FC** and a **'65 Mercury Cougar**. Each has five damage stages, from pristine to a smoking wreck in a pile of debris, and blows up when it's finished. Each side of the car has its own gauge (L and R under its health bar) and takes about **5 kicks** to wreck. Once one side is scrap, hits there do nothing, so **jump over the car** and wreck the other side. Windows shatter, bumpers fall off, doors get torn away and it starts smoking as each side takes damage.
 - Cars are solid: you can't walk through one, but you can **jump on top and stand on the roof** (and attack from up there), then walk off either end. A **hurricane kick spins right through the car**, hitting it about ten times on the way.
 - If the timer runs out, the car drives off and Akuma loses 20 HP.
-- The boss, **The Block Cruiser**, is a car built from falling-block puzzle pieces. Blocks fly off whichever side you hit, about 9 kicks per side, with a 45-second timer. If its timer runs out Akuma loses 30 HP and the clock restarts.
-- Meanwhile Tetris is being played in the sky: a random tetromino falls every few seconds, stepping down and turning like someone is steering it. One that **lands on the car repairs it** (about 4% of its health, and the lost blocks come back); one that lands on Akuma hurts. Punch, kick or hadouken a piece to smash it before it lands.
+- The boss is **The Tetris Master**, a guy in a backwards cap at an arcade cabinet on the left of the stage. His Tetris well (10 wide, 9 tall) fills the right half, and his screen mirrors it. He plays like a real player: each piece slides, turns and soft-drops into the spot his AI likes best (it looks at the NEXT piece too), stacking flat rows and keeping the right-hand column open for the long I piece. Rows that are one I piece away from clearing glow in that column, a warning flashes once three are lined up, and with rows lined up he has a knack for getting the I piece.
+- If he clears **4 lines at once (TETRIS!)** the screen flashes, a shockwave goes out and Akuma takes **40 HP** and is knocked down. A triple costs Akuma 10 HP; singles and doubles do nothing. He starts mid-game with two rows already lined up.
+- Break his blocks to wreck his lines: a punch (or each spin of a hurricane kick) cracks a block, a kick breaks one, a hadouken breaks the first two it hits, and a shoryuken breaks up to three. A hole in a row means that row can never clear. His health bar is **40 blocks**; empty it to win (a falling piece smashed in mid-air counts for 2).
+- Falling pieces hurt: one that reaches Akuma breaks on him for **12 HP** and knocks him down. A faint outline shows where each piece will land. Punch, kick or hadouken a piece to smash it before it lands.
+- The stack is solid: Akuma can't walk through it, but he can **jump on top and stand on it** to reach the high blocks. Blocks hanging over a gap can be walked under.
+- There's a **60-second** timer. If it runs out Akuma loses 30 HP and the clock restarts. If the Master ever tops out, his board is wiped and he loses 6.
 - Lose a fight and the run is over.
 
 ### Level 4: The Car Park
@@ -128,15 +131,7 @@ A Bomberman level in a parking garage with concrete pillars, crates, oil drums a
 - Cars fight back two ways. **Headlights**: a car stops, its headlights blink, then they switch on in a beam down the whole lane (-24 HP if you're in it). **Horn**: a car beeps and flashes, then honks, a small round blast around it (-20 HP). Getting run over hurts a little, and so does your own blast (-32 HP).
 - **One blast** wrecks a car. Wreck all five to clear the level.
 
-### Level 5: The Fighter Maze
-
-Pac-Man with Akuma. Four fighters picked from Chun-Li, Zangief, Morrigan, Felicia, Ryu, Ken, Sakura and Hsien-Ko chase him, each with a personality: one chases, one cuts him off ahead, one flanks, and one is shy.
-
-- Eat every pellet to clear the level. The side tunnels wrap around.
-- A **power pellet** turns them blue and makes them flee; touching one KOs it (200, 400, 800, 1600 points in a row). A KO'd fighter tags out for someone from the bench.
-- Getting caught costs a quarter of Akuma's health. Health runs out and the run is over.
-
-### Level 6: Hyrule Castle
+### Level 5: Hyrule Castle
 
 Smash Bros 64 on a pixel Hyrule Castle: a wide main floor, the tower, and pass-through ledges spread out across a bigger stage; the camera pans and zooms to keep everyone in view. Akuma vs three random CPUs, each with their own moveset (Ryu's shoryuken, Chun-Li's spinning bird kick, Zangief's piledriver and lariat, Hsien-Ko's thrown axes, Dr. Doom's green fireball and hellfire, and so on).
 
@@ -146,7 +141,7 @@ Smash Bros 64 on a pixel Hyrule Castle: a wide main floor, the tower, and pass-t
 - **Items** drop from the sky: Home-Run Bat, Beam Sword, Bob-omb, Hammer, Star, Heart Container and Japanese snacks. Stand on one and press **J** to pick it up, **J** to use it, **J+K** to throw it. Touching a star, heart or snack uses it at once. The CPUs go for items too.
 - Damage goes from **0% to 200%**. The higher it is, the further hits send you. **Two rounds of 3 stock**; win at least one round to clear the level.
 
-### Level 7: The Frozen Compound
+### Level 6: The Frozen Compound
 
 Metal Gear Solid. A snowy base full of guards, most of them standing on post staring one way (and glancing around now and then); a few walk short routes. Three of them are smoking, and everyone has something to say ("I REALLY NEED TO PEE.", "MUST'VE BEEN THE WIND... IT'S ALWAYS THE WIND.").
 
@@ -157,7 +152,7 @@ Metal Gear Solid. A snowy base full of guards, most of them standing on post sta
 - **Missions** (shown top-left and on the radar, with a codec call for each): get the keycard and C4, blow the three generators (the power dies, cameras and lasers go dark), free the prisoner, then **Revolver Ken** comes up the elevator. Beat him to clear the level.
 - If a guard catches you, it's a side-view fight against soldiers with **rifles** that kill in a few shots. Japanese snacks heal. The sounds are sound-alikes made in code (the game can't ship Konami's audio).
 
-### Level 8: Skate or Die
+### Level 7: Skate or Die
 
 720° on a skateboard in a big open park. Find the board ("SKATE OR DIEEEE!") and the one-minute clock starts.
 
@@ -167,11 +162,11 @@ Metal Gear Solid. A snowy base full of guards, most of them standing on post sta
 - Ollie clean over a fire hydrant for a **HYDRANT HOP** (+15); cones and trash cans are worth +10.
 - Reach **100 points** to clear it. If the clock runs out a **ghost** chases you; if it touches you, you die.
 
-### Level 9: Connect Four
+### Level 8: Connect Four
 
 Akuma and Ryu stand on either side of a Connect Four board. Pick a column with left/right and press an attack: Akuma throws a **red** hadouken that drops into the column and stays there as his piece; Ryu answers in **blue**. You always go first. Ryu searches 10 to 20 moves ahead and is hard to beat. A draw replays; Ryu winning ends the run.
 
-### Level 10: The Prisoners' Quarters
+### Level 9: The Prisoners' Quarters
 
 A Dead Cells style side-scroller: a castle prison laid out differently every run, with shrines, altars, hidden scrolls of power and the **Warden** at the end.
 
@@ -180,7 +175,7 @@ A Dead Cells style side-scroller: a castle prison laid out differently every run
 - Enemies flash before they swing and hit hard. Grunts, shield bearers, witches and bats.
 - 3 flasks, refilled at shrines. Dying costs one of 3 lives and sends you back to the last shrine. Spend cells at the altars for damage or health.
 
-### Level 11: Knee-Deep in the Demon
+### Level 10: Knee-Deep in the Demon
 
 Doom with hadoukens. A hell fortress in first person under a blood-red sky: green-grey stone, keycards, doors, a secret wall, imps, pinkies, cacodemons, lost souls and zombiemen, and **Cyber-Gief** guarding the exit portal. Akuma's own clawed hands (prayer beads, red ki) and bare foot fill the bottom of the screen, above a Doom-style status bar.
 
@@ -209,13 +204,12 @@ akuma/
   cars.py          level 3: car bonus rounds, the seven car models, the block-car boss
   fx.py            loads the fireball and explosion frames
   bomber.py        level 4: the Bomberman car park
-  pacman.py        level 5: the fighter maze
-  smash.py         level 6: Smash Bros on Hyrule Castle
-  stealth.py       level 7: the Metal Gear base
-  skate.py         level 8: the 720 skate park
-  connect4.py      level 9: Connect Four and Ryu's search
-  metroid.py       level 10: the Dead Cells style castle
-  doom.py          level 11: the raycaster
+  smash.py         level 5: Smash Bros on Hyrule Castle
+  stealth.py       level 6: the Metal Gear base
+  skate.py         level 7: the 720 skate park
+  connect4.py      level 8: Connect Four and Ryu's search
+  metroid.py       level 9: the Dead Cells style castle
+  doom.py          level 10: the raycaster
   snacks.py        the Japanese snack health pickups (pixel art and how much each heals)
   pause.py         the pause menu and controls page
   assets/chars/    every character's frames, feet points, pose lists and HUD portrait
@@ -229,14 +223,14 @@ tools/pocket_rows.py         shows chosen rows of a sheet bigger, for picking fr
 tools/extract_pocket.py      Akuma's frame list; cuts every character into akuma/assets/chars
 tools/specs/<name>.py        the other characters' frame lists
 tools/preview_chars.py       every pose of a character on one image, anchored on the feet
-tools/make_lubu.py           the Warden (level 10 boss): Ryu recoloured with armour and plumes
+tools/make_lubu.py           the Warden (level 9 boss): Ryu recoloured with armour and plumes
 tools/make_drdoom.py         Dr. Doom: cuts Toshi's Dr. Doom sheet into frames
 art_source/retired/          the earlier Akuma sheets' cut sprites and their tools (no longer used)
                              (the tools need pillow + numpy; not needed to play)
 tests/smoke_test.py         headless tests: move mapping, damage tiers, a 5-hit combo, jump-in
                             combos, throws, practice menu, car roofs, Tetris repairs, bots that
-                            play levels 1-5, every later level starting, and each level's test below
-tests/<level>_test.py       bomber, pacman, smash, stealth, skate, connect4, metroid, doom: each level's rules plus a bot that clears it
+                            play levels 1-4, every later level starting, and each level's test below
+tests/<level>_test.py       bomber, smash, stealth, skate, connect4, metroid, doom: each level's rules plus a bot that clears it
 ```
 
 Run the test with `python tests/smoke_test.py`. It needs no window and no sound. The game needs pygame and numpy (`run.bat` installs both).

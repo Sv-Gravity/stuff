@@ -34,16 +34,15 @@ LEVELS = {
             boss_hits=18, boss_dmg=3.5, boss_ai=dict(aggression=0.85, block=0.35, jumpiness=0.3, reaction=2)),
     # bonus-stage level: a few cars drive around a small garage; smash them before the timer
     3: dict(name="THE WRECKING YARD", ambient=(150, 150, 178), enemies=5, cars=True,
-            rooms=6, area=(38, 28), boss_name="THE BLOCK CRUISER"),
+            rooms=6, area=(38, 28), boss_name="THE TETRIS MASTER"),
     # no overworld: these levels are whole scenes of their own (game.start_level)
     4: dict(name="THE CAR PARK", mode="bomber", boss_name="EVERY CAR IN THE LOT"),
-    5: dict(name="THE FIGHTER MAZE", mode="pacman", boss_name="THE FIGHTER SQUAD"),
-    6: dict(name="HYRULE CASTLE", mode="smash", boss_name="THREE CHALLENGERS"),
-    7: dict(name="THE FROZEN COMPOUND", mode="stealth", boss_name="REVOLVER KEN"),
-    8: dict(name="SKATE OR DIE", mode="skate", boss_name="100 POINTS"),
-    9: dict(name="CONNECT FOUR", mode="connect4", boss_name="RYU"),
-    10: dict(name="THE PRISONERS' QUARTERS", mode="metroid", boss_name="THE WARDEN"),
-    11: dict(name="KNEE-DEEP IN THE DEMON", mode="doom", boss_name="CYBER-GIEF"),
+    5: dict(name="HYRULE CASTLE", mode="smash", boss_name="THREE CHALLENGERS"),
+    6: dict(name="THE FROZEN COMPOUND", mode="stealth", boss_name="REVOLVER KEN"),
+    7: dict(name="SKATE OR DIE", mode="skate", boss_name="100 POINTS"),
+    8: dict(name="CONNECT FOUR", mode="connect4", boss_name="RYU"),
+    9: dict(name="THE PRISONERS' QUARTERS", mode="metroid", boss_name="THE WARDEN"),
+    10: dict(name="KNEE-DEEP IN THE DEMON", mode="doom", boss_name="CYBER-GIEF"),
 }
 
 # fighters from Toshi's sprite pack (akuma/assets/chars/<id>)
