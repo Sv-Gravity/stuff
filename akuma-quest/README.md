@@ -177,7 +177,7 @@ A Dead Cells style side-scroller: a castle prison laid out differently every run
 
 ### Level 10: Knee-Deep in the Demon
 
-Doom with hadoukens. A hell fortress in first person under a blood-red sky: green-grey stone, keycards, doors, a secret wall, imps, pinkies, cacodemons, lost souls and zombiemen, and **Cyber-Gief** guarding the exit portal. Akuma's own clawed hands (prayer beads, red ki) and bare foot fill the bottom of the screen, above a Doom-style status bar.
+Doom with hadoukens. A hell fortress in first person under a blood-red sky: green-grey stone, keycards, doors, a secret wall, imps, pinkies, cacodemons, lost souls and zombiemen, possessed street fighters (**Ryu** throws hadoukens, **Chun-Li** rushes in with kicks and the odd kikoken), and **Cyber-Gief** guarding the exit portal. Gief fires rocket volleys, hammers you up close, and spins in with a **double lariat**: sidestep it or shoryuken over his arms. Akuma's own clawed hands (prayer beads, red ki) and bare foot fill the bottom of the screen, above a Doom-style status bar.
 
 - **Up/down** walk, **left/right** turn, **hold I** + left/right to strafe.
 - **L** fires a hadouken (hold to keep firing), **L+J** shoryuken, **L+K** spinning tatsumaki, **I+L** a piercing Shinku Hadouken, **J** punches, **K** kicks and opens doors.
