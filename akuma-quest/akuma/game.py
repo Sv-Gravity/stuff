@@ -192,7 +192,8 @@ class Game:
     SCENES = {"bomber": ("bomber", "BomberScene"),
               "smash": ("smash", "SmashScene"), "stealth": ("stealth", "StealthScene"),
               "skate": ("skate", "SkateScene"), "connect4": ("connect4", "Connect4Scene"),
-              "metroid": ("metroid", "MetroidScene"), "doom": ("doom", "DoomScene")}
+              "metroid": ("metroid", "MetroidScene"), "thunder": ("thunder", "ThunderScene"),
+              "doom": ("doom", "DoomScene")}
 
     def start_level(self, level):
         self.level = level

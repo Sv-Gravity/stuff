@@ -1,6 +1,6 @@
 # Akuma Quest
 
-A roguelike where every encounter turns into a Street Fighter–style duel, and every level after the first few turns into a different game. You play Akuma. There are ten levels:
+A roguelike where every encounter turns into a Street Fighter–style duel, and every level after the first few turns into a different game. You play Akuma. There are eleven levels:
 
 1. **The Caves of Gokuentou**: explore an overhead dungeon; touching an enemy (or being touched) switches to a side-view 1-on-1 fight. Boss: **Zangief**.
 2. **The Burning Temple**: the same, but every grunt brings a partner: **2-on-1** fights. Boss (alone): **Morrigan**.
@@ -11,7 +11,8 @@ A roguelike where every encounter turns into a Street Fighter–style duel, and 
 7. **Skate or Die**: 720° skateboarding. 100 trick points in a minute or the ghost comes.
 8. **Connect Four**: against Ryu, with fireballs for pieces.
 9. **The Prisoners' Quarters**: a Dead Cells style side-scrolling metroidvania with a boss, the Warden.
-10. **Knee-Deep in the Demon**: Doom, shooting hadoukens. Boss: **Cyber-Gief**.
+10. **Geldra's Hideout**: Rolling Thunder (NES). Two floors, maskers coming out of doors, and hadoukens instead of a gun. Boss: **Dr. Doom**.
+11. **Knee-Deep in the Demon**: Doom, shooting hadoukens. Boss: **Cyber-Gief**.
 
 The main menu has **Start Game**, **Practice** (Akuma vs a sparring Ryu), **Level** (a debug shortcut: press left/right to pick a level and start there) and **Quit**.
 
@@ -44,7 +45,7 @@ Double-click **`build_exe.bat`**. It installs PyInstaller and produces `dist\Aku
 | Punch | J or Z | X (or LB) |
 | Kick | K or X | A (or RB) |
 | Special | L, C or Space | B or Y |
-| Shield / block (Smash), roll (level 9), strafe (level 10) | I | left stick click |
+| Shield / block (Smash), roll (level 9), duck into a door (level 10), strafe (level 11) | I | left stick click |
 | Pause menu (resume, controls, back to main menu) | Enter or Esc | Start |
 | Controls page | F1 or Tab | |
 | Fullscreen | F11 | |
@@ -100,7 +101,7 @@ Practice puts Akuma against a sparring Ryu that never dies. Its health refills w
 - Fights start and end quickly: a short flash, a quick "FIGHT!", and straight back to the map after the K.O. (press any attack button to skip it).
 - Akuma's health carries over between fights. You heal 25% after each win, **Japanese snacks** are scattered all over the map (ramen, mochi, onigiri, dango, taiyaki, takoyaki, Pocky, melon pan, dorayaki and the rare bento; bigger meals heal more), and **Satsui orbs** raise max HP and damage.
 - Each level's **boss** waits on a throne in the biggest room. **Zangief** (level 1) takes **15 hits** and hits three times as hard as a grunt. He has 7 attacks, including a big energy push, a rush punch and a multi-hit Double Lariat. **Morrigan** (level 2) takes 18 hits, is faster and more aggressive, adds a leap kick, and hits even harder. Both get **enraged** at half health.
-- Beating a level restores Akuma's health and opens the next one. Clear level 10 to win the run.
+- Beating a level restores Akuma's health and opens the next one. Clear the last level to win the run.
 
 ### Hitboxes
 
@@ -175,7 +176,19 @@ A Dead Cells style side-scroller: a castle prison laid out differently every run
 - Enemies flash before they swing and hit hard. Grunts, shield bearers, witches and bats.
 - 3 flasks, refilled at shrines. Dying costs one of 3 lives and sends you back to the last shrine. Spend cells at the altars for damage or health.
 
-### Level 10: Knee-Deep in the Demon
+### Level 10: Geldra's Hideout
+
+Rolling Thunder on the NES, with Akuma instead of Albatross. A long street front with two floors, the street and a balcony walkway above it, in two areas (a brick warehouse district, then the steel Geldra base). Hooded Geldra maskers (the sprite-pack fighters, tinted by rank) step out of the doors on both floors.
+
+- No gun: the **hadouken is the gun** and **ki is the ammo** (4 shots when full, slow to refill). **Shoryuken** (special + punch, invincible on the way up) and **hurricane kick** (special + kick) are the close-range answer, plus the usual punch string, kick, low punch / sweep, jump attacks, dive kick and the 45° air hadouken (good for shooting down onto the street from the walkway). A hadouken also eats the maskers' small ki shots.
+- **UP** jumps; under a walkway it is a **vault**, a flip up onto the walkway. **DOWN + UP** on the walkway drops back down. **DOWN** ducks.
+- **Standing shooters fire high: duck. Crouching shooters fire low: jump.** Every masker flashes and shows a "!" before it fires.
+- Ranks: blue maskers shoot, red ones rush in and punch, green ones leap between the floors and jump-kick, purple ones (area 2) fire three-shot bursts.
+- **I** in front of a door ducks Akuma inside: hidden, nothing can hit him. Doors marked **KI** refill ki, **FOOD** heals with a Japanese snack, **RAPID** gives 12 seconds of free rapid-fire hadoukens. Each gives its item once.
+- 3 lives; dying puts Akuma back on his feet where he fell with a full bar.
+- **Dr. Doom**, master of Geldra, waits in the locked courtyard at the end: volleys of ki shots (watch his stance: crouched = low, standing = high), a charged beam, a punch up close, he flies to whichever floor you are on and his landing sends shockwaves along the floor (jump them), and he calls maskers out of the courtyard doors as his health drops. Faster below half health.
+
+### Level 11: Knee-Deep in the Demon
 
 Doom with hadoukens. A hell fortress in first person under a blood-red sky: green-grey stone, keycards, doors, a secret wall, imps, pinkies, cacodemons, lost souls and zombiemen, possessed street fighters drawn with Third Strike sprites (**Ryu** throws hadoukens, **Chun-Li** dashes in with lightning legs and the odd kikoken), and **Cyber-Gief**, Mech Zangief from Marvel vs. Capcom, guarding the exit portal. Gief breathes ice in a three-way spread, headbutts you up close, and barrels in with a **shoulder charge**: sidestep it or shoryuken over him. Akuma's own clawed hands (prayer beads, red ki) and bare foot fill the bottom of the screen, above a Doom-style status bar.
 
@@ -209,7 +222,8 @@ akuma/
   skate.py         level 7: the 720 skate park
   connect4.py      level 8: Connect Four and Ryu's search
   metroid.py       level 9: the Dead Cells style castle
-  doom.py          level 10: the raycaster
+  thunder.py       level 10: the Rolling Thunder street
+  doom.py          level 11: the raycaster
   snacks.py        the Japanese snack health pickups (pixel art and how much each heals)
   pause.py         the pause menu and controls page
   assets/chars/    every character's frames, feet points, pose lists and HUD portrait
@@ -231,7 +245,7 @@ art_source/retired/          the earlier Akuma sheets' cut sprites and their too
 tests/smoke_test.py         headless tests: move mapping, damage tiers, a 5-hit combo, jump-in
                             combos, throws, practice menu, car roofs, Tetris repairs, bots that
                             play levels 1-4, every later level starting, and each level's test below
-tests/<level>_test.py       bomber, smash, stealth, skate, connect4, metroid, doom: each level's rules plus a bot that clears it
+tests/<level>_test.py       bomber, smash, stealth, skate, connect4, metroid, thunder, doom: each level's rules plus a bot that clears it
 ```
 
 Run the test with `python tests/smoke_test.py`. It needs no window and no sound. The game needs pygame and numpy (`run.bat` installs both).
