@@ -741,10 +741,6 @@ class Renderer:
 
 
 # ---- art ---------------------------------------------------------------------
-TINT_MULT = (255, 120, 110)
-TINT_ADD = (64, 0, 0)
-BOSS_MULT = (230, 170, 190)
-BOSS_ADD = (40, 0, 30)
 FIGHTER_TINT = ((255, 205, 200), (28, 0, 0))     # possessed fighters: a hint of hell, own colours kept
 LIGHT_LEVELS = 10
 
@@ -1090,6 +1086,7 @@ def leg_parts():
 FIRE_KI = ((255, 255, 220), (255, 236, 130), (255, 180, 60), (250, 110, 30), (220, 50, 16), (150, 16, 8))
 # Akuma's own ki, the colours of the fx sheet: white core, lilac, magenta, blood red
 AKUMA_KI = ((255, 255, 255), (250, 214, 250), (226, 120, 230), (240, 40, 96), (196, 14, 40), (120, 4, 24))
+ICE_KI = ((255, 255, 255), (232, 248, 255), (176, 222, 255), (110, 170, 250), (60, 100, 220), (24, 40, 140))
 HADO_KI = ((255, 255, 255), (214, 240, 255), (130, 196, 255), (60, 120, 250), (24, 60, 200), (10, 24, 120))
 SHINKU_KI = ((255, 255, 255), (246, 206, 255), (206, 120, 255), (196, 40, 170), (140, 12, 96), (76, 0, 52))
 
@@ -1394,13 +1391,15 @@ KINDS = {
     "caco": dict(hp=110, speed=0.018, ranged=15, pain=0.5, wpp=0.0112, fly=0.22, radius=0.36, shot="fire",
                  name="CACODEMON"),
     "soul": dict(hp=30, speed=0.05, melee=10, pain=0.9, wpp=0.0105, fly=0.32, radius=0.25, name="LOST SOUL"),
-    # possessed street fighters: they keep their own moves (and their own ki)
-    "ryu": dict(cid="ryu", hp=150, speed=0.024, melee=18, ranged=16, pain=0.45, shot="ki", radius=0.32,
+    # possessed street fighters (Third Strike sprites, tools/make_doom_fighters.py):
+    # they keep their own moves and their own ki
+    "ryu": dict(cid="ryu3s", wpp=0.0095, shot_wpp=0.0075, hp=150, speed=0.024, melee=18, ranged=16, pain=0.45, shot="ki", radius=0.32,
                 melee_pose="punch", name="RYU"),
-    "chunli": dict(cid="chunli", hp=120, speed=0.042, melee=16, ranged=10, pain=0.4, shot="ki", radius=0.3,
+    "chunli": dict(cid="chunli3s", wpp=0.0095, shot_wpp=0.0085, hp=120, speed=0.042, melee=16, ranged=10, pain=0.4, shot="ki", radius=0.3,
                    melee_pose="kick", ranged_every=3, name="CHUN-LI"),
-    "boss": dict(cid="zangief", hp=900, speed=0.022, melee=28, ranged=14, pain=0.0, boss=True,
-                 wpp=0.02, radius=0.6, name="CYBER-GIEF"),
+    # Mech Zangief (Marvel vs. Capcom): ice breath, headbutt, shoulder charge
+    "boss": dict(cid="mechgief", hp=900, speed=0.022, melee=28, ranged=14, pain=0.0, boss=True,
+                 wpp=0.0145, shot_wpp=0.006, radius=0.6, name="CYBER-GIEF"),
 }
 WPP = 0.0125                  # world units per sprite pixel for fighters
 
@@ -1557,14 +1556,16 @@ class DoomScene:
         fire_side = [_tinted(f, (255, 170, 120), (50, 0, 0)) for f in rocket]
         self.fire_views = {"side": fire_side, "back": [ball_view(FIRE_KI, "back", k, 9) for k in range(4)],
                            "front": [ball_view(FIRE_KI, "front", k, 8) for k in range(4)]}
-        self.rocket_views = dict(self.fire_views, side=rocket)
+        self.ice_views = {"side": CharArt("mechgief").projectile_frames() or rocket,
+                          "back": [ball_view(ICE_KI, "back", k, 40) for k in range(4)],
+                          "front": [ball_view(ICE_KI, "front", k, 36) for k in range(4)]}
         self.ki_views = {}
         for e in self.enemies:
             if e.spec.get("shot") == "ki" and e.cid not in self.ki_views:
                 side = e.art.projectile_frames() or self.hado
                 self.ki_views[e.cid] = {"side": side,
-                                        "back": [ball_view(HADO_KI, "back", k, 8) for k in range(4)],
-                                        "front": [ball_view(HADO_KI, "front", k, 7) for k in range(4)]}
+                                        "back": [ball_view(HADO_KI, "back", k, 14) for k in range(4)],
+                                        "front": [ball_view(HADO_KI, "front", k, 12) for k in range(4)]}
         self.demon_art = {}
         for e in self.enemies:
             if e.art is None and e.kind not in self.demon_art:
@@ -2120,10 +2121,10 @@ class DoomScene:
             e.mode = "melee"
             return
         if e.boss and e.see and e.cool <= 0 and 1.6 < dist < 6 and self.rng.random() < 0.4:
-            # the double lariat: Gief spins in with both arms out
+            # the shoulder charge: Gief's thrusters fire and he slams in
             e.set("attack")
-            e.mode = "lariat"
-            e.lariat_hit = False
+            e.mode = "charge"
+            e.charge_hit = False
             self._play("doom_roar", "encounter", 0.5)
             return
         if ranged and e.see and e.cool <= 0 and dist < 13:
@@ -2170,8 +2171,8 @@ class DoomScene:
 
     def _attack(self, e, dist):
         span = 30 if e.boss else 22
-        if e.mode == "lariat":
-            self._lariat(e, dist)
+        if e.mode == "charge":
+            self._charge(e, dist)
             return
         if e.mode == "melee":
             if e.st == span * 2 // 3:
@@ -2189,18 +2190,18 @@ class DoomScene:
             bullet = e.spec.get("shot") == "bullet"
             ki = e.spec.get("shot") == "ki"
             if e.boss:
-                frames, angs = self.rocket_views, (a - 0.22, a, a + 0.22)
+                frames, angs = self.ice_views, (a - 0.22, a, a + 0.22)
             elif ki:
                 frames, angs = self.ki_views[e.cid], (a + self.rng.uniform(-0.04, 0.04),)
             else:
                 frames, angs = self.fire_views, (a + self.rng.uniform(-0.05, 0.05),)
-            wpp = 0.014 if e.boss else (0.004 if bullet else 0.0095)
+            wpp = e.spec.get("shot_wpp", 0.004 if bullet else 0.0095)
             z = 0.75 if e.boss else (0.42 if bullet else 0.35 + e.z + (0.1 if e.kind == "caco" else 0.15))
             for an in angs:
                 self.shots.append(Shot(e.x + math.cos(an) * (e.radius + 0.1), e.y + math.sin(an) * (e.radius + 0.1),
                                        an, ENEMY_SHOT_SPEED * (1.15 if e.boss else (2.2 if bullet else 1)), e,
                                        e.spec["ranged"], 0, 0.15 if bullet else 0.18, False, frames, wpp,
-                                       (0.4, 0.7, 1.6) if ki else (1.5, 0.6, 0.2), z))
+                                       (0.4, 0.7, 1.6) if ki or e.boss else (1.5, 0.6, 0.2), z))
             if ki:
                 self._play("hadouken", None, 0.5)
             elif bullet:
@@ -2215,11 +2216,11 @@ class DoomScene:
             else:
                 e.cool = self.rng.randint(70, 150)
 
-    LARIAT_T = 72
+    CHARGE_T = 72
 
-    def _lariat(self, e, dist):
-        """Spinning double lariat: Gief whirls at Akuma for a while, hitting once
-        on contact. Get out of the way, or shoryuken over his arms."""
+    def _charge(self, e, dist):
+        """Shoulder charge: Gief barrels at Akuma for a while, hitting once on
+        contact. Get out of the way, or shoryuken over him."""
         if e.st % 12 == 1:
             self._play("whiff")
         if dist > 0.01:
@@ -2231,11 +2232,11 @@ class DoomScene:
             if self._free(e.x, e.y + my, r) and not self._near_player(e.x, e.y + my, e):
                 e.y += my
             e.walked += sp
-        if not e.lariat_hit and dist < e.radius + PLAYER_R + 0.35 and self._jump() < 0.12:
-            e.lariat_hit = True
+        if not e.charge_hit and dist < e.radius + PLAYER_R + 0.35 and self._jump() < 0.12:
+            e.charge_hit = True
             self.hurt_player(e.spec["melee"] - 6, (e.x, e.y))
             self._play("heavy")
-        if e.st >= self.LARIAT_T:
+        if e.st >= self.CHARGE_T:
             e.set("chase")
             e.cool = 70
 
@@ -2411,16 +2412,14 @@ class DoomScene:
             key = art.resolve("walk", int(e.walked * 300), int(e.walked * 300))
         elif st == "attack":
             span = 30 if e.boss else 22
-            if e.mode == "lariat":
-                pose = "lariat_a" if (e.st // 6) % 2 == 0 else "lariat_b"
-                key = art.resolve(pose, e.st % 6, span=6)
-                flip = flip ^ ((e.st // 12) % 2 == 1)       # spinning: faces swap as he turns
+            if e.mode == "charge":
+                key = art.resolve("dash", e.st, e.st)
             elif e.mode == "melee":
                 pose = "hammer_down" if e.boss else e.spec.get("melee_pose", "punch")
                 prep = "hammer_up" if e.boss else pose + "_prep"
             else:
-                pose, prep = ("punch", "punch_prep") if e.boss else ("hado_fire", "hado_prep")
-            if e.mode != "lariat":
+                pose, prep = "hado_fire", "hado_prep"
+            if e.mode != "charge":
                 k = span * 2 // 3
                 key = art.resolve(prep, e.st, span=k) if e.st < k else art.resolve(pose, e.st - k, span=span - k)
         elif st == "pain":
@@ -2434,12 +2433,7 @@ class DoomScene:
         img = self._lit.get(ck)
         if img is None:
             base, anc = art.entry(key, flip, flash)
-            if e.boss:
-                mult, add = BOSS_MULT, BOSS_ADD
-            elif e.spec.get("shot") == "ki":
-                mult, add = FIGHTER_TINT
-            else:
-                mult, add = TINT_MULT, TINT_ADD
+            mult, add = FIGHTER_TINT
             img = base if flash else _tinted(base, mult, add)
             self._lit[ck] = img
         return ck, img, art.anchor(key, flip)

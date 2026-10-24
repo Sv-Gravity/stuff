@@ -1,0 +1,14 @@
+idle 6 1 f0_0 f0_1 f0_2 f0_3 f0_4 f0_5 f0_6 f0_7 f0_8 f0_9
+walk 4 1 f1_0 f1_1 f1_2 f1_3 f1_4 f1_5 f1_6 f1_7 f1_8 f1_9 f1_10
+punch_prep 3 0 f2_0 f2_1
+punch 3 0 f3_0 f3_1 f3_2
+punch_rec 3 0 f4_0 f4_1 f4_2
+kick_prep 2 0 f5_0 f5_1 f5_2 f5_3 f5_4 f5_5
+kick 3 0 f6_0 f6_1 f6_2 f6_3
+kick_rec 3 0 f7_0 f7_1 f7_2 f7_3 f7_4
+hado_prep 3 0 f8_0 f8_1 f8_2 f8_3 f8_4
+hado_fire 3 0 f9_0 f9_1 f9_2 f9_3 f9_4 f9_5 f9_6
+hurt 3 0 f10_0 f10_1 f10_2 f10_3 f10_4
+launch 3 0 f11_0 f11_1 f11_2 f11_3 f11_4 f11_5 f11_6 f11_7 f11_8 f11_9 f11_10 f11_11 f11_12 f11_13 f11_14
+down 4 0 f12_0 f12_1 f12_2 f12_3 f12_4 f12_5 f12_6 f12_7 f12_8 f12_9 f12_10 f12_11
+#projectile 9

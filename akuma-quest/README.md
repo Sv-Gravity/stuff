@@ -177,7 +177,7 @@ A Dead Cells style side-scroller: a castle prison laid out differently every run
 
 ### Level 10: Knee-Deep in the Demon
 
-Doom with hadoukens. A hell fortress in first person under a blood-red sky: green-grey stone, keycards, doors, a secret wall, imps, pinkies, cacodemons, lost souls and zombiemen, possessed street fighters (**Ryu** throws hadoukens, **Chun-Li** rushes in with kicks and the odd kikoken), and **Cyber-Gief** guarding the exit portal. Gief fires rocket volleys, hammers you up close, and spins in with a **double lariat**: sidestep it or shoryuken over his arms. Akuma's own clawed hands (prayer beads, red ki) and bare foot fill the bottom of the screen, above a Doom-style status bar.
+Doom with hadoukens. A hell fortress in first person under a blood-red sky: green-grey stone, keycards, doors, a secret wall, imps, pinkies, cacodemons, lost souls and zombiemen, possessed street fighters drawn with Third Strike sprites (**Ryu** throws hadoukens, **Chun-Li** dashes in with lightning legs and the odd kikoken), and **Cyber-Gief**, Mech Zangief from Marvel vs. Capcom, guarding the exit portal. Gief breathes ice in a three-way spread, headbutts you up close, and barrels in with a **shoulder charge**: sidestep it or shoryuken over him. Akuma's own clawed hands (prayer beads, red ki) and bare foot fill the bottom of the screen, above a Doom-style status bar.
 
 - **Up/down** walk, **left/right** turn, **hold I** + left/right to strafe.
 - **L** fires a hadouken (hold to keep firing), **L+J** shoryuken, **L+K** spinning tatsumaki, **I+L** a piercing Shinku Hadouken, **J** punches, **K** kicks and opens doors.
@@ -225,6 +225,7 @@ tools/specs/<name>.py        the other characters' frame lists
 tools/preview_chars.py       every pose of a character on one image, anchored on the feet
 tools/make_lubu.py           the Warden (level 9 boss): Ryu recoloured with armour and plumes
 tools/make_drdoom.py         Dr. Doom: cuts Toshi's Dr. Doom sheet into frames
+tools/make_doom_fighters.py  Doom level fighters: cuts the fightersgeneration.com gifs (art_source/fightersgeneration/) into ryu3s, chunli3s, mechgief
 art_source/retired/          the earlier Akuma sheets' cut sprites and their tools (no longer used)
                              (the tools need pillow + numpy; not needed to play)
 tests/smoke_test.py         headless tests: move mapping, damage tiers, a 5-hit combo, jump-in

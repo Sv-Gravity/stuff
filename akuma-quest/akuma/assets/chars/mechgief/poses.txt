@@ -1,0 +1,10 @@
+idle 6 1 f0_0 f0_1 f0_2 f0_3 f0_4 f0_5 f0_6 f0_7 f0_8 f0_9
+walk 6 1 f1_0 f1_1 f1_2 f1_3 f1_4 f1_5 f1_6 f1_7 f1_8 f1_9
+hammer_up 3 0 f2_0 f2_1 f2_2 f2_3 f2_4
+hammer_down 3 0 f3_0 f3_1 f3_2 f3_3 f3_4 f3_5 f3_6 f3_7 f3_8
+hado_prep 4 0 f4_0 f4_1
+hado_fire 4 0 f5_0 f5_1 f5_2 f5_3
+dash 3 1 f6_0 f6_1 f6_2 f6_3 f6_4 f6_5 f6_6 f6_7 f6_8 f6_9 f6_10 f6_11 f6_12 f6_13 f6_14 f6_15 f6_16 f6_17 f6_18
+launch 4 0 f7_0 f7_1 f7_2 f7_3 f7_4
+down 4 0 f8_0 f8_1 f8_2 f8_3 f8_4 f8_5 f8_6 f8_7
+#projectile 4
