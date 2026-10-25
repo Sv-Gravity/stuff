@@ -2680,12 +2680,7 @@ function viewPantry(){
   app.innerHTML = `<h1 style="margin-bottom:6px">The Pantry</h1>
     <h2 class="sect">Video settings</h2>
     <div class="panel">
-      ${VIDEO_LATENCY.map(v => `<div class="fact">
-        <div class="ft"><b>${esc(v.what)}</b><span>${esc(v.why)}</span></div>
-        <div class="fv">${esc(v.val)}</div></div>`).join('')}
-    </div>
-    <div class="panel"><h2>Set once and leave it</h2>
-      ${VIDEO_REST.map(v => `<div class="fact">
+      ${[...VIDEO_LATENCY, ...VIDEO_REST].map(v => `<div class="fact">
         <div class="ft"><b>${esc(v.what)}</b><span>${esc(v.why)}</span></div>
         <div class="fv">${esc(v.val)}</div></div>`).join('')}
     </div>
