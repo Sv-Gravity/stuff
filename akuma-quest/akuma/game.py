@@ -203,7 +203,8 @@ class Game:
               "smash": ("smash", "SmashScene"), "stealth": ("stealth", "StealthScene"),
               "skate": ("skate", "SkateScene"), "connect4": ("connect4", "Connect4Scene"),
               "metroid": ("metroid", "MetroidScene"), "thunder": ("thunder", "ThunderScene"),
-              "climb": ("climb", "ClimbScene"), "doom": ("doom", "DoomScene")}
+              "climb": ("climb", "ClimbScene"), "cs": ("cs", "CsScene"),
+              "doom": ("doom", "DoomScene")}
 
     def start_level(self, level):
         self.level = level

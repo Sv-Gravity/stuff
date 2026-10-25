@@ -44,7 +44,8 @@ LEVELS = {
     9: dict(name="THE PRISONERS' QUARTERS", mode="metroid", boss_name="THE WARDEN"),
     10: dict(name="GELDRA'S HIDEOUT", mode="thunder", boss_name="DR. DOOM"),
     11: dict(name="THE CLIMB", mode="climb", boss_name="EVERY RIVAL"),
-    12: dict(name="KNEE-DEEP IN THE DEMON", mode="doom", boss_name="CYBER-GIEF"),
+    12: dict(name="DUST II", mode="cs", boss_name="THE CT SQUAD"),
+    13: dict(name="KNEE-DEEP IN THE DEMON", mode="doom", boss_name="CYBER-GIEF"),
 }
 
 # fighters from Toshi's sprite pack (akuma/assets/chars/<id>)

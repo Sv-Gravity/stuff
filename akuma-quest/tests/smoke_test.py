@@ -740,9 +740,10 @@ def main():
     from tests.metroid_test import test_metroid
     from tests.thunder_test import test_thunder
     from tests.climb_test import test_climb
+    from tests.cs_test import test_cs
     from tests.doom_test import test_doom
     for t in (test_smash, test_stealth, test_skate, test_connect4, test_metroid, test_thunder, test_climb,
-              test_doom):
+              test_cs, test_doom):
         game.to_title()
         t(game)
     print("OK")

@@ -1,6 +1,6 @@
 # Akuma Quest
 
-A roguelike where every encounter turns into a Street Fighter–style duel, and every level after the first few turns into a different game. You play Akuma. There are twelve levels:
+A roguelike where every encounter turns into a Street Fighter–style duel, and every level after the first few turns into a different game. You play Akuma. There are thirteen levels:
 
 1. **The Caves of Gokuentou**: explore an overhead dungeon; touching an enemy (or being touched) switches to a side-view 1-on-1 fight. Boss: **Zangief**.
 2. **The Burning Temple**: the same, but every grunt brings a partner: **2-on-1** fights. Boss (alone): **Morrigan**.
@@ -13,7 +13,8 @@ A roguelike where every encounter turns into a Street Fighter–style duel, and 
 9. **The Prisoners' Quarters**: a Dead Cells style side-scrolling metroidvania with a boss, the Warden.
 10. **Geldra's Hideout**: Rolling Thunder (NES). Two floors, maskers coming out of doors, and hadoukens instead of a gun. Boss: **Dr. Doom**.
 11. **The Climb**: Fall Guys. Race four Street Fighters up a giant obstacle tower to the crown, with Smash damage % and knockback; get knocked off and you start again from the bottom. Win it and round 2 is a side-scrolling race ahead of a wall of spikes.
-12. **Knee-Deep in the Demon**: Doom, shooting hadoukens. Boss: **Cyber-Gief**.
+12. **Dust II**: Counter-Strike on a Dust 2 style map. Akuma is the lone terrorist, 1 vs 3: plant the bomb on A or B and keep the CTs off it. No guns, just hadoukens and fists.
+13. **Knee-Deep in the Demon**: Doom, shooting hadoukens. Boss: **Cyber-Gief**.
 
 The main menu has **Start Game**, **Practice** (Akuma vs a sparring Ryu), **Level** (a debug shortcut: press left/right to pick a level and start there) and **Quit**.
 
@@ -46,7 +47,7 @@ Double-click **`build_exe.bat`**. It installs PyInstaller and produces `dist\Aku
 | Punch | J or Z | X (or LB) |
 | Kick | K or X | A (or RB) |
 | Special | L, C or Space | B or Y |
-| Shield / block (Smash), roll (level 9), duck into a door (level 10), strafe (level 11) | I | LT / RT (or left stick click) |
+| Shield / block (Smash), roll (level 9), duck into a door (level 10), strafe (levels 12-13), plant the bomb (level 12) | I | LT / RT (or left stick click) |
 | Pause menu (resume, controls, back to main menu) | Enter or Esc | Start (View closes it) |
 | Back / skip (closes menus, skips codec calls) | Esc | View |
 | Controls page | F1 or Tab | Pause menu, CONTROLS |
@@ -210,7 +211,18 @@ Fall Guys meets Smash. A giant candy-coloured obstacle tower, ten screens tall, 
 - **? boxes**: jump into them for a snack (-35%) or a star (a few seconds where nothing can hit you, though the spike wall still can).
 - Touch the spike wall and you are out of that try. Fall off the bottom and you drop back in just ahead of the wall at 0%. Reach the gate at the end first to win. **3 tries**: win one to clear the level.
 
-### Level 12: Knee-Deep in the Demon
+### Level 12: Dust II
+
+A Counter-Strike round in first person, on the Doom level's engine. The map is Dust 2 squeezed onto a 40 x 32 grid, north up like the radar: **T spawn** at the bottom, **Long A** up the east side through the long doors, **mid** up the middle with the xbox crate and the **catwalk** (short A) branching off it, **CT spawn** at the top behind the mid doors, and the dark **B tunnels** (upper and lower) on the west into **B site**, whose wooden double doors open onto CT spawn. Sun-bleached sandstone, flaking plaster, blue shutters, crates and the red sprayed **A** and **B** letters, all painted in code, under a pale desert sky.
+
+- Akuma spawns T side with the bomb, alone against **3 counter-terrorists** drawn with Third Strike sprites: **Chun-Li** holds B, **Ken** holds A (Ryu's sprites repainted red and blond by `tools/make_ken3s.py`) and **Ryu** sits at the mid doors. The first time any CT spots you, Ryu rotates to you a couple of seconds later. They fight like the Doom level's fighters: hadoukens from range, punches and kicks up close.
+- Same moves as level 13: **L** hadouken, **I+L** Shinku Hadouken, **L+J** shoryuken, **L+K** tatsumaki, **J** punch, **K** kick (kick the B doors open). **Up/down** walk, **left/right** turn, **hold I** + left/right to strafe.
+- **Plant**: stand on site A or B and **hold I without moving** for about 3 seconds. Akuma holds the C4 low and types the code in; moving or firing starts it over.
+- Once it is planted the round clock becomes the **40-second bomb timer** and every CT runs for the bomb. One that reaches it crouches over it and **defuses** in 6 seconds; any hit stops the defuse and it starts again from zero. If no CT is left alive, the bomb goes off a couple of seconds later.
+- **Terrorists win** when the bomb explodes. **Counter-terrorists win** if Akuma dies, if the 1:55 round clock runs out before the plant, or if they finish a defuse. Snacks heal and ki orbs refill ki, as in Doom.
+- The top of the screen is a CS scoreboard: Akuma's T icon, the round clock (the bomb's seconds in red once it is down), the three CT portraits crossed out as they fall, and a kill feed.
+
+### Level 13: Knee-Deep in the Demon
 
 Doom with hadoukens. A hell fortress in first person under a blood-red sky: green-grey stone, keycards, doors, a secret wall, imps, pinkies, cacodemons, lost souls and zombiemen, possessed street fighters drawn with Third Strike sprites (**Ryu** throws hadoukens, **Chun-Li** dashes in with lightning legs and the odd kikoken), and **Cyber-Gief**, Mech Zangief from Marvel vs. Capcom, guarding the exit portal. Gief breathes ice in a three-way spread, headbutts you up close, and barrels in with a **shoulder charge**: sidestep it or shoryuken over him. Akuma's own clawed hands (prayer beads, red ki) and bare foot fill the bottom of the screen, above a Doom-style status bar.
 
@@ -247,7 +259,8 @@ akuma/
   thunder.py       level 10: the Rolling Thunder street
   climb.py         level 11: the Fall Guys climbing race
   spikerun.py      level 11, round 2: the scrolling spike-wall run
-  doom.py          level 12: the raycaster
+  cs.py            level 12: Counter-Strike on Dust II (built on doom.py)
+  doom.py          level 13: the raycaster
   snacks.py        the Japanese snack health pickups (pixel art and how much each heals)
   pause.py         the pause menu and controls page
   assets/chars/    every character's frames, feet points, pose lists and HUD portrait
@@ -264,12 +277,13 @@ tools/preview_chars.py       every pose of a character on one image, anchored on
 tools/make_lubu.py           the Warden (level 9 boss): Ryu recoloured with armour and plumes
 tools/make_drdoom.py         Dr. Doom: cuts Toshi's Dr. Doom sheet into frames
 tools/make_doom_fighters.py  Doom level fighters: cuts the fightersgeneration.com gifs (art_source/fightersgeneration/) into ryu3s, chunli3s, mechgief
+tools/make_ken3s.py          Dust II's Ken: ryu3s repainted (red gi, blond hair)
 art_source/retired/          the earlier Akuma sheets' cut sprites and their tools (no longer used)
                              (the tools need pillow + numpy; not needed to play)
 tests/smoke_test.py         headless tests: move mapping, damage tiers, a 5-hit combo, jump-in
                             combos, throws, practice menu, car roofs, Tetris repairs, bots that
                             play levels 1-4, every later level starting, and each level's test below
-tests/<level>_test.py       bomber, smash, stealth, skate, connect4, metroid, thunder, climb, doom: each level's rules plus a bot that clears it
+tests/<level>_test.py       bomber, smash, stealth, skate, connect4, metroid, thunder, climb, cs, doom: each level's rules plus a bot that clears it
 tests/pad_test.py           Xbox controller input with a fake pad: hot-plug, buttons, stick, triggers, menus
 ```
 

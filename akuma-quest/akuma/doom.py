@@ -553,9 +553,11 @@ def fog(d):
 
 
 class Renderer:
-    def __init__(self, lmap):
+    fog = staticmethod(fog)      # distance shading (a level can swap in its own)
+
+    def __init__(self, lmap, textures=None):
         self.m = lmap
-        self.tex, self.sky = build_textures()
+        self.tex, self.sky = textures or build_textures()
         # every texel of every texture, then the sky, in one flat (N, 3) table
         self.sky_base = N_TEX * TS * TS
         flat = np.concatenate([self.tex.reshape(-1, 3), self.sky.reshape(-1, 3)]).astype(np.uint8)
@@ -705,8 +707,8 @@ class Renderer:
             index = np.where(sky, sky_idx, index)
         img = np.take(self.flat32, index).view(np.uint8).reshape(W, VIEW_H, 4)[..., :3]
         # light: the cell's own light times distance fog
-        wl = (light_now[pry, prx] * fog(dist) * np.where(side == 1, 0.8, 1.0)).astype(np.float32)
-        fl = np.take(light_now.ravel(), cell) * fog(rd)[None, :]
+        wl = (light_now[pry, prx] * self.fog(dist) * np.where(side == 1, 0.8, 1.0)).astype(np.float32)
+        fl = np.take(light_now.ravel(), cell) * self.fog(rd)[None, :]
         shade = np.where(wallm, wl[:, None], fl)
         if flash:
             shade += np.float32(flash * 0.25)
@@ -1405,8 +1407,8 @@ WPP = 0.0125                  # world units per sprite pixel for fighters
 
 
 class Enemy:
-    def __init__(self, kind, x, y, rng):
-        spec = KINDS[kind]
+    def __init__(self, kind, x, y, rng, spec=None):
+        spec = spec or KINDS[kind]
         self.kind = kind
         self.spec = spec
         self.cid = spec.get("cid", kind)
@@ -1474,6 +1476,13 @@ class Thing:
 
 # ---- the scene ---------------------------------------------------------------
 class DoomScene:
+    # what a level built on this scene swaps out (cs.py: Dust II)
+    MAP, RENDERER, KINDS = LevelMap, Renderer, KINDS
+    START = (6.5, 28.3, -math.pi / 2)
+    EXTRA_SNACKS = EXTRA_SNACKS
+    FIXTURES = ("torch", "portal")      # things that are never picked up
+    FIGHTER_TINT = FIGHTER_TINT
+
     def __init__(self, game, seed=None, level=13, hp=None):
         self.game = game
         self.level = level
@@ -1482,23 +1491,23 @@ class DoomScene:
         self.max_hp = game.akuma_max
         self.hp = self.max_hp if hp is None else hp
         self.power = getattr(game, "power", 1.0) or 1.0
-        self.map = LevelMap(random.Random(13))
-        self.r = Renderer(self.map)
+        self.map = self.MAP(random.Random(13))
+        self.r = self.RENDERER(self.map)
         self.light_now = self.map.light.copy()
-        self.px, self.py, self.ang = 6.5, 28.3, -math.pi / 2
+        self.px, self.py, self.ang = self.START
         self.ki = KI_START
         self.keys = set()
         self.enemies, self.things = [], []
         for kind, x, y in self.map.things:
-            if kind in KINDS:
-                self.enemies.append(Enemy(kind, x, y, self.rng))
+            if kind in self.KINDS:
+                self.enemies.append(Enemy(kind, x, y, self.rng, self.KINDS[kind]))
             else:
                 self.things.append(Thing(kind, x, y))
         self._scatter_snacks()
         for t in self.things:
             if t.kind == "snack":
                 t.snack = random_snack(self.rng)
-        self.boss = next(e for e in self.enemies if e.boss)
+        self.boss = next((e for e in self.enemies if e.boss), None)
         self.total = len(self.enemies)
         self.kills = 0
         self.shots, self.effects = [], []
@@ -1584,7 +1593,7 @@ class DoomScene:
         taken = {(int(t.x), int(t.y)) for t in self.things} | {(int(e.x), int(e.y)) for e in self.enemies}
         cells = [(x, y) for y in range(MAP_H) for x in range(MAP_W)
                  if m.grid[y, x] == 0 and (x, y) not in taken and m.area_of(x, y) not in (None, "exit", "start")]
-        for x, y in self.rng.sample(cells, min(EXTRA_SNACKS, len(cells))):
+        for x, y in self.rng.sample(cells, min(self.EXTRA_SNACKS, len(cells))):
             t = Thing("snack", x, y)
             t.x += self.rng.uniform(-0.2, 0.2)
             t.y += self.rng.uniform(-0.2, 0.2)
@@ -1741,7 +1750,7 @@ class DoomScene:
     def open_door(self, d, by_player=True):
         if d.opening:
             return True
-        if d.key == "boss" and self.boss.alive:
+        if d.key == "boss" and self.boss and self.boss.alive:
             if by_player:
                 self.say("THE SEAL HOLDS WHILE CYBER-GIEF LIVES")
                 self._play("doom_locked", "block")
@@ -2261,7 +2270,7 @@ class DoomScene:
     # ---- pickups & triggers ----------------------------------------------------
     def _pickups(self):
         for t in self.things:
-            if t.taken or t.kind in ("torch", "portal"):
+            if t.taken or t.kind in self.FIXTURES:
                 continue
             if (t.x - self.px) ** 2 + (t.y - self.py) ** 2 > 0.45 ** 2:
                 continue
@@ -2433,7 +2442,7 @@ class DoomScene:
         img = self._lit.get(ck)
         if img is None:
             base, anc = art.entry(key, flip, flash)
-            mult, add = FIGHTER_TINT
+            mult, add = self.FIGHTER_TINT
             img = base if flash else _tinted(base, mult, add)
             self._lit[ck] = img
         return ck, img, art.anchor(key, flip)
@@ -2471,7 +2480,7 @@ class DoomScene:
             elif t.kind == "bigki":
                 img, wpp, z, lit = self.bigki, 0.016, 0.15 + bob, False
             else:
-                img, wpp, z, lit = self.cards[t.kind], 0.02, 0.08 + bob, True
+                img, wpp, z, lit = self._thing_sprite(t, bob)
             out.append((p[1], p[0], (t.kind, id(img)), img, (img.get_width() // 2, img.get_height()),
                         wpp, z, lit, t.x, t.y))
         for s in self.shots:
@@ -2502,6 +2511,10 @@ class DoomScene:
         out.sort(key=lambda s: -s[0])
         return out
 
+    def _thing_sprite(self, t, bob):
+        """Keycards (a level built on this scene draws its own things here)."""
+        return self.cards[t.kind], 0.02, 0.08 + bob, True
+
     def _draw_sprites(self, surf):
         zbuf = self.r.zbuf
         h = VIEW_H / 2
@@ -2523,7 +2536,7 @@ class DoomScene:
                 continue
             if lit and key is not None:
                 cx, cy = min(MAP_W - 1, max(0, int(wx))), min(MAP_H - 1, max(0, int(wy)))
-                lv = float(self.light_now[cy, cx]) * float(fog(depth)) + self.flash * 0.25
+                lv = float(self.light_now[cy, cx]) * float(self.r.fog(depth)) + self.flash * 0.25
                 level = max(1, min(LIGHT_LEVELS, int(round(lv * LIGHT_LEVELS))))
                 img = self._lit_img(key, img, level)
             scaled = pygame.transform.scale(img, (sw, sh))
