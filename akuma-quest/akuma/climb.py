@@ -81,7 +81,7 @@ def R(rise):
 # --------------------------------------------------------------------------
 class Plat:
     def __init__(self, x0, x1, rise, kind="static", col=None, ax=0.0, ay=0.0, period=240, phase=0.0,
-                 belt=0.0, on=60, off=60, ledges=None):
+                 belt=0.0, on=60, off=60, ledges=None, nodrop=False):
         self.bx0, self.w = float(x0), float(x1 - x0)
         self.by = float(R(rise)) if kind != "floor" else float(FLOOR)
         self.kind = kind
@@ -91,6 +91,7 @@ class Plat:
         self.col = col
         self.idx = 0
         self.ledges = (kind == "static") if ledges is None else ledges
+        self.nodrop = nodrop or kind in ("floor", "finish")     # DOWN doesn't drop through it
         self.crumble = -1          # frames until it falls (crumble tiles), -1 = untouched
         self.gone = 0              # frames until it comes back
         self.x0, self.y = self.bx0, self.by
@@ -428,7 +429,7 @@ class Climber(S.Smasher):
             self.jbuf = 0
             self.state, self.t = "prejump", 0
             return
-        if it.down_p and self.on is not None and self.on.kind not in ("floor", "finish"):
+        if it.down_p and self.on is not None and not self.on.nodrop:
             self.drop = 14
             self.airborne = True
             self.on = None
@@ -475,6 +476,16 @@ class Climber(S.Smasher):
             self.x += p.dx + p.belt
             self.y = p.y
         self.x += dx
+        for r in sc.solids:                               # walls you can't walk through
+            if self.x + S.BODY_W > r.left and self.x - S.BODY_W < r.right and self.y > r.top + 1 \
+                    and self.y - S.BODY_H < r.bottom:
+                if dx + (self.on.dx if self.on is not None and not self.airborne else 0) >= 0 \
+                        and self.x < r.centerx:
+                    self.x = r.left - S.BODY_W
+                else:
+                    self.x = r.right + S.BODY_W
+                self.vx = 0.0
+                self.lvx *= -0.4
         if self.airborne:
             py = self.y
             self.y += dy
@@ -504,10 +515,12 @@ class Climber(S.Smasher):
             return
         if self.state == "move" and not (self.move.get("upb") or self.helpless):
             return
+        if not self.is_player and not getattr(self.sc, "cpu_ledges", True) and not self.helpless:
+            return
         for p in self.sc.ledges():
             for lx, side in ((p.x0, -1), (p.x1, 1)):
                 inward = -side
-                if not (p.y - 2 <= self.y <= p.y + 26):
+                if not (p.y + 6 <= self.y <= p.y + 26):        # a little below it, not walking off it
                     continue
                 off = (self.x - lx) * side
                 if -2 <= off <= 14 and (it.dir == inward or self.vx * inward > 0.2 or self.helpless):
@@ -563,6 +576,7 @@ class ClimbBrain(S.Brain):
         sc = self.sc
         t0 = sc.course_t
         hw, hh = me.half_w, me.hgt
+        xmin, xmax, ymax = sc.sim_box
         g = S.GRAV * me.grav_k
         k = 0
         if not airborne:
@@ -604,7 +618,7 @@ class ClimbBrain(S.Brain):
                             best = (p, pyy)
                 if best is not None:
                     return best[0]
-            if y > FLOOR + 10 or x < -20 or x > CW + 20:
+            if y > ymax or x < xmin or x > xmax:
                 return None
         return None
 
@@ -954,6 +968,8 @@ class ClimbScene(S.SmashScene):
 
     def _start_round(self):
         self.plats, self.hazards, self.finish = build_course()
+        self.solids = []
+        self.sim_box = (-20, CW + 20, FLOOR + 10)          # the jump planner gives up outside this
         self._ledges = [p for p in self.plats if p.ledges]
         cast = ["akuma"] + list(self.roster)
         self.fighters = [Climber(self, c, i, i == 0) for i, c in enumerate(cast)]
@@ -1257,9 +1273,10 @@ class ClimbScene(S.SmashScene):
                 self.popups.append(["HARD: " + name, ak.x, ak.y - ak.hgt - 10, 90, (255, 120, 90)])
 
     def _finish(self):
-        if self.won:
+        if self.won:                            # round 2: the spike run, same rivals
             self.result = "win"
-            self.game.level_done(self, self.hp)
+            from .spikerun import SpikeRunScene
+            self.game.scene = SpikeRunScene(self.game, self.rng.random(), self.level, self.hp, self.roster)
         else:
             self.result = "lose"
             self.game.level_failed(self)
@@ -1464,6 +1481,12 @@ class ClimbScene(S.SmashScene):
                 dk = img.copy()
                 dk.fill((150, 150, 170, 255), special_flags=pygame.BLEND_RGBA_MULT)
                 surf.blit(dk, (x, y))
+            if f.star:
+                tint = S.flash_of(f.art, f.draw_key, f.flip, f.k).copy()
+                tint.fill(S.STAR_COLORS[(self.t // 3) % len(S.STAR_COLORS)] + (255,),
+                          special_flags=pygame.BLEND_RGBA_MULT)
+                tint.set_alpha(120 if f.star > 90 or (f.star // 4) % 2 else 40)
+                surf.blit(tint, (x, y))
             elif f.invuln and (self.t // 3) % 2:
                 wh = S.flash_of(f.art, f.draw_key, f.flip, f.k).copy()
                 wh.set_alpha(110)
@@ -1488,7 +1511,7 @@ class ClimbScene(S.SmashScene):
     def _draw_blasts_screen(self, surf, rc):
         if not self.blasts:
             return
-        layer = pygame.Surface((W, H), pygame.SRCALPHA)
+        layer = pygame.Surface(surf.get_size(), pygame.SRCALPHA)
         for bx, by, ang, col, t in self.blasts:
             bx, by = bx - rc.x, by - rc.y
             ln = min(250, 30 + t * 16)
@@ -1505,7 +1528,15 @@ class ClimbScene(S.SmashScene):
         surf.blit(layer, (0, 0))
 
     def _hud(self, surf):
-        # bottom: everyone's damage %, in their colour, with their place
+        places = self._panels(surf)
+        self._tower_bar(surf)
+        if self.phase in ("play", "game"):
+            draw_text(surf, "TRY %d/%d" % (self.round, TRIES), 4, 3, (255, 255, 255))
+            ak = self.akuma
+            draw_text(surf, "%s PLACE" % ordinal(places[ak]), W - 14, 3, (255, 230, 120), align="right")
+
+    def _panels(self, surf):
+        """Bottom: everyone's damage %, in their colour, with their place."""
         n = len(self.fighters)
         pw = 60
         gap = (W - 8 - pw * n) // max(1, n - 1)
@@ -1521,11 +1552,16 @@ class ClimbScene(S.SmashScene):
             draw_text(surf, ordinal(places[f]), x0 + 21, y0 + 2, f.color)
             p = int(f.pct)
             jx = self.rng.randint(-1, 1) if f.dmg_shake else 0
-            if f.state == "dead":
+            if f.out:
+                draw_text(surf, "OUT", x0 + pw - 3, y0 + 11, (150, 150, 160), align="right")
+            elif f.state == "dead":
                 draw_text(surf, "OFF!", x0 + pw - 3, y0 + 11, (255, 120, 120), align="right")
             else:
                 draw_text(surf, "%d%%" % p, x0 + pw - 3 + jx, y0 + 11, S.pct_color(p), align="right")
-        # right edge: the tower, with a dot for each racer and the hard spots marked
+        return places
+
+    def _tower_bar(self, surf):
+        """Right edge: the tower, with a dot for each racer and the hard spots marked."""
         bx, by0, by1 = W - 8, 18, H - 30
         pygame.draw.rect(surf, OUTLINE, (bx - 2, by0 - 2, 5, by1 - by0 + 4))
         surf.fill((70, 60, 100), (bx - 1, by0 - 1, 3, by1 - by0 + 2))
@@ -1541,10 +1577,6 @@ class ClimbScene(S.SmashScene):
             yy = ry(f.rise)
             pygame.draw.rect(surf, OUTLINE, (bx - 4, yy - 2, 9, 5))
             surf.fill(f.color, (bx - 3, yy - 1, 7, 3))
-        if self.phase in ("play", "game"):
-            draw_text(surf, "TRY %d/%d" % (self.round, TRIES), 4, 3, (255, 255, 255))
-            ak = self.akuma
-            draw_text(surf, "%s PLACE" % ordinal(places[ak]), W - 14, 3, (255, 230, 120), align="right")
 
     def _overlays(self, surf):
         cx = W // 2
@@ -1587,6 +1619,6 @@ class ClimbScene(S.SmashScene):
                 draw_text(surf, txt, cx, 45 + k * 9, (255, 120, 90) if name == "AKUMA" else (170, 170, 190),
                           align="center")
             if self.won:
-                draw_text(surf, "LEVEL CLEAR!", cx, 80, (255, 80, 60), scale=2, align="center")
+                draw_text(surf, "ON TO ROUND 2!", cx, 80, (255, 80, 60), scale=2, align="center")
             else:
                 draw_text(surf, "AKUMA IS ELIMINATED", cx, 80, (200, 200, 220), scale=2, align="center")

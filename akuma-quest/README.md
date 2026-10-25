@@ -12,7 +12,7 @@ A roguelike where every encounter turns into a Street Fighter–style duel, and 
 8. **Connect Four**: against Ryu, with fireballs for pieces.
 9. **The Prisoners' Quarters**: a Dead Cells style side-scrolling metroidvania with a boss, the Warden.
 10. **Geldra's Hideout**: Rolling Thunder (NES). Two floors, maskers coming out of doors, and hadoukens instead of a gun. Boss: **Dr. Doom**.
-11. **The Climb**: Fall Guys. Race four Street Fighters up a giant obstacle tower to the crown, with Smash damage % and knockback; get knocked off and you start again from the bottom.
+11. **The Climb**: Fall Guys. Race four Street Fighters up a giant obstacle tower to the crown, with Smash damage % and knockback; get knocked off and you start again from the bottom. Win it and round 2 is a side-scrolling race ahead of a wall of spikes.
 12. **Knee-Deep in the Demon**: Doom, shooting hadoukens. Boss: **Cyber-Gief**.
 
 The main menu has **Start Game**, **Practice** (Akuma vs a sparring Ryu), **Level** (a debug shortcut: press left/right to pick a level and start there) and **Quit**.
@@ -200,7 +200,15 @@ Fall Guys meets Smash. A giant candy-coloured obstacle tower, ten screens tall, 
 - Hard spots on the way, called out when you reach them and marked red on the tower bar at the right: the **Crumble Bridge** (tiles that fall a moment after you land, under a spinning bar), the **Pillars** (a double sweeper, then thin pillars between pistons), the **Ghost Blocks** (platforms that blink on and off in turn while fruit flies through), and **the Summit** at the end (a lift, crumbling steps, a glove, fruit and a double sweeper spinning round the crown).
 - Everyone fights with their Smash moveset (same controls as level 5, no items) and has a **damage %**: hits and obstacles raise it, and the higher it is the further everything knocks you. Knock rivals off the tower to send them back to the bottom.
 - Get knocked off the side yourself and you **respawn on the floor at 0%** and have to catch up. Holding toward a ledge as you fall past grabs it.
-- The rivals plan their jumps (and time the moving platforms and obstacles), sometimes hesitate, and brawl with whoever is next to them. **3 tries**: win any one to clear the level.
+- The rivals plan their jumps (and time the moving platforms and obstacles), sometimes hesitate, and brawl with whoever is next to them. **3 tries**: win the tower race to go on to round 2.
+
+**Round 2: The Spike Run.** The same rivals, now on a long left-to-right course with a huge wall of spikes grinding along behind you, speeding up slowly. The course has three floors that braid together:
+
+- **Splits**: a fast high road of short hops under a windmill, a middle road with a wall to vault and a hammer swinging over the gap, and a slow low road with a backward conveyor, spikes, a pit and a crusher slamming down from above.
+- **Crossings**: an X of stairs where the top road steps down and the bottom road climbs up, so everyone meets in the middle, with a fruit cannon firing along the floor.
+- **Arenas**: the roads squeeze onto one big platform with spikes below and a windmill above. Brawl here and knock rivals back into the wall.
+- **? boxes**: jump into them for a snack (-35%) or a star (a few seconds where nothing can hit you, though the spike wall still can).
+- Touch the spike wall and you are out of that try. Fall off the bottom and you drop back in just ahead of the wall at 0%. Reach the gate at the end first to win. **3 tries**: win one to clear the level.
 
 ### Level 12: Knee-Deep in the Demon
 
@@ -238,6 +246,7 @@ akuma/
   metroid.py       level 9: the Dead Cells style castle
   thunder.py       level 10: the Rolling Thunder street
   climb.py         level 11: the Fall Guys climbing race
+  spikerun.py      level 11, round 2: the scrolling spike-wall run
   doom.py          level 12: the raycaster
   snacks.py        the Japanese snack health pickups (pixel art and how much each heals)
   pause.py         the pause menu and controls page

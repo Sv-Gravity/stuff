@@ -1,4 +1,5 @@
-"""Headless test of The Climb (the Fall Guys style climbing race).
+"""Headless test of The Climb (the Fall Guys style climbing race, then round 2:
+the spike run).
 
 Checks that every platform of the tower can be jumped to from the one before
 it (a jump the racers' own planner finds, timing the moving ones), that
@@ -8,7 +9,14 @@ obstacles (sweeper, hammer, glove, fruit) add damage % and knock harder at
 high %, that a fighter knocked off the side respawns on the floor at 0%,
 that the first to touch the FINISH wins (a rival winning costs a try; three
 lost tries fail the level), and then a bot (the rivals' own brain driving
-Akuma) races four CPUs to the crown and clears the level.
+Akuma) races four CPUs to the crown.
+
+Round 2 (spikerun.py): the gate can be reached from the start along the
+braided lanes, walls block the way until vaulted, the spike wall advances and
+knocks out whoever it touches (Akuma touching it costs a try), falling off the
+bottom puts you back just ahead of the spikes at 0%, ? boxes heal or give a
+star, a crusher slams, the first through the gate wins, and then the bot runs
+both rounds and clears the level.
 
     SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy python tests/climb_test.py
 """
@@ -24,7 +32,9 @@ sys.path.insert(0, ROOT)
 import pygame  # noqa: E402
 
 from akuma import climb as C  # noqa: E402
+from akuma import spikerun as R  # noqa: E402
 from akuma.climb import ClimbScene  # noqa: E402
+from akuma.spikerun import SpikeRunScene  # noqa: E402
 
 SHOTS = os.environ.get("SHOTS", os.path.join(ROOT, "screenshots"))
 MAX_FRAMES = 60 * 60 * 15
@@ -310,10 +320,203 @@ def test_finish(game):
             _tick(game)
         for _ in range(C.FINAL_LEN + 5):
             _tick(game)
-        assert done and sc.result == "win", (done, sc.result)
+        assert sc.result == "win" and not done, (done, sc.result)
+        assert isinstance(game.scene, SpikeRunScene), "winning the tower didn't lead to round 2"
+        assert [f.cid for f in game.scene.cpus] == [f.cid for f in sc.cpus], "round 2 has other rivals"
     finally:
         game.level_done, game.level_failed = old
     print("climb finish: first to the crown wins, %d lost tries fail the level" % C.TRIES)
+
+
+def _run(game, seed=1, cpu=False):
+    sc = SpikeRunScene(game, seed=seed)
+    game.scene = sc
+    sc.cpu_enabled = cpu
+    while sc.phase == "intro":
+        _tick(game)
+    return sc
+
+
+def _park_run(sc):
+    """Rivals standing still on the start pad, out of the way."""
+    for k, f in enumerate(sc.cpus):
+        _put(f, sc.plats[0], 250.0 + k * 6)
+
+
+def test_run_course(game):
+    """From the start pad there is a chain of jumps (and walk-offs) to the gate."""
+    sc = _run(game)
+    ak = sc.akuma
+    brain = R.RunBrain(sc, ak, R.random.Random(0), skill=1.0)
+    plats = sc.plats
+    seen = {0}
+    todo = [plats[0]]
+    while todo:
+        a = todo.pop()
+        lo, hi = max(a.x0 + 4, -60), a.x1 - 4
+        goals = [b for b in plats if b.idx not in seen and b.x1 > a.x0 and b.x0 < a.x1 + 200
+                 and a.y - 130 < b.y < a.y + 200 and b.kind != "block"]
+        if not goals:
+            continue
+        cands = [b for b in plats if b.x1 > a.x0 - 20 and b.x0 < a.x1 + 260]
+        for k in range(7):
+            x = lo + (hi - lo) * k / 6
+            ak.x = x
+            for b in goals:
+                if b.idx in seen:
+                    continue
+                brain._aim(b)
+                tries = [(x, 0.0, False, dj) for dj in (None, 6, 12, 18, 24)]
+                tries.append((a.x1 + 2, ak.walk, True, None))        # walk off the end
+                for sx, vx, air, dj in tries:
+                    hit = brain.simulate(sx, a.y, vx, 0.0, 1, air, b, dj, cands)
+                    if hit is not None and hit.idx not in seen:
+                        seen.add(hit.idx)
+                        todo.append(hit)
+    fin = [p for p in plats if p.x0 <= sc.gate_x <= p.x1 and p.kind == "finish"][0]
+    assert fin.idx in seen, "the gate can't be reached"
+    missed = [p.idx for p in plats if p.idx not in seen and p.kind != "block"]
+    assert len(missed) <= len(plats) // 10, ("too many platforms nobody can reach", missed)
+    kinds = {h.kind for h in sc.hazards}
+    assert {"sweep", "pend", "crusher", "spikes", "cannon"} <= kinds, kinds
+    assert sc.solids and sc.boxes
+    print("spike run course: %d platforms over %d px, gate reachable (%d unreachable decoys), %d walls, "
+          "%d ? boxes, obstacles: %s" % (len(plats), sc.length, len(missed), len(sc.solids), len(sc.boxes),
+                                         ", ".join(sorted(kinds))))
+
+
+def test_run_rules(game):
+    sc = _run(game, seed=2)
+    _park_run(sc)
+    ak = sc.akuma
+    # a wall stops you walking until you jump it
+    r = sc.solids[0]
+    base = [p for p in sc.plats if p.x0 < r.left and p.x1 > r.right and abs(p.y - r.bottom) < 1][0]
+    _put(ak, base, r.left - 30)
+    for _ in range(40):
+        _tick(game, ("right",))
+    assert ak.x < r.left, ("walked through the wall", ak.x, r.left)
+    _tick(game, ("right", "up"), ("up",))
+    for _ in range(40):
+        _tick(game, ("right", "up"))
+    assert ak.x > r.right, ("couldn't jump the wall", ak.x, r.right)
+    # falling off the bottom: back in just ahead of the spikes at 0%
+    sc.wall_x = 600.0
+    ak.pct = 70.0
+    ak.x, ak.y, ak.on, ak.airborne, ak.state = 900.0, R.FALL_Y + 5, None, True, "air"
+    for _ in range(S_RESPAWN_WAIT + 2):
+        _tick(game)
+    assert ak.state != "dead" and ak.pct == 0 and ak.invuln > 0, (ak.state, ak.pct)
+    assert sc.wall_x < ak.x < sc.wall_x + R.RESPAWN_AHEAD + 120, (sc.wall_x, ak.x)
+    for _ in range(80):
+        _tick(game)
+    assert ak.on is not None and not ak.airborne, "didn't land after respawning"
+    sc.wall_x = -400.0                 # out of the way for the rest
+    # a ? box: snack or star
+    b = sc.boxes[0]
+    b.cool = 0
+    ak.pct = 50.0
+    ak.x, ak.y, ak.on, ak.airborne, ak.state, ak.vy = b.x, b.y + ak.hgt - 4, None, True, "air", 0.0
+    _tick(game)
+    assert b.cool > 0 and (ak.star > 0 or ak.pct < 50), ("? box gave nothing", ak.star, ak.pct)
+    # a crusher slams whoever is under it
+    h = [h for h in sc.hazards if h.kind == "crusher"][0]
+    floor = [p for p in sc.plats if p.x0 <= h.x + h.w / 2 <= p.x1 and abs(p.y - h.floor) < 1][0]
+    while (sc.course_t + h.phase) % h.period != 80:
+        _tick(game)
+    _put(ak, floor, h.x + h.w / 2)
+    ak.pct = 0.0
+    ak.star = 0
+    for _ in range(25):
+        _tick(game)
+    assert ak.pct > 0, "the crusher missed"
+    print("spike run rules: walls block until jumped, fall -> back %d px ahead of the spikes at 0%%, "
+          "? box, crusher +%d%%" % (R.RESPAWN_AHEAD, ak.pct))
+
+
+S_RESPAWN_WAIT = 75
+
+
+def test_run_wall(game):
+    """The spikes move in and take out whoever they touch; Akuma touching them costs a try."""
+    sc = _run(game, seed=3)
+    ak = sc.akuma
+    for f in sc.fighters:
+        _put(f, sc.plats[0], 80.0 - f.slot * 3)      # Akuma furthest in front: the rivals go first
+    x0 = sc.wall_x
+    out = False
+    for _ in range(60 * 12):
+        _tick(game)
+        if sc.phase != "play":
+            break
+    assert sc.wall_x > x0 + 50, ("the wall didn't move", x0, sc.wall_x)
+    moved = sc.wall_x - x0
+    assert ak.out and sc.phase == "game" and not sc.won and sc.winner is None, (ak.out, sc.phase)
+    out = sum(1 for f in sc.cpus if f.out)
+    assert out == len(sc.cpus), "the rivals standing there survived the spikes"
+    shot(game, "spikerun_spiked.png")
+    while sc.phase == "game":
+        _tick(game)
+    assert sc.round == 2 and sc.tries == [""], (sc.round, sc.tries)
+    print("spike run wall: moved %d px and spiked all five idlers; Akuma's try is lost" % moved)
+
+
+def test_run_gate(game):
+    done, failed = [], []
+    old = game.level_done, game.level_failed
+    game.level_done = lambda scene, hp: done.append(hp)
+    game.level_failed = lambda scene: failed.append(1)
+    try:
+        sc = _run(game, seed=4)
+        _park_run(sc)
+        fin = [p for p in sc.plats if p.kind == "finish"][0]
+        cpu = sc.cpus[0]
+        _put(cpu, fin, sc.gate_x + 4)
+        for _ in range(3):
+            _tick(game)
+        assert sc.winner is cpu and not sc.won, sc.winner
+        while sc.phase == "game":
+            _tick(game)
+        while sc.phase == "intro":
+            _tick(game)
+        sc.cpu_enabled = False
+        _park_run(sc)
+        _put(sc.akuma, fin, sc.gate_x + 4)
+        for _ in range(3):
+            _tick(game)
+        assert sc.winner is sc.akuma and sc.won
+        while sc.phase != "final":
+            _tick(game)
+        for _ in range(C.FINAL_LEN + 5):
+            _tick(game)
+        assert done and not failed and sc.result == "win", (done, failed)
+    finally:
+        game.level_done, game.level_failed = old
+    print("spike run gate: first through wins; a rival there first costs a try")
+
+
+def bot_run(game, sc, label="spikerun.png"):
+    """Akuma driven by the round 2 brain until he's through the gate."""
+    brain = None
+    frames = 0
+    shot_at = None
+    while game.scene is sc and sc.result is None and frames < MAX_FRAMES:
+        frames += 1
+        if brain is None or brain.me is not sc.akuma:
+            brain = R.RunBrain(sc, sc.akuma, R.random.Random(frames), skill=1.0)
+        if frames % 20 == 0:
+            sc.akuma.pct = min(sc.akuma.pct, 40.0)       # a small cheat, as in the Smash bot
+        if sc.phase == "play" and not sc.akuma.out:
+            it = brain.think()
+            _tick(game, it.held_actions(), it.pressed_actions())
+            near = any(f.on_field and abs(f.x - sc.akuma.x) < 90 for f in sc.cpus)
+            if label and shot_at is None and (sc.akuma.x > 900 and near or sc.akuma.x > 2400):
+                shot_at = frames
+                shot(game, label)
+        else:
+            _tick(game)
+    assert sc.result == "win", (sc.result, frames, sc.tries, [(f.name, int(f.x), f.out) for f in sc.fighters])
+    return frames, sc.tries
 
 
 def bot_climb(game, label="climb.png"):
@@ -354,6 +557,13 @@ def test_run(game):
     shot(game, "climb_intro.png")
     frames, tries = bot_climb(game)
     print("climb: bot beat %s to the crown in %.1f s (tries: %s)" % (", ".join(names), frames / 60, tries))
+    sc = game.scene
+    assert isinstance(sc, SpikeRunScene), sc
+    for _ in range(100):
+        game.tick()
+    shot(game, "spikerun_intro.png")
+    frames, tries = bot_run(game, sc)
+    print("spike run: bot outran the spikes in %.1f s (tries: %s)" % (frames / 60, tries))
 
 
 def test_climb(game):
@@ -362,6 +572,10 @@ def test_climb(game):
     test_obstacles(game)
     test_knockoff(game)
     test_finish(game)
+    test_run_course(game)
+    test_run_rules(game)
+    test_run_wall(game)
+    test_run_gate(game)
     game.to_title()
     test_run(game)
     from akuma.game import LevelClear
