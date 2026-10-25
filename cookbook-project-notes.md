@@ -38,6 +38,5 @@ No downloading YouTube videos. Toshi sends screenshots (stand, aim, pop) or his 
 - Strats get a blue "Strat" pill and can be split into stages, each with its own steps and pictures. Players are lettered (A + B, X + Y + Z), never numbered.
 
 ## Still to do
-- Banana rush flash from the YouTube video (needs Toshi's screenshots).
 - Default CT setups for maps other than Inferno.
 - Windows 11 section (Toshi will expand it first).
