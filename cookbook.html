@@ -168,6 +168,7 @@
      type      "Smoke" | "Flash" | "Molotov" | "HE" | "Spam"  (or an array; [] for strats, e.g. ["HE","Molotov"])
      location  specific spot it lands (shown as "Section - location")
      detail    description of use (shown after the dot)
+     name      optional full display name; replaces "Section - location" and the detail
      summary   one-line description of what it does
      steps     array of instruction strings
      images    [{ src: "images/inferno/xyz.jpg", caption: "Crosshair" }]
@@ -1915,7 +1916,7 @@ const ENTRIES = [
     "side": "T",
     "type": "Flash",
     "location": "Entry",
-    "detail": "From Upper Tunnels",
+    "name": "B Site, Support Flash (T)",
     "actions": [
       "jump",
       "lmb"
@@ -1948,7 +1949,7 @@ const ENTRIES = [
     "side": "T",
     "type": "Flash",
     "location": "Doors",
-    "detail": "From Xbox",
+    "name": "Mid Doors Self Flash (T)",
     "actions": [
       "lmb"
     ],
@@ -1981,7 +1982,7 @@ const ENTRIES = [
     "side": "T",
     "type": "Flash",
     "location": "Entry",
-    "detail": "From Lower Tunnels",
+    "name": "Cat Support Flash, From mid (T)",
     "actions": [
       "jump",
       "lmb"
@@ -2015,7 +2016,7 @@ const ENTRIES = [
     "side": "T",
     "type": "Flash",
     "location": "Entry",
-    "detail": "From Short",
+    "name": "A Site, From Cat Flash",
     "actions": [
       "lmb"
     ],
@@ -2047,7 +2048,7 @@ const ENTRIES = [
     "side": "CT",
     "type": "Flash",
     "location": "Retake",
-    "detail": "From CT Spawn",
+    "name": "A Site, From CT Flash",
     "actions": [
       "lmb"
     ],
@@ -2079,7 +2080,7 @@ const ENTRIES = [
     "side": "CT",
     "type": "Flash",
     "location": "Peek Flash",
-    "detail": "From CT Cross",
+    "name": "Long Rush Defense Flash (CT)",
     "actions": [
       "run",
       "lmb"
@@ -2112,7 +2113,7 @@ const ENTRIES = [
     "side": "T",
     "type": "Flash",
     "location": "Entry",
-    "detail": "From Outside Long",
+    "name": "A Long, Doors Support Flash (T)",
     "actions": [
       "jump",
       "lmb"
@@ -2145,7 +2146,7 @@ const ENTRIES = [
     "side": "T",
     "type": "Flash",
     "location": "Entry",
-    "detail": "From Long Doors",
+    "name": "A Long, Doors Self Flash (T)",
     "actions": [
       "lmb"
     ],
@@ -2177,7 +2178,7 @@ const ENTRIES = [
     "side": "CT",
     "type": "Flash",
     "location": "Doors",
-    "detail": "From Long Corner",
+    "name": "A Long, Phone Flash (CT)",
     "actions": [
       "lmb"
     ],
@@ -2209,7 +2210,7 @@ const ENTRIES = [
     "side": "CT",
     "type": "Flash",
     "location": "Doors",
-    "detail": "From CT Cross",
+    "name": "A Long, Doors Support Flash (CT)",
     "actions": [
       "lmb"
     ],
@@ -2241,7 +2242,7 @@ const ENTRIES = [
     "side": "CT",
     "type": "Flash",
     "location": "Defend",
-    "detail": "From Goose",
+    "name": "A Site, Goose Defense Flash",
     "actions": [
       "both"
     ],
@@ -2273,7 +2274,7 @@ const ENTRIES = [
     "side": "T",
     "type": "Flash",
     "location": "Entry",
-    "detail": "From Catwalk",
+    "name": "Cat Self Flash (T)",
     "actions": [
       "run",
       "jump",
@@ -2308,7 +2309,7 @@ const ENTRIES = [
     "side": "T",
     "type": "Flash",
     "location": "Entry",
-    "detail": "From Long Doors",
+    "name": "Cat Support Flash, From long (T)",
     "actions": [
       "run",
       "jump",
@@ -2342,7 +2343,7 @@ const ENTRIES = [
     "side": "T",
     "type": "Smoke",
     "location": "CT Spawn",
-    "detail": "From Xbox",
+    "name": "Mid CT Spawn Smoke (T)",
     "actions": [
       "lmb"
     ],
@@ -2494,6 +2495,7 @@ const getMap = id => MAPS.find(m => m.id === id);
 const entryName = e => {
   const m = getMap(e.map); const id = sectionsOf(e)[0];
   const s = m && m.sections.find(x => x.id === id);
+  if(e.name) return e.name;
   return `${s ? s.name : id} - ${e.location}`;
 };
 
