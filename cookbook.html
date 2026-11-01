@@ -59,7 +59,6 @@
   .fact .ft .gn{font-size:17px}
   .fact .ft .vlist div{display:flex;align-items:baseline;gap:14px;padding:5px 0;border-top:1px dashed var(--line)}
   .fact .ft .vlist div:first-child{border-top:0}
-  .nr-sub{margin:-12px 0 8px;font-size:19px;font-weight:600;color:var(--muted);line-height:1.25}
   .nr-lead{margin:0 0 18px;color:var(--text)}
   .nr-canvas{display:block;width:100%;max-width:760px;margin:0 auto}
   .nr-ctl{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px}
@@ -2737,7 +2736,7 @@ const PANTRY = [
   { id:'mouse',      name:'Mouse' },
   { id:'crosshairs', name:'Crosshairs' },
   { id:'configs',    name:'Configs' },
-  { id:'native',     name:'4:3' },
+  { id:'native',     name:'4:3', title:'4:3 - or How I Learned to Stop Worrying and Love Native Res' },
   { id:'gear',       name:'Gear' }
 ];
 // page: 'map' | 'ing' | 'pantry' (mid = section id) | 'other' (no map); null hides the bar
@@ -2983,7 +2982,7 @@ const PANTRY_VIEWS = {
 const pantryId = id => PANTRY.some(t => t.id === id) ? id : PANTRY[0].id;
 function viewPantry(id){
   const t = PANTRY.find(x => x.id === pantryId(id));
-  app.innerHTML = `<h1 style="margin-bottom:18px">${esc(t.name)}</h1>` + PANTRY_VIEWS[t.id]();
+  app.innerHTML = `<h1 style="margin-bottom:18px">${esc(t.title || t.name)}</h1>` + PANTRY_VIEWS[t.id]();
   if(t.id === 'native') nrInit();
 }
 window.copyCfg = i => copyText(CFGS[i].text);
@@ -3343,8 +3342,7 @@ function nrCones(){
 // Pantry 4:3 section (#/pantry/native); the Pantry adds the "4:3" heading
 function nativeHtml(){
   cancelAnimationFrame(nrRaf);
-  return `<p class="nr-sub">or How I Learned to Stop Worrying and Love Native Res</p>
-    <p class="nr-lead">I've played since Counter Strike 0.9 beta, habit is not an excuse, adapt to survive.</p>
+  return `    <p class="nr-lead">I've played since Counter Strike 0.9 beta, habit is not an excuse, adapt to survive.</p>
 
     <div class="panel"><h2>Same head, two screens</h2>
       <canvas id="nrCanvas" class="nr-canvas" aria-label="Animation: the same enemy runs across a native screen and a 4:3 stretched screen on the same monitor. On the stretched screen his head is wider and moves faster, and he is on screen for less time."></canvas>
