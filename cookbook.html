@@ -2825,9 +2825,15 @@ const NV_3D = [
 ];
 
 // Windows 11 settings, one group per settings page
+const WIN_CPUS = [{ id:'std', name:'Intel & Ryzen' }, { id:'x3d', name:'Ryzen X3D' }];
+let winTab = 0;
+window.setWinTab = i => { winTab = i; render(true); };
+const winRows = rows => rows.filter(r => !r.only || r.only === WIN_CPUS[winTab].id)
+  .map(r => ({ ...r, ...((r[WIN_CPUS[winTab].id]) || {}) }));
 const WIN = [
   { where:'Settings &gt; Gaming', rows:[
-    { what:'Game Mode', val:'On', why:'Holds back Windows Update installs and notifications mid-game. Ryzen X3D with two CCDs (7950X3D, 9950X3D): must stay on, AMD\'s driver uses it to put CS2 on the cache cores.' },
+    { what:'Game Mode', val:'On', why:'Holds back Windows Update installs and notifications mid-game.',
+      x3d:{ why:'Must stay on. On two-CCD chips (7950X3D, 9950X3D) AMD\'s driver uses it to put CS2 on the cache cores.' } },
     { what:'Captures - Record what happened', val:'Off', why:'Background recording costs frame time.' }
   ]},
   { where:'Settings &gt; System &gt; Display', rows:[
@@ -2842,7 +2848,9 @@ const WIN = [
     { what:'Variable refresh rate', val:'On', why:'G-SYNC works in fullscreen windowed too.' }
   ]},
   { where:'Control Panel &gt; Power Options', rows:[
-    { what:'Power plan', val:'High performance', why:'Ultimate Performance is no faster on a desktop. Ryzen X3D: Balanced, so the chipset driver keeps CS2 on the cache cores.' }
+    { what:'Power plan', val:'High performance', why:'Ultimate Performance is no faster on a desktop.',
+      x3d:{ val:'Balanced', why:'High and Ultimate stop the chipset driver from parking the non-cache cores.' } },
+    { what:'AMD chipset driver', val:'Latest', why:'Installs the 3D V-Cache driver that keeps CS2 on the cache cores.', only:'x3d' }
   ]},
   { where:'Settings &gt; Bluetooth &amp; devices &gt; Mouse', rows:[
     { what:'Enhance pointer precision', val:'Off', why:'CS2 uses raw input. This keeps the desktop and menus 1:1.' },
@@ -2852,7 +2860,8 @@ const WIN = [
     { what:'Memory integrity', val:'Off', why:'Costs up to about 8% fps (measured on a Ryzen 5800X3D), more on older CPUs. Off also lowers protection against kernel malware.' }
   ]},
   { where:'Settings &gt; Apps &gt; Startup', rows:[
-    { what:'Startup apps', val:'Only what you use', why:'Launchers, RGB tools and updaters steal CPU time from a CPU-bound game. Ryzen X3D: keep the AMD chipset driver and Xbox Game Bar installed, the core parking needs both.' },
+    { what:'Startup apps', val:'Only what you use', why:'Launchers, RGB tools and updaters steal CPU time from a CPU-bound game.',
+      x3d:{ why:'Launchers, RGB tools and updaters steal CPU time. Keep the AMD chipset driver and Xbox Game Bar installed: the core parking needs both.' } },
     { what:'Overlays', val:'Off', why:'Discord and NVIDIA app overlays draw on top of every frame.' }
   ]}
 ];
@@ -2974,9 +2983,11 @@ const PANTRY_VIEWS = {
   nvidia: () => `<div class="panel">
       <p class="sub" style="margin:0 0 12px">NVIDIA Control Panel &gt; Manage 3D settings &gt; Program Settings &gt; Counter-Strike 2. Set each row to the value shown, not Use global setting.</p>
       ${facts(NV_3D)}</div>`,
-  windows: () => WIN.map(g => `<div class="panel">
+  windows: () => `<div class="tabs" style="margin-bottom:16px">${WIN_CPUS.map((c,i) =>
+      `<button class="${i===winTab?'on':''}" onclick="setWinTab(${i})">${esc(c.name)}</button>`).join('')}</div>`
+    + WIN.map(g => `<div class="panel">
       <p class="sub" style="margin:0 0 12px">${g.where}</p>
-      ${facts(g.rows)}</div>`).join(''),
+      ${facts(winRows(g.rows))}</div>`).join(''),
   mouse: () => `<div class="panel">${facts(MOUSE)}</div>
     <div class="panel"><h2>Sensitivity</h2>
       <div class="tabs">${PLAYERS.map((p,i) =>
