@@ -50,6 +50,11 @@
   .fact .fv{font:700 20px ui-monospace,Menlo,Consolas,monospace;color:var(--accent);white-space:nowrap}
   .xh{display:block;width:100%;max-width:360px;aspect-ratio:3/2;border-radius:8px;margin:0 0 14px;border:1px solid var(--line)}
   .fact .fv .swatch{display:inline-block;width:14px;height:14px;border-radius:3px;margin-right:10px;vertical-align:-1px;outline:1px solid var(--line)}
+  .fact .ft .vlist{margin-top:8px}
+  .fact .ft .vlist div{display:flex;align-items:baseline;gap:14px;padding:5px 0;border-top:1px dashed var(--line)}
+  .fact .ft .vlist div:first-child{border-top:0}
+  .fact .ft .vlist span{display:block;flex:1;margin:0;color:var(--text);font-size:14px}
+  .fact .ft .vlist b{font:700 15px ui-monospace,Menlo,Consolas,monospace;color:var(--accent);white-space:nowrap}
   .fact .fv.todo{color:var(--muted);font-size:14px;font-weight:600}
   .callouts{margin:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#000}
   .callouts img{display:block;width:100%;height:auto;cursor:zoom-in}
@@ -2802,7 +2807,12 @@ const AUDIO = [
   { what:'EQ Profile', val:'Crisp', why:'Lifts the highs where footsteps live and pulls back the bass that masks them.' },
   { what:'Perspective Correction', val:'On', why:'Keeps directional audio lined up with where you are looking.' },
   { what:'L/R Isolation', val:'50%', why:'Start here. Higher hardens left and right but flattens distance and front-to-back. Worth experimenting with.' },
-  { what:'Music volumes', val:'0%', why:'Round start, round action and round end. MVP is 10% and the bomb ten-second warning 20%. Already set in the autoexec.' }
+  { what:'Music volumes', val:'', list:[
+    ['Master Volume','100%'],
+    ['MVP','10%'],
+    ['Ten Second Warning','20%'],
+    ['Main Menu, Round Start, Round Action, Round End, Bomb/Hostage, Death Camera','0%']
+  ] }
 ];
 
 function viewPantry(){
@@ -2839,7 +2849,7 @@ function viewPantry(){
     <h2 class="sect">Audio settings</h2>
     <div class="panel">
       ${AUDIO.map(v => `<div class="fact">
-        <div class="ft"><b>${esc(v.what)}</b><span>${esc(v.why)}</span></div>
+        <div class="ft"><b>${esc(v.what)}</b>${v.why ? `<span>${esc(v.why)}</span>` : ''}${v.list ? `<div class="vlist">${v.list.map(([k,x]) => `<div><span>${esc(k)}</span><b>${esc(x)}</b></div>`).join('')}</div>` : ''}</div>
         <div class="fv">${esc(v.val)}</div></div>`).join('')}
     </div>
     <h2 class="sect">Launch options</h2>
