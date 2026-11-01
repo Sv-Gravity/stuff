@@ -48,6 +48,7 @@
   .fact .ft b{font-weight:600}
   .fact .ft span{display:block;color:var(--muted);font-size:13px;margin-top:2px}
   .fact .fv{font:700 20px ui-monospace,Menlo,Consolas,monospace;color:var(--accent);white-space:nowrap}
+  .xh{display:block;width:100%;max-width:360px;aspect-ratio:3/2;border-radius:8px;margin:0 0 14px;border:1px solid var(--line)}
   .fact .fv .swatch{display:inline-block;width:14px;height:14px;border-radius:3px;margin-right:10px;vertical-align:-1px;outline:1px solid var(--line)}
   .fact .fv.todo{color:var(--muted);font-size:14px;font-weight:600}
   .callouts{margin:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#000}
@@ -2780,6 +2781,19 @@ const xhRows = x => [
   { what:'Use crosshair color for scope dot', val:x.scopeColor },
   { what:'Scope dot scale',                   val:x.scopeScale }
 ];
+const XH_BG = 'data:image/webp;base64,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';
+// Draws the crosshair from its settings: 1 unit = 4px, outline 1 unit
+const xhSvg = x => {
+  const u = 4, T = x.thickness*u, L = x.length*u, G = x.gap*u, o = x.outline === 'Full Outline' ? u : 0;
+  const bars = [[G, -T/2, L, T], [-G-L, -T/2, L, T], [-T/2, G, T, L]];
+  if (x.tstyle !== 'Yes') bars.push([-T/2, -G-L, T, L]);
+  if (x.dot === 'Yes') bars.push([-T/2, -T/2, T, T]);
+  const rect = (b, pad, fill) => `<rect x="${b[0]-pad}" y="${b[1]-pad}" width="${b[2]+2*pad}" height="${b[3]+2*pad}" fill="${fill}"/>`;
+  return `<svg class="xh" viewBox="-120 -80 240 160" role="img" aria-label="Crosshair">
+    <image href="${XH_BG}" x="-120" y="-80" width="240" height="160" preserveAspectRatio="xMidYMid slice"/>
+    ${o ? bars.map(b => rect(b, o, rgba(x.outlineColor))).join('') : ''}
+    ${bars.map(b => rect(b, 0, rgba(x.color))).join('')}</svg>`;
+};
 let xhTab = 0;
 window.setXhTab = i => { xhTab = i; render(true); };
 
@@ -2816,6 +2830,7 @@ function viewPantry(){
     <div class="panel">
       <div class="tabs">${PLAYERS.map((p,i) =>
         `<button class="${i===xhTab?'on':''}" onclick="setXhTab(${i})">${esc(p.name)}</button>`).join('')}</div>
+      ${xhSvg(XHAIRS[xhTab])}
       ${xhRows(XHAIRS[xhTab]).map(r => `<div class="fact">
         <div class="ft"><b>${esc(r.what)}</b></div>
         ${r.val == null ? '<div class="fv todo">Not set yet</div>'
