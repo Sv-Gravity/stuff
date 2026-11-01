@@ -2772,16 +2772,20 @@ window.setSensTab = i => { sensTab = i; render(true); };
 // Same rows, same order as CS2 Settings > Crosshair / Scopes. Filler defaults until each player sends a screenshot.
 const XHAIR_DEFAULT = { style:'Static Cross', color:[50,250,50,200], outline:'Full Outline', outlineColor:[0,0,0,255],
   thickness:1, dot:'No', length:5, gap:1, tstyle:'No', scopeColor:'No', scopeScale:'1.00', recoil:'No' };
-const XHAIRS = PLAYERS.map(p => p.dpi == null ? null : p.name === 'Toshi'
+const XHAIR_SET = {
+  faded: { style:'Static Cross', color:[255,0,206,255], outline:'No Outline', outlineColor:null,
+      thickness:3, dot:'No', length:5, gap:1, tstyle:'No', scopeColor:'No', scopeScale:'1.00', recoil:'No' }
+};
+const XHAIRS = PLAYERS.map(p => XHAIR_SET[p.name] || (p.dpi == null ? null : p.name === 'Toshi'
   ? { style:'Static Cross', color:[255,0,255,255], outline:'Full Outline', outlineColor:[0,0,0,255],
       thickness:3, dot:'No', length:11, gap:5, tstyle:'No', scopeColor:'No', scopeScale:'1.00', recoil:'No' }
-  : XHAIR_DEFAULT);
+  : XHAIR_DEFAULT));
 const rgba = c => `rgba(${c[0]},${c[1]},${c[2]},${c[3]/255})`;
 const xhRows = x => !x ? xhRows(XHAIR_DEFAULT).map(r => ({ what:r.what, val:null })) : [
   { what:'Style',                             val:x.style },
   { what:'Color and Transparency',            val:x.color.join(' '), sw:rgba(x.color) },
   { what:'Outline',                           val:x.outline },
-  { what:'Outline Color and Transparency',    val:x.outlineColor.join(' '), sw:rgba(x.outlineColor) },
+  ...(x.outlineColor ? [{ what:'Outline Color and Transparency', val:x.outlineColor.join(' '), sw:rgba(x.outlineColor) }] : []),
   { what:'Thickness',                         val:x.thickness },
   { what:'Center Dot',                        val:x.dot },
   { what:'Length',                            val:x.length },
