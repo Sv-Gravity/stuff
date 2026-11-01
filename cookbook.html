@@ -2718,7 +2718,7 @@ const VIDEO_LATENCY = [
   { what:'Refresh Rate', val:'Monitor maximum', why:'Re-check it after driver updates and cable swaps. It resets quietly.' },
   { what:'Wait for Vertical Sync', val:'Off', why:'V-Sync holds a finished frame back when it engages.' },
   { what:'NVIDIA Reflex Low Latency', val:'Enabled + Boost', why:'Keeps the render queue empty, and Boost holds GPU clocks up while the card is loafing.' },
-  { what:'Multisampling Anti-Aliasing', val:'2x MSAA', why:'Smooths jagged edges for a small frame-time cost.' },
+  { what:'Multisampling Anti-Aliasing', val:'2x MSAA', why:'At 1440p, 2x is the minimum that gets rid of jagged edges. At 1080p, consider 4x MSAA.' },
   { what:'Particle Detail', val:'Low', why:'Matters most in CS2. Volumetric smokes are the heaviest GPU moment in the game.' },
   { what:'Shader Detail', val:'Low', why:'Cuts per-pixel lighting work.' },
   { what:'Ambient Occlusion', val:'Disabled', why:'A full-screen pass that also darkens corners you want to see into.' },
