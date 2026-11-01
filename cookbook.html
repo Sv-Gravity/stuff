@@ -2674,15 +2674,39 @@ const MAP_ICONS = {
   mirage:  '<path d="M3 21h18M5.5 21v-7.5a6.5 6.5 0 0 1 13 0V21M9 21v-7a3 3 0 0 1 6 0v7"/>',
   overpass: '<path d="M2.5 11h19M2.5 14h19M5 14v7M19 14v7M12 14v7"/><path d="M5 11c2-3.5 5-5 7-5s5 1.5 7 5"/>',
   nuke:    '<path d="M3.5 21h17"/><path d="M9 4h6l-1 6.5c2 2.8 3 6 3.2 10.5H6.8C7 16.5 8 13.3 10 10.5z"/>',
-  ingredients: '<path d="M7.5 3.5h9v2.8h-9z"/><path d="M8.3 6.3v1.6C6.4 8.9 5.5 10.6 5.5 12.6V19a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-6.4c0-2-.9-3.7-2.8-4.7V6.3"/>'
+  ingredients: '<path d="M7.5 3.5h9v2.8h-9z"/><path d="M8.3 6.3v1.6C6.4 8.9 5.5 10.6 5.5 12.6V19a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-6.4c0-2-.9-3.7-2.8-4.7V6.3"/>',
+  // Pantry sections
+  audio:   '<path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3.5" y="14" width="4" height="6.5" rx="1.3"/><rect x="16.5" y="14" width="4" height="6.5" rx="1.3"/>',
+  video:   '<rect x="2.5" y="4" width="19" height="12.5" rx="1"/><path d="M12 16.5v3M8.5 20h7"/><path d="M10.2 7.6v5.3l4.5-2.65z"/>',
+  mouse:   '<rect x="6.5" y="3" width="11" height="18" rx="5.5"/><path d="M12 3v6M6.5 9h11"/>',
+  crosshairs: '<circle cx="12" cy="12" r="7.5"/><path d="M12 2.5v5M12 16.5v5M2.5 12h5M16.5 12h5"/><circle cx="12" cy="12" r=".6"/>',
+  configs: '<path d="M6 3h8.5L19 7.5V20a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/><path d="M8.5 12.5l2 2-2 2M12.5 16.5h3"/>',
+  // same monitor as the 4:3 page's own icon (hatched sides, thumbs-down)
+  native:  '<rect x="2.5" y="4" width="19" height="12.5" rx="1"/><path d="M12 16.5v3M8.5 20h7M7 4v12.5M17 4v12.5"/>'
+    + '<path d="M2.5 7.5 6 4M2.5 11.5 7 7M2.5 15.5 7 11M5.5 16.5 7 15M17 7.5 20.5 4M17 11.5l4.5-4.5M17 15.5l4.5-4.5M20 16.5l1.5-1.5" stroke-width=".7" opacity=".75"/>'
+    + '<g transform="translate(7.62 5.9) scale(.36)" stroke-width="3.3"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zM17 2h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></g>',
+  gear:    '<rect x="2.5" y="8" width="19" height="10" rx="1.5"/><path d="M5.5 11h1M8.5 11h1M11.5 11h1M14.5 11h1M17.5 11h1M5.5 14h1M17.5 14h1M8.5 14h7"/><path d="M12 8V5.5c0-1.2 1-2 2.5-2"/>'
 };
-// page: 'map' | 'ing' | 'other' (no map); null hides the bar
+// The Pantry's own top bar: one tab per section. 4:3 is its own page at #/native.
+const PANTRY = [
+  { id:'audio',      name:'Audio' },
+  { id:'video',      name:'Video' },
+  { id:'mouse',      name:'Mouse' },
+  { id:'crosshairs', name:'Crosshairs' },
+  { id:'configs',    name:'Configs' },
+  { id:'native',     name:'4:3', href:'#/native' },
+  { id:'gear',       name:'Gear' }
+];
+// page: 'map' | 'ing' | 'pantry' (mid = section id) | 'other' (no map); null hides the bar
 function setNav(page, mid){
   // the front page keeps an invisible copy of the bar so the header is the same height on every page
   const ghost = !page;
   const item = (icon, name, href, cls, cur) => `<a class="mi${cls}" href="${href}" title="${esc(name)}"${cur ? ' aria-current="page"' : ''}>
     <svg viewBox="0 0 24 24" aria-hidden="true">${MAP_ICONS[icon]}</svg><span>${esc(name)}</span></a>`;
-  mapnav.innerHTML = MAPS.map(m => {
+  mapnav.setAttribute('aria-label', page === 'pantry' ? 'Pantry' : 'Maps');
+  mapnav.innerHTML = page === 'pantry'
+    ? PANTRY.map(t => item(t.id, t.name, t.href || '#/pantry/' + t.id, t.id === mid ? ' on' : '', t.id === mid)).join('')
+    : MAPS.map(m => {
       const here = m.id === mid;
       const cls = (here ? (page === 'ing' ? ' ctx' : ' on') : '') + (m.sections.length ? '' : ' dim');
       return item(m.id, m.name, '#/map/' + m.id, cls, here && page === 'map');
@@ -2832,29 +2856,21 @@ const AUDIO = [
   ] }
 ];
 
-function viewPantry(){
-  app.innerHTML = `<h1 style="margin-bottom:6px">The Pantry</h1>
-    <h2 class="sect">Video settings</h2>
-    <div class="panel">
-      ${[...VIDEO_LATENCY, ...VIDEO_REST].map(v => `<div class="fact">
-        <div class="ft"><b>${esc(v.what)}</b><span>${esc(v.why)}</span></div>
-        <div class="fv">${esc(v.val)}</div></div>`).join('')}
-    </div>
-    <h2 class="sect">Mouse</h2>
-    <div class="panel">
-      ${MOUSE.map(v => `<div class="fact">
-        <div class="ft"><b>${esc(v.what)}</b><span>${esc(v.why)}</span></div>
-        <div class="fv">${esc(v.val)}</div></div>`).join('')}
-    </div>
+const facts = list => list.map(v => `<div class="fact">
+        <div class="ft"><b>${esc(v.what)}</b>${v.why ? `<span>${esc(v.why)}</span>` : ''}${v.list ? `<div class="vlist">${v.list.map(([k,x]) => `<div><span>${esc(k)}</span><b>${esc(x)}</b></div>`).join('')}</div>` : ''}</div>
+        ${v.val != null ? `<div class="fv">${esc(v.val)}</div>` : ''}</div>`).join('');
+const PANTRY_VIEWS = {
+  audio: () => `<div class="panel">${facts(AUDIO)}</div>`,
+  video: () => `<div class="panel">${facts([...VIDEO_LATENCY, ...VIDEO_REST])}</div>`,
+  mouse: () => `<div class="panel">${facts(MOUSE)}</div>
     <div class="panel"><h2>Sensitivity</h2>
       <div class="tabs">${PLAYERS.map((p,i) =>
         `<button class="${i===sensTab?'on':''}" onclick="setSensTab(${i})">${esc(p.name)}</button>`).join('')}</div>
       ${sensRows(PLAYERS[sensTab]).map(r => `<div class="fact">
         <div class="ft"><b>${esc(r.what)}</b></div>
         ${r.val == null ? '<div class="fv todo">Placeholder</div>' : `<div class="fv">${esc(r.val)}</div>`}</div>`).join('')}
-    </div>
-    <h2 class="sect">Crosshairs</h2>
-    <div class="panel">
+    </div>`,
+  crosshairs: () => `<div class="panel">
       <div class="tabs">${PLAYERS.map((p,i) =>
         `<button class="${i===xhTab?'on':''}" onclick="setXhTab(${i})">${esc(p.name)}</button>`).join('')}</div>
       ${XHAIRS[xhTab] ? xhSvg(XHAIRS[xhTab]) : ''}
@@ -2862,22 +2878,13 @@ function viewPantry(){
         <div class="ft"><b>${esc(r.what)}</b></div>
         ${r.val == null ? '<div class="fv todo">Placeholder</div>'
           : `<div class="fv">${r.sw ? `<i class="swatch" style="background:${r.sw}"></i>` : ''}${esc(String(r.val))}</div>`}</div>`).join('')}
-    </div>
-    <h2 class="sect">Audio settings</h2>
-    <div class="panel">
-      ${AUDIO.map(v => `<div class="fact">
-        <div class="ft"><b>${esc(v.what)}</b>${v.why ? `<span>${esc(v.why)}</span>` : ''}${v.list ? `<div class="vlist">${v.list.map(([k,x]) => `<div><span>${esc(k)}</span><b>${esc(x)}</b></div>`).join('')}</div>` : ''}</div>
-        <div class="fv">${esc(v.val)}</div></div>`).join('')}
-    </div>
-    <h2 class="sect">Launch options</h2>
-    <div class="panel">
-      ${LAUNCH.map(v => `<div class="fact">
-        <div class="ft"><b>${esc(v.what)}</b><span>${esc(v.why)}</span></div></div>`).join('')}
+    </div>`,
+  configs: () => `<div class="panel"><h2>Launch options</h2>
+      ${facts(LAUNCH)}
       <div class="shots" style="margin-top:14px">${LAUNCH_SHOTS.map(im => `
         <figure><img src="${im.src}" alt="${esc(im.caption)}" loading="lazy">
         <figcaption>${esc(im.caption)}</figcaption></figure>`).join('')}</div>
-    </div>
-    <h2 class="sect">Configs</h2>`
+    </div>`
     + CFGS.map((c,i) => `<div class="panel">
         <div class="cfghead">
           <h2>${esc(c.title)}</h2>
@@ -2890,7 +2897,14 @@ function viewPantry(){
           <span>Steam on another drive? Steam &gt; right-click Counter-Strike 2 &gt; Manage &gt; Browse local files, then open game\\csgo\\cfg.</span></div>
         <p class="sub" style="margin:0 0 12px">${esc(c.note)}${c.cmd ? ` <code class="cmd">${esc(c.cmd)}</code>` : ''}</p>
         <pre class="cfg">${esc(c.text)}</pre>
-      </div>`).join('');
+      </div>`).join(''),
+  native: () => '<div class="empty">Coming soon</div>',
+  gear: () => '<div class="empty">Coming soon</div>'
+};
+const pantryId = id => PANTRY.some(t => t.id === id) ? id : PANTRY[0].id;
+function viewPantry(id){
+  const t = PANTRY.find(x => x.id === pantryId(id));
+  app.innerHTML = `<h1 style="margin-bottom:18px">${esc(t.name)}</h1>` + PANTRY_VIEWS[t.id]();
 }
 window.copyCfg = i => copyText(CFGS[i].text);
 window.CFG_DIR = 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Counter-Strike Global Offensive\\game\\csgo\\cfg';
@@ -3140,14 +3154,17 @@ function render(keepScroll){
   if(!a) viewHome();
   else if(a==='map' && b) viewMap(b);
   else if(a==='entry' && b) viewEntry(b);
-  else if(a==='pantry') viewPantry();
+  else if(a==='pantry') viewPantry(b);
+  // the 4:3 page lives in the Pantry bar; its view arrives with that page
+  else if(a==='native') (typeof viewNative === 'function' ? viewNative() : viewPantry('native'));
   else if(a==='ingredients') viewIngredients(b || 'inferno');
   else if(a==='times') viewIngredients('inferno');
   else viewHome();
   const mid = (a==='map' || a==='ingredients') ? b
     : (a==='entry' && b) ? (ENTRIES.find(x => x.id === b) || {}).map
     : null;
-  setNav(!a ? null : (a === 'ingredients' || a === 'times') ? 'ing' : mid ? 'map' : 'other', mid);
+  if(a === 'pantry' || a === 'native') setNav('pantry', a === 'native' ? 'native' : pantryId(b));
+  else setNav(!a ? null : (a === 'ingredients' || a === 'times') ? 'ing' : mid ? 'map' : 'other', mid);
   if(!keepScroll) window.scrollTo(0,0);
 }
 window.addEventListener('hashchange', () => { render(); });
