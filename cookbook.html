@@ -57,9 +57,6 @@
   .fact .ft .vlist{margin-top:8px}
   .fact .ft .gk{display:block;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px}
   .fact .ft .gn{font-size:17px}
-  .ggrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:4px 28px;margin-top:10px}
-  .fact .ft .ggrid .gh{color:var(--accent);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;margin:6px 0 0}
-  .ggrid .vlist{margin-top:2px}
   .fact .ft .vlist div{display:flex;align-items:baseline;gap:14px;padding:5px 0;border-top:1px dashed var(--line)}
   .fact .ft .vlist div:first-child{border-top:0}
   .fact .ft .vlist span{display:block;flex:1;margin:0;color:var(--text);font-size:14px}
@@ -2862,13 +2859,9 @@ const AUDIO = [
 ];
 
 const GEAR = [   // Toshi's setup, names exactly as he wrote them
-  { kind:'Mouse', name:'Lamzu Atlantis Mini Champion', groups:[
-    ['Size & weight', [['Category','Small'],['Length','117 mm'],['Width','63 mm'],['Height','37 mm'],['Weight','51 g']]],
-    ['Shape', [['Category','Symmetrical'],['Hand compatibility','Right'],['Hump placement','Back - moderate'],['Front flare','Outward - slight'],['Side curvature','Inward - aggressive']]],
-    ['Performance', [['DPI','30000'],['Polling rate','8000 Hz'],['Tracking speed','750 IPS'],['Acceleration','50 G']]]
-  ] },
+  { kind:'Mouse',      name:'Lamzu Atlantis Mini Champion', why:'51 g, 117 x 63 x 37 mm, symmetrical, 8000 Hz.' },
   { kind:'Mousepad',   name:'Zowie G-SR-SE 470 x 390 mm',   why:'Slow control pad. Soft smooth fabric surface, non-stitched edge.' },
-  { kind:'Keyboard',   name:'Logitech G915',                why:'Low profile, tenkeyless.' },
+  { kind:'Keyboard',   name:'Logitech G915 TKL',            why:'Low profile, tenkeyless.' },
   { kind:'Soundcard',  name:'Soundblaster AE-9',            why:'PCIe card with an external headphone amp box.' },
   { kind:'Headphones', name:'Beyerdynamic DT880 (600 ohm)', why:'Semi-open back.' },
   { kind:'Monitor',    name:'LG 45GS95QE',                  why:'45" curved OLED ultrawide, 3440x1440, 240 Hz.' }
@@ -2918,7 +2911,7 @@ const PANTRY_VIEWS = {
       </div>`).join(''),
   native: () => '<div class="empty">Coming soon</div>',
   gear: () => `<div class="panel">${GEAR.map(g => `<div class="fact">
-        <div class="ft"><span class="gk">${esc(g.kind)}</span><b class="gn">${esc(g.name)}</b>${g.why ? `<span>${esc(g.why)}</span>` : ''}${g.groups ? `<div class="ggrid">${g.groups.map(([h, rows]) => `<div><div class="gh">${esc(h)}</div><div class="vlist">${rows.map(([k,x]) => `<div><span>${esc(k)}</span><b>${esc(x)}</b></div>`).join('')}</div></div>`).join('')}</div>` : ''}</div></div>`).join('')}</div>`
+        <div class="ft"><span class="gk">${esc(g.kind)}</span><b class="gn">${esc(g.name)}</b><span>${esc(g.why)}</span></div></div>`).join('')}</div>`
 };
 const pantryId = id => PANTRY.some(t => t.id === id) ? id : PANTRY[0].id;
 function viewPantry(id){
