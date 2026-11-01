@@ -83,6 +83,59 @@
   .nr-cones .t169{fill:#c9d2de}.nr-cones .t43{fill:var(--accent)}
   .nr-cones .en{fill:#ff4d4d}.nr-cones .tn{fill:#ff4d4d}.nr-cones .me{fill:#e6eaf0}
   .nr-conepanel p{margin:8px 0 0;text-align:center;color:var(--muted);font-size:14px}
+  .bh-list{margin:0;padding-left:20px}
+  .bh-list li{margin:7px 0}
+  .bh-list code.cmd{display:inline;font-size:13px}
+  .bh-list button{padding:2px 9px;font-size:12px;margin-left:4px}
+  .bh-p{margin:0 0 10px;color:var(--text);font-size:15px}
+  .bh-small{margin:8px 0 0;color:var(--muted);font-size:13px}
+  .bh-read{margin:0 0 6px;font-size:15px;min-height:3em}
+  .bh-ctl{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:10px 0 6px}
+  .bh-ctl input{flex:1;min-width:200px;accent-color:var(--accent)}
+  .bh-speeds{display:flex;gap:6px}
+  .bh-speeds button{padding:4px 10px;font-size:13px}
+  .bh-speeds button.on{border-color:var(--accent);color:var(--accent)}
+  .bh-two{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:center}
+  @media(max-width:640px){ .bh-two{grid-template-columns:1fr} }
+  .bh-svg{display:block;width:100%;height:auto;max-width:420px;margin:0 auto}
+  .bh-svg.bh-wide{max-width:640px}
+  .bh-t{font:600 12px system-ui,sans-serif;fill:var(--text)}
+  .bh-tm{fill:var(--muted);font-weight:500}
+  .bh-to{fill:var(--accent)}.bh-tb{fill:var(--strat)}.bh-tp{fill:var(--sneaky)}.bh-tg{fill:var(--ok)}.bh-td{fill:#ff6b6b}
+  .bh-vel{stroke:var(--accent);stroke-width:4}
+  .bh-key{stroke:var(--strat);stroke-width:3}
+  .bh-add{stroke:var(--ok);stroke-width:4}
+  .bh-new{stroke:var(--ok);stroke-width:1.5;stroke-dasharray:4 4;opacity:.8}
+  .bh-view{stroke:var(--text);stroke-width:1.5;stroke-dasharray:5 5}
+  .bh-xh path{stroke:var(--text);stroke-width:2;fill:none}
+  .bh-me{fill:var(--text)}
+  .bh-ah-o{fill:var(--accent)}.bh-ah-b{fill:var(--strat)}.bh-ah-g{fill:var(--ok)}.bh-ah-w{fill:var(--text)}
+  .bh-axis{stroke:var(--line);stroke-width:1.5}
+  .bh-dash{stroke-dasharray:3 4}
+  .bh-winbg{fill:rgba(62,207,142,.14)}
+  .bh-curve{fill:none;stroke:var(--text);stroke-width:2}
+  .bh-dot{stroke:var(--bg);stroke-width:2}
+  .bh-dot.bh-up{fill:var(--ok)}.bh-dot.bh-flat{fill:var(--muted)}.bh-dot.bh-down{fill:#ff6b6b}
+  b.bh-up,td.bh-up{color:var(--ok)} b.bh-down{color:#ff6b6b} b.bh-flat{color:var(--muted)}
+  .bh-mouse{fill:none;stroke:var(--text);stroke-width:2.5}
+  .bh-kd{fill:var(--strat)}.bh-ka{fill:var(--sneaky)}.bh-kw{fill:#ff6b6b;opacity:.75}
+  .bh-kx{fill:#ff6b6b}.bh-kgap{fill:none;stroke:#ff6b6b;stroke-width:1.5;stroke-dasharray:3 3}
+  .bh-path{fill:none;stroke-width:4;stroke-linecap:round}
+  .bh-pd{stroke:var(--strat)}.bh-pa{stroke:var(--sneaky)}
+  .bh-viewa{stroke:var(--text);stroke-width:1.5}
+  .bh-land{fill:var(--bg);stroke:var(--accent);stroke-width:2.5}
+  .bh-arc{fill:none;stroke:var(--accent);stroke-width:2.5;stroke-dasharray:6 5}
+  .bh-ground{stroke:var(--muted);stroke-width:2}
+  .bh-slide{stroke:#ff6b6b;stroke-width:6;stroke-linecap:round}
+  .nr-table.bh-table td{white-space:normal}
+  .nr-table.bh-table td:nth-child(3){color:var(--muted);font-family:system-ui,sans-serif}
+  .nr-table.bh-table td:first-child{font-family:system-ui,sans-serif}
+  .bh-bars{display:flex;flex-direction:column;gap:6px;margin:6px 0 4px}
+  .bh-bars div{display:grid;grid-template-columns:190px 1fr 44px;align-items:center;gap:10px;font-size:14px}
+  .bh-bars i{display:block;height:14px;border-radius:4px;background:var(--ok)}
+  .bh-bars i.late{background:#ff6b6b}
+  .bh-bars b{font:700 14px ui-monospace,Menlo,Consolas,monospace;text-align:right}
+  @media(max-width:520px){ .bh-bars div{grid-template-columns:1fr 44px} .bh-bars i{grid-column:1/-1;grid-row:2} }
   .nr-list{margin:0;padding-left:18px}
   .nr-list li{margin:6px 0}
   .nr-list a{color:var(--accent)}
@@ -2726,6 +2779,7 @@ const MAP_ICONS = {
     + '<path d="M2.5 7.5 6 4M2.5 11.5 7 7M2.5 15.5 7 11M5.5 16.5 7 15M17 7.5 20.5 4M17 11.5l4.5-4.5M17 15.5l4.5-4.5M20 16.5l1.5-1.5" stroke-width=".7" opacity=".75"/>'
     + '<g transform="translate(7.62 5.9) scale(.36)" stroke-width="3.3"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zM17 2h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></g>',
   nvidia:  '<rect x="2" y="6" width="20" height="11" rx="1"/><circle cx="9" cy="11.5" r="3"/><path d="M14.5 9h4M14.5 11.5h4M14.5 14h4M5 17v2.5M8 17v2.5M11 17v2.5"/>',
+  bhop:    '<path d="M9.7 10.6C7.6 7.4 6.9 2.6 8.5 2.1s3.2 3.3 3.1 8"/><path d="M14.3 10.6c2.1-3.2 2.8-8 1.2-8.5s-3.2 3.3-3.1 8"/><circle cx="12" cy="15.6" r="5.6"/><path d="M9.9 14.9h.01M14.1 14.9h.01" stroke-width="2.2"/><path d="M11.1 17.4l.9.7.9-.7"/>',
   gear:    '<rect x="2.5" y="8" width="19" height="10" rx="1.5"/><path d="M5.5 11h1M8.5 11h1M11.5 11h1M14.5 11h1M17.5 11h1M5.5 14h1M17.5 14h1M8.5 14h7"/><path d="M12 8V5.5c0-1.2 1-2 2.5-2"/>'
 };
 // The Pantry's own top bar: one tab per section. 4:3 is its own page at #/native.
@@ -2737,7 +2791,8 @@ const PANTRY = [
   { id:'crosshairs', name:'Crosshairs' },
   { id:'configs',    name:'Configs' },
   { id:'native',     name:'4:3', title:'4:3 - or How I Learned to Stop Worrying and Love Native Res' },
-  { id:'gear',       name:'Gear' }
+  { id:'gear',       name:'Gear' },
+  { id:'bhop',       name:'Bhop', title:'Bunnyhop & Air Strafe' }
 ];
 // page: 'map' | 'ing' | 'pantry' (mid = section id) | 'other' (no map); null hides the bar
 function setNav(page, mid){
@@ -2930,6 +2985,269 @@ const GEAR = [   // Toshi's setup, names exactly as he wrote them
   { kind:'Monitor',    name:'LG 45GS95QE',                  why:'45" curved OLED ultrawide, 3440x1440, 240 Hz.' }
 ];
 
+// ---------- Pantry: Bunnyhop & air strafe ----------
+// Model: Source air acceleration (CGameMovement::AirAccelerate). Your keys may only add speed until
+// your speed in the key's direction reaches 30. Numbers use CS2 defaults: sv_airaccelerate 12,
+// knife wishspeed 250, 64 steps a second, sv_friction 5.2.
+const BH_CAP = 30, BH_STEP = 12 * 250 / 64;
+let bhOff = 0, bhV = 250;
+function bhGain(v, off){
+  const th = (90 + off) * Math.PI / 180, c = v * Math.cos(th), add = BH_CAP - c;
+  if(add <= 0) return { a:0, g:0, th, c };
+  const a = Math.min(add, BH_STEP);
+  return { a, g: Math.sqrt(v*v + 2*a*c + a*a) - v, th, c };
+}
+const bhWin = v => { let lo = null, hi = null;
+  for(let o = -20; o <= 20; o += 0.1){ if(bhGain(v, o).g > 0){ if(lo === null) lo = o; hi = o; } }
+  return [lo, hi]; };
+const bhF = n => (Math.round(n * 10) / 10).toFixed(1);
+
+function bhModel(){
+  const r = bhGain(bhV, bhOff), ox = 170, oy = 210, L = 150;
+  const vx = ox;
+  const tipY = oy - L;
+  const o = bhOff * Math.PI / 180;
+  const view = [ox + Math.sin(o) * 185, oy - Math.cos(o) * 185];
+  const k = [Math.sin(r.th), -Math.cos(r.th)];
+  const key = [ox + k[0] * 78, oy + k[1] * 78];
+  const ex = 3 * L / 250;                 // added piece drawn 3x bigger so you can see it
+  const add = [vx + k[0] * r.a * ex, tipY + k[1] * r.a * ex];
+  const [lo, hi] = bhWin(bhV);
+  const state = r.g > 0.05 ? 'up' : r.g < -0.05 ? 'down' : 'flat';
+  const side = Math.abs(bhOff) < 0.25 ? 'exactly where you are flying'
+    : `${bhF(Math.abs(bhOff))}° ${bhOff < 0 ? 'left' : 'right'} of where you are flying`;
+  const msg = state === 'up' ? `<b class="bh-up">+${bhF(r.g)} u/s</b> this step. Keep turning right to keep it coming.`
+    : state === 'down' ? `<b class="bh-down">${bhF(r.g)} u/s</b>. You turned too far ahead of your flight path.`
+    : `<b class="bh-flat">+0 u/s</b>. You already fly 30+ u/s toward D, so D adds nothing. Turn right.`;
+  // gain graph
+  const W = 340, H = 130, gx = o2 => 20 + (o2 + 20) / 40 * (W - 40), gy = g => 60 - g * 18;
+  let pts = []; for(let o2 = -20; o2 <= 20; o2 += 0.25) pts.push(`${gx(o2).toFixed(1)},${Math.max(4, Math.min(H - 22, gy(bhGain(bhV, o2).g))).toFixed(1)}`);
+  return `<div class="bh-two">
+    <svg class="bh-svg" viewBox="0 0 340 236" role="img" aria-label="Top-down view: where you fly, where you look, and which way D pushes">
+      <defs>${['o','b','g','w'].map(c => `<marker id="bh-ah-${c}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="bh-ah-${c}"/></marker>`).join('')}</defs>
+      <line x1="${ox}" y1="${oy}" x2="${view[0].toFixed(1)}" y2="${(view[1]).toFixed(1)}" class="bh-view"/>
+      <g transform="translate(${view[0].toFixed(1)} ${view[1].toFixed(1)})" class="bh-xh"><path d="M-7 0h-5M7 0h5M0-7v-5M0 7v5"/></g>
+      <line x1="${ox}" y1="${oy}" x2="${vx}" y2="${tipY}" class="bh-vel" marker-end="url(#bh-ah-o)"/>
+      <line x1="${ox}" y1="${oy}" x2="${key[0].toFixed(1)}" y2="${key[1].toFixed(1)}" class="bh-key" marker-end="url(#bh-ah-b)"/>
+      ${r.a > 0 ? `<line x1="${vx}" y1="${tipY}" x2="${add[0].toFixed(1)}" y2="${add[1].toFixed(1)}" class="bh-add" marker-end="url(#bh-ah-g)"/>
+      <line x1="${ox}" y1="${oy}" x2="${add[0].toFixed(1)}" y2="${add[1].toFixed(1)}" class="bh-new"/>` : ''}
+      <circle cx="${ox}" cy="${oy}" r="6" class="bh-me"/>
+      <text x="${bhOff < 0 ? vx + 10 : vx - 10}" y="${tipY + 30}" text-anchor="${bhOff < 0 ? 'start' : 'end'}" class="bh-t bh-to">where you fly</text>
+      <text x="${bhOff < 0 ? vx + 10 : vx - 10}" y="${tipY + 46}" text-anchor="${bhOff < 0 ? 'start' : 'end'}" class="bh-t bh-tm">${bhV} u/s</text>
+      <text x="${(view[0] + (bhOff >= 0 ? 16 : -16)).toFixed(1)}" y="${(view[1] + 4).toFixed(1)}" text-anchor="${bhOff >= 0 ? 'start' : 'end'}" class="bh-t">where you look</text>
+      <text x="${(key[0] + 6).toFixed(1)}" y="${(key[1] + (k[1] > 0 ? 16 : -6)).toFixed(1)}" class="bh-t bh-tb">D pushes</text>
+      ${r.a > 0 ? `<text x="${(add[0] + 6).toFixed(1)}" y="${(add[1] - 6).toFixed(1)}" class="bh-t bh-tg">+${Math.round(r.a)} added</text>` : ''}
+    </svg>
+    <div>
+      <p class="bh-read">Looking ${side}: ${msg}</p>
+      <svg class="bh-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Speed gained per step against look angle">
+        <rect x="${gx(lo).toFixed(1)}" y="4" width="${(gx(hi) - gx(lo)).toFixed(1)}" height="${H - 26}" class="bh-winbg"/>
+        <line x1="20" y1="${gy(0)}" x2="${W - 20}" y2="${gy(0)}" class="bh-axis"/>
+        <line x1="${gx(0)}" y1="4" x2="${gx(0)}" y2="${H - 22}" class="bh-axis bh-dash"/>
+        <polyline points="${pts.join(' ')}" class="bh-curve"/>
+        <circle cx="${gx(bhOff).toFixed(1)}" cy="${Math.max(4, Math.min(H - 22, gy(r.g))).toFixed(1)}" r="5" class="bh-dot bh-${state}"/>
+        <text x="20" y="${H - 6}" class="bh-t bh-tm">20° left</text>
+        <text x="${gx(0)}" y="${H - 6}" text-anchor="middle" class="bh-t bh-tm">on your path</text>
+        <text x="${W - 20}" y="${H - 6}" text-anchor="end" class="bh-t bh-tm">20° right</text>
+        <text x="${gx(hi) + 6}" y="18" class="bh-t bh-tg">speed gained</text>
+        <text x="${W - 20}" y="${H - 28}" text-anchor="end" class="bh-t bh-td">slower</text>
+      </svg>
+      <p class="bh-small">Green = the only angles where D makes you faster: ${bhF(-lo)}° left to ${bhF(hi)}° right of your path at ${bhV} u/s. The faster you go, the thinner it gets.</p>
+    </div>
+  </div>`;
+}
+window.bhSetOff = v => { bhOff = +v; const m = document.getElementById('bhModel'); if(m) m.innerHTML = bhModel(); };
+window.bhSetV = v => { bhV = v; document.querySelectorAll('.bh-speeds button').forEach(b => b.classList.toggle('on', +b.dataset.v === v)); bhSetOff(bhOff); };
+
+// Strafe sim: hold D, turn right at a steady speed for half a second (one strafe).
+function bhStrafe(turnDeg, keyAng, secs = 0.5, v = 250){
+  let yaw = 0, x = v, y = 0;
+  const n = Math.round(secs * 64);
+  for(let i = 0; i < n; i++){
+    yaw -= turnDeg / n;
+    const w = (yaw + keyAng) * Math.PI / 180, wx = Math.cos(w), wy = Math.sin(w);
+    const add = BH_CAP - (x * wx + y * wy);
+    if(add > 0){ const a = Math.min(add, BH_STEP); x += a * wx; y += a * wy; }
+  }
+  return Math.round(Math.hypot(x, y));
+}
+const BH_STRAFES = [
+  ['D, mouse still',              () => bhStrafe(0, -90),  'One small push, then nothing'],
+  ['W, mouse still',              () => bhStrafe(0, 0),    'W adds nothing in the air'],
+  ['W + D, turn 90° right',       () => bhStrafe(90, -45), 'W eats half the gain'],
+  ['A, turn 90° right',           () => bhStrafe(90, 90),  'Wrong key: no gain'],
+  ['D, turn 45° right',           () => bhStrafe(45, -90), 'Good'],
+  ['D, turn 90° right',           () => bhStrafe(90, -90), 'Best of these']
+];
+// Bhop: each step on the ground, friction takes speed * 5.2 / 64 (about 8%).
+const bhLate = (v, t) => { for(let i = 0; i < t; i++) v -= Math.max(v, 80) * 5.2 / 64; return Math.round(v); };
+
+function bhSyncSvg(bad){
+  // x: time. Mouse row is a curve (above line = turning right, below = left). Keys are bars.
+  const W = 520, x0 = 70, seg = (W - x0 - 10) / 4, mid = 34;
+  let d = `M${x0} ${mid}`;
+  for(let i = 0; i < 4; i++){ const a = x0 + i * seg, s = i % 2 ? 1 : -1;
+    d += ` C${(a + seg * .3).toFixed(1)} ${mid + s * 24} ${(a + seg * .7).toFixed(1)} ${mid + s * 24} ${(a + seg).toFixed(1)} ${mid}`; }
+  const bar = (row, a, b, cls) => `<rect x="${a.toFixed(1)}" y="${row}" width="${(b - a).toFixed(1)}" height="16" rx="3" class="${cls}"/>`;
+  let keys = '', notes = '';
+  if(!bad){
+    for(let i = 0; i < 4; i++){ const a = x0 + i * seg + 2, b = x0 + (i + 1) * seg - 2;
+      keys += i % 2 ? bar(98, a, b, 'bh-ka') : bar(72, a, b, 'bh-kd'); }
+  } else {
+    const late = seg * .3;
+    keys += bar(72, x0 + 2, x0 + seg + late, 'bh-kd') + bar(72, x0 + seg, x0 + seg + late, 'bh-kx');
+    keys += bar(98, x0 + seg + late * .4, x0 + 2 * seg - 2, 'bh-ka') + bar(98, x0 + seg + late * .4, x0 + seg + late, 'bh-kx');
+    keys += bar(72, x0 + 2 * seg + late, x0 + 3 * seg - 2, 'bh-kd') + bar(72, x0 + 2 * seg + 2, x0 + 2 * seg + late, 'bh-kgap');
+    keys += bar(98, x0 + 3 * seg + 2, x0 + 4 * seg - 2, 'bh-ka') + bar(46 + 80, x0 + 3 * seg + 2, x0 + 4 * seg - 2, 'bh-kw');
+    notes = `<text x="${x0 + seg + 2}" y="146" class="bh-t bh-td">A + D together</text>
+      <text x="${x0 + 2 * seg + 2}" y="160" class="bh-t bh-td">key too late</text>
+      <text x="${W - 10}" y="160" text-anchor="end" class="bh-t bh-td">W held: half the gain</text>`;
+  }
+  return `<svg class="bh-svg bh-wide" viewBox="0 0 ${W} ${bad ? 166 : 124}" role="img" aria-label="${bad ? 'Out of sync' : 'In sync'}: mouse turning and A/D keys over time">
+    <text x="0" y="${mid + 4}" class="bh-t">Mouse</text>
+    <text x="${x0 - 8}" y="${mid - 12}" text-anchor="end" class="bh-t bh-tm">right</text>
+    <text x="${x0 - 8}" y="${mid + 24}" text-anchor="end" class="bh-t bh-tm">left</text>
+    <line x1="${x0}" y1="${mid}" x2="${W - 10}" y2="${mid}" class="bh-axis"/>
+    <path d="${d}" class="bh-mouse"/>
+    <text x="0" y="84" class="bh-t bh-tb">D</text>
+    <text x="0" y="110" class="bh-t bh-tp">A</text>
+    ${bad ? '<text x="0" y="138" class="bh-t">W</text>' : ''}
+    ${keys}${notes}
+  </svg>`;
+}
+
+function bhPathSvg(){
+  // Top-down, travelling left to right. Each hump is one strafe: over the top = turning right (D),
+  // through the bottom = turning left (A). Keys and mouse switch where the curve changes bend.
+  const W = 520, H = 190, x0 = 20, x1 = W - 20, mid = 92, amp = 46, waves = 2;
+  const y = x => mid - amp * Math.sin((x - x0) / (x1 - x0) * waves * 2 * Math.PI);
+  const half = (x1 - x0) / (waves * 2);
+  let d = '', labels = '', views = '', dots = '';
+  for(let i = 0; i < waves * 2; i++){
+    const a = x0 + i * half, pts = [];
+    for(let t = 0; t <= 24; t++){ const x = a + half * t / 24; pts.push(`${x.toFixed(1)},${y(x).toFixed(1)}`); }
+    const right = i % 2 === 0, px = a + half / 2;
+    d += `<polyline points="${pts.join(' ')}" class="bh-path ${right ? 'bh-pd' : 'bh-pa'}"/>`;
+    views += `<line x1="${px - 4}" y1="${y(px)}" x2="${px + 30}" y2="${y(px)}" class="bh-viewa" marker-end="url(#bh-ah2-w)"/>`;
+    labels += `<text x="${px}" y="${right ? y(px) - 14 : y(px) + 24}" text-anchor="middle" class="bh-t ${right ? 'bh-tb' : 'bh-tp'}">${right ? 'D + mouse right' : 'A + mouse left'}</text>`;
+  }
+  for(let i = 0; i <= waves * 2; i++){ const x = x0 + i * half; dots += `<circle cx="${x}" cy="${y(x)}" r="5" class="bh-land"/>`; }
+  return `<svg class="bh-svg bh-wide" viewBox="0 0 ${W} ${H}" role="img" aria-label="Top-down path: each curve is one strafe; switch keys and mouse direction together">
+    <defs><marker id="bh-ah2-w" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5L0 10z" class="bh-ah-w"/></marker></defs>
+    ${d}${views}${dots}${labels}
+    <text x="${W - 10}" y="${H - 4}" text-anchor="end" class="bh-t bh-tm">white arrow = where you look &#183; dot = switch key and mouse direction</text>
+  </svg>`;
+}
+
+function bhHopSvg(){
+  const W = 520, g = 70, arc = (a, b) => `<path d="M${a} ${g} Q${(a + b) / 2} ${g - 84} ${b} ${g}" class="bh-arc"/>`;
+  let top = '', bot = '';
+  [[20, 175], [175, 330], [330, 485]].forEach(([a, b]) => top += arc(a, b));
+  [[20, 160], [190, 330], [360, 500]].forEach(([a, b]) => bot += arc(a, b));
+  return `<svg class="bh-svg bh-wide" viewBox="0 0 ${W} 200" role="img" aria-label="Side view: a perfect hop leaves the ground the instant you land, a late hop slides on the ground">
+    <g>${top}<line x1="10" y1="${g}" x2="${W - 10}" y2="${g}" class="bh-ground"/>
+      ${[175, 330].map(x => `<circle cx="${x}" cy="${g}" r="5" class="bh-land"/>`).join('')}
+      <text x="10" y="${g + 20}" class="bh-t bh-tg">Perfect: jump on the step you land</text></g>
+    <g transform="translate(0 104)">${bot}<line x1="10" y1="${g}" x2="${W - 10}" y2="${g}" class="bh-ground"/>
+      ${[[160, 190], [330, 360]].map(([a, b]) => `<line x1="${a}" y1="${g}" x2="${b}" y2="${g}" class="bh-slide"/>`).join('')}
+      <text x="10" y="${g + 20}" class="bh-t bh-td">Late: the red bits are ground friction eating speed</text></g>
+  </svg>`;
+}
+
+const BH_PRAC = `sv_cheats 1
+sv_enablebunnyhopping 1
+sv_autobunnyhopping 1
+sv_staminajumpcost 0
+sv_staminalandcost 0
+cl_showpos 1`;
+
+function bhHtml(){
+  const lates = [0, 1, 2, 3].map(t => [t, bhLate(290, t)]);
+  return `<p class="nr-lead">In the air, W does nothing. Speed comes from A or D and the mouse turning the same way, at the same time.</p>
+
+    <h2 class="sect">Air strafing</h2>
+    <div class="panel"><h2>The rule</h2>
+      <ul class="bh-list">
+        <li>In the air your keys can only add speed in the direction they push, and only until you move <b>30 u/s</b> that way.</li>
+        <li>Running 250 u/s straight ahead you move 0 u/s to your right. Press D: the game adds 30 to the right. 250 ahead + 30 right = <b>251.8 u/s</b>. Faster, and now curving right.</li>
+        <li>Next step you already move 30 to the right, so D adds nothing. Turn the mouse right and "right" is a new direction again, so D adds again.</li>
+        <li>That's the whole trick. <b>Hold D and keep looking where you're flying while it curves you right.</b> Same with A and the mouse to the left.</li>
+      </ul>
+    </div>
+
+    <div class="panel"><h2>Try it: where you look vs where you fly</h2>
+      <p class="bh-small" style="margin-top:0">From above, holding D. Drag the slider to turn your view. The green push is drawn 3x bigger so you can see it.</p>
+      <div class="bh-ctl">
+        <input type="range" min="-20" max="20" step="0.5" value="${bhOff}" oninput="bhSetOff(this.value)" aria-label="Look angle">
+        <span class="bh-speeds">${[250, 300, 400].map(v => `<button data-v="${v}" class="${v === bhV ? 'on' : ''}" onclick="bhSetV(${v})">${v} u/s</button>`).join('')}</span>
+      </div>
+      <div id="bhModel">${bhModel()}</div>
+    </div>
+
+    <div class="panel"><h2>Sync</h2>
+      <p class="bh-p">Key and mouse switch together. Mouse right = D only. Mouse left = A only.</p>
+      ${bhSyncSvg(false)}
+      <p class="bh-p" style="margin-top:14px">Out of sync. Every red bit loses speed or wastes it.</p>
+      ${bhSyncSvg(true)}
+    </div>
+
+    <div class="panel"><h2>Worked example: one strafe</h2>
+      <p class="bh-p">Start at 250 u/s with a knife, half a second in the air, turning at a steady speed.</p>
+      <div class="nr-tablewrap"><table class="nr-table bh-table">
+        <tr><th>You do</th><th>Speed after</th><th></th></tr>
+        ${BH_STRAFES.map(([k, f, n]) => { const v = f(); return `<tr><td>${esc(k)}</td><td class="${v > 260 ? 'bh-up' : ''}">${v} u/s</td><td class="bh-n">${esc(n)}</td></tr>`; }).join('')}
+      </table></div>
+      <p class="bh-small">Rule of thumb: in perfect sync, every degree you turn is worth about 0.4 u/s. Bigger, smoother turns = more speed.</p>
+    </div>
+
+    <div class="panel"><h2>From above</h2>
+      ${bhPathSvg()}
+    </div>
+
+    <h2 class="sect">Bunnyhopping</h2>
+    <div class="panel"><h2>Jump the moment you land</h2>
+      ${bhHopSvg()}
+      <p class="bh-p">On the ground, friction takes about 8% of your speed every step (64 a second). Land at 290 u/s:</p>
+      <div class="bh-bars">${lates.map(([t, v]) => `<div><span>${t === 0 ? 'Jump on the landing step' : t + ' step' + (t > 1 ? 's' : '') + ' late'}</span>
+        <i style="width:${(v / 290 * 100).toFixed(1)}%" class="${t ? 'late' : ''}"></i><b>${v}</b></div>`).join('')}</div>
+      <p class="bh-small">Two steps late (1/32 s) and you're back under running speed. Air strafing builds speed, hopping keeps it.</p>
+    </div>
+
+    <div class="panel"><h2>How to do it</h2>
+      <ol class="bh-list">
+        <li>Bind jump to the scroll wheel: <code class="cmd">bind mwheeldown +jump</code> <button onclick="copyText('bind mwheeldown +jump')">Copy</button></li>
+        <li>Knife out. Run forward with W and jump.</li>
+        <li>Let go of W as soon as you leave the ground.</li>
+        <li>D + mouse right, smooth and steady. Then A + mouse left. One strafe per jump to start.</li>
+        <li>Scroll a few notches just before you land so one of them hits the landing step. Repeat.</li>
+        <li>Never press W, S, or both A and D in the air.</li>
+      </ol>
+    </div>
+
+    <div class="panel"><h2>Practice</h2>
+      <div class="cfghead"><h2>Offline server</h2><button onclick="copyText(BH_PRAC)">Copy</button></div>
+      <pre class="cfg">${esc(BH_PRAC)}</pre>
+      <ol class="bh-list">
+        <li>Auto hop on (holding jump hops for you). Learn the strafes only. Watch <b>vel</b> in the top left go up.</li>
+        <li><code class="cmd">sv_autobunnyhopping 0</code>, learn the scroll timing.</li>
+        <li>Start a fresh offline server without these to feel matchmaking, where every hop costs a bit of speed.</li>
+      </ol>
+    </div>
+
+    <div class="panel nr-src"><h2>Watch and read</h2>
+      <ul class="nr-list">
+        <li>launders, <a href="https://www.youtube.com/watch?v=w8bxpE1eIUc" target="_blank" rel="noopener">Air strafing in CS:GO visualized in 2 minutes</a>. Show this one first.</li>
+        <li>launders, <a href="https://www.youtube.com/watch?v=D2LZmWOB9j0" target="_blank" rel="noopener">MASTER your Counter-Strike Movement (Beginner)</a></li>
+        <li>launders, <a href="https://www.youtube.com/watch?v=weaJYFaZMKw" target="_blank" rel="noopener">In-depth airstrafe/LJ tutorial</a></li>
+        <li>launders, <a href="https://www.youtube.com/watch?v=8EEmTajQMcQ" target="_blank" rel="noopener">In-depth bhop tutorial</a></li>
+        <li>launders, <a href="https://www.youtube.com/watch?v=gWnlvEICYr4" target="_blank" rel="noopener">How to effectively bhop on competitive servers</a></li>
+        <li><a href="https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/game/shared/gamemovement.cpp" target="_blank" rel="noopener">Valve Source SDK, gamemovement.cpp</a>, AirAccelerate: "addspeed = wishspd - currentspeed", with wishspd capped at 30 in the air. The model above is this function.</li>
+        <li>Adrian Biagioli, <a href="https://adrianb.io/2015/02/14/bunnyhop.html" target="_blank" rel="noopener">Bunnyhopping from the Programmer's Perspective</a>: "only the projection of the current velocity onto acceleration is limited."</li>
+        <li><a href="https://totalcsgo.com/commands/svairaccelerate" target="_blank" rel="noopener">TotalCS</a>: CS2 defaults sv_airaccelerate 12, sv_friction 5.2, sv_stopspeed 80. CS2's subtick moves the steps around a little, the shape stays the same.</li>
+      </ul>
+    </div>`;
+}
+
 const facts = list => list.map(v => `<div class="fact">
         <div class="ft"><b>${esc(v.what)}</b>${v.why ? `<span>${esc(v.why)}</span>` : ''}${v.list ? `<div class="vlist">${v.list.map(([k,x]) => `<div><span>${esc(k)}</span><b>${esc(x)}</b></div>`).join('')}</div>` : ''}</div>
         ${v.val != null ? `<div class="fv">${esc(v.val)}</div>` : ''}</div>`).join('');
@@ -2976,6 +3294,7 @@ const PANTRY_VIEWS = {
         <pre class="cfg">${esc(c.text)}</pre>
       </div>`).join(''),
   native: () => nativeHtml(),
+  bhop: () => bhHtml(),
   gear: () => `<div class="panel">${GEAR.map(g => `<div class="fact">
         <div class="ft"><span class="gk">${esc(g.kind)}</span><b class="gn">${esc(g.name)}</b>${g.why ? `<span>${esc(g.why)}</span>` : ''}</div></div>`).join('')}</div>`
 };
