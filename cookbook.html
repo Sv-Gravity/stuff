@@ -2862,7 +2862,7 @@ const GEAR = [   // Toshi's setup, names exactly as he wrote them
   { kind:'Mouse',      name:'Lamzu Atlantis Mini Champion', why:'51 g, 117 x 63 x 37 mm, symmetrical, 8000 Hz.' },
   { kind:'Mousepad',   name:'Zowie G-SR-SE 470 x 390 mm',   why:'Slow control pad. Soft smooth fabric surface, non-stitched edge.' },
   { kind:'Keyboard',   name:'Logitech G915 TKL',            why:'Low profile, tenkeyless.' },
-  { kind:'Soundcard',  name:'Soundblaster AE-9',            why:'PCIe card with an external headphone amp box.' },
+  { kind:'Soundcard',  name:'Soundblaster AE-9' },
   { kind:'Headphones', name:'Beyerdynamic DT880 (600 ohm)', why:'Semi-open back.' },
   { kind:'Monitor',    name:'LG 45GS95QE',                  why:'45" curved OLED ultrawide, 3440x1440, 240 Hz.' }
 ];
@@ -2911,7 +2911,7 @@ const PANTRY_VIEWS = {
       </div>`).join(''),
   native: () => '<div class="empty">Coming soon</div>',
   gear: () => `<div class="panel">${GEAR.map(g => `<div class="fact">
-        <div class="ft"><span class="gk">${esc(g.kind)}</span><b class="gn">${esc(g.name)}</b><span>${esc(g.why)}</span></div></div>`).join('')}</div>`
+        <div class="ft"><span class="gk">${esc(g.kind)}</span><b class="gn">${esc(g.name)}</b>${g.why ? `<span>${esc(g.why)}</span>` : ''}</div></div>`).join('')}</div>`
 };
 const pantryId = id => PANTRY.some(t => t.id === id) ? id : PANTRY[0].id;
 function viewPantry(id){
