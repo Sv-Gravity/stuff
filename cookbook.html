@@ -2749,10 +2749,14 @@ const PLAYERS = [
   { name:'bogey',       dpi:800,  sens:1 },
   { name:'Tac 09',      dpi:1600, sens:1.2 },
   { name:'faded',       dpi:400,  sens:1 },
-  { name:'moosubi',     dpi:800,  sens:1.4 }
+  { name:'moosubi',     dpi:800,  sens:1.4 },
+  { name:'Hype',        dpi:null, sens:null },
+  { name:'J2H',         dpi:null, sens:null },
+  { name:'Wr4thy',      dpi:null, sens:null }
 ];
 const YAW = 0.022;                       // CS2 degrees turned per mouse count
 const sensRows = p => {
+  if (p.dpi == null) return ['DPI','In-game sensitivity','eDPI','180 swipe'].map(what => ({ what, val:null }));
   const counts = 180 / (YAW * p.sens);   // counts for a 180
   const inches = counts / p.dpi;
   return [
@@ -2768,12 +2772,12 @@ window.setSensTab = i => { sensTab = i; render(true); };
 // Same rows, same order as CS2 Settings > Crosshair / Scopes. Filler defaults until each player sends a screenshot.
 const XHAIR_DEFAULT = { style:'Static Cross', color:[50,250,50,200], outline:'Full Outline', outlineColor:[0,0,0,255],
   thickness:1, dot:'No', length:5, gap:1, tstyle:'No', scopeColor:'No', scopeScale:'1.00', recoil:'No' };
-const XHAIRS = PLAYERS.map(p => p.name === 'Toshi'
+const XHAIRS = PLAYERS.map(p => p.dpi == null ? null : p.name === 'Toshi'
   ? { style:'Static Cross', color:[255,0,255,255], outline:'Full Outline', outlineColor:[0,0,0,255],
       thickness:3, dot:'No', length:11, gap:5, tstyle:'No', scopeColor:'No', scopeScale:'1.00', recoil:'No' }
   : XHAIR_DEFAULT);
 const rgba = c => `rgba(${c[0]},${c[1]},${c[2]},${c[3]/255})`;
-const xhRows = x => [
+const xhRows = x => !x ? xhRows(XHAIR_DEFAULT).map(r => ({ what:r.what, val:null })) : [
   { what:'Style',                             val:x.style },
   { what:'Color and Transparency',            val:x.color.join(' '), sw:rgba(x.color) },
   { what:'Outline',                           val:x.outline },
@@ -2835,16 +2839,16 @@ function viewPantry(){
         `<button class="${i===sensTab?'on':''}" onclick="setSensTab(${i})">${esc(p.name)}</button>`).join('')}</div>
       ${sensRows(PLAYERS[sensTab]).map(r => `<div class="fact">
         <div class="ft"><b>${esc(r.what)}</b></div>
-        <div class="fv">${esc(r.val)}</div></div>`).join('')}
+        ${r.val == null ? '<div class="fv todo">Placeholder</div>' : `<div class="fv">${esc(r.val)}</div>`}</div>`).join('')}
     </div>
     <h2 class="sect">Crosshairs</h2>
     <div class="panel">
       <div class="tabs">${PLAYERS.map((p,i) =>
         `<button class="${i===xhTab?'on':''}" onclick="setXhTab(${i})">${esc(p.name)}</button>`).join('')}</div>
-      ${xhSvg(XHAIRS[xhTab])}
+      ${XHAIRS[xhTab] ? xhSvg(XHAIRS[xhTab]) : ''}
       ${xhRows(XHAIRS[xhTab]).map(r => `<div class="fact">
         <div class="ft"><b>${esc(r.what)}</b></div>
-        ${r.val == null ? '<div class="fv todo">Not set yet</div>'
+        ${r.val == null ? '<div class="fv todo">Placeholder</div>'
           : `<div class="fv">${r.sw ? `<i class="swatch" style="background:${r.sw}"></i>` : ''}${esc(String(r.val))}</div>`}</div>`).join('')}
     </div>
     <h2 class="sect">Audio settings</h2>
