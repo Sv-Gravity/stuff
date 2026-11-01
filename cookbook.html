@@ -57,8 +57,7 @@
   .fact .ft .vlist{margin-top:8px}
   .fact .ft .vlist div{display:flex;align-items:baseline;gap:14px;padding:5px 0;border-top:1px dashed var(--line)}
   .fact .ft .vlist div:first-child{border-top:0}
-  .nr-title{font-size:30px;line-height:1.15;margin-bottom:10px}
-  .nr-title span{display:block;font-size:19px;font-weight:600;color:var(--muted);margin-top:4px}
+  .nr-sub{margin:-12px 0 8px;font-size:19px;font-weight:600;color:var(--muted);line-height:1.25}
   .nr-lead{margin:0 0 18px;color:var(--text)}
   .nr-canvas{display:block;width:100%;max-width:760px;margin:0 auto}
   .nr-ctl{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px}
@@ -2730,7 +2729,7 @@ const PANTRY = [
   { id:'mouse',      name:'Mouse' },
   { id:'crosshairs', name:'Crosshairs' },
   { id:'configs',    name:'Configs' },
-  { id:'native',     name:'4:3', href:'#/native' },
+  { id:'native',     name:'4:3' },
   { id:'gear',       name:'Gear' }
 ];
 // page: 'map' | 'ing' | 'pantry' (mid = section id) | 'other' (no map); null hides the bar
@@ -2934,13 +2933,14 @@ const PANTRY_VIEWS = {
         <p class="sub" style="margin:0 0 12px">${esc(c.note)}${c.cmd ? ` <code class="cmd">${esc(c.cmd)}</code>` : ''}</p>
         <pre class="cfg">${esc(c.text)}</pre>
       </div>`).join(''),
-  native: () => '<div class="empty">Coming soon</div>',
+  native: () => nativeHtml(),
   gear: () => '<div class="empty">Coming soon</div>'
 };
 const pantryId = id => PANTRY.some(t => t.id === id) ? id : PANTRY[0].id;
 function viewPantry(id){
   const t = PANTRY.find(x => x.id === pantryId(id));
   app.innerHTML = `<h1 style="margin-bottom:18px">${esc(t.name)}</h1>` + PANTRY_VIEWS[t.id]();
+  if(t.id === 'native') nrInit();
 }
 window.copyCfg = i => copyText(CFGS[i].text);
 window.CFG_DIR = 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Counter-Strike Global Offensive\\game\\csgo\\cfg';
@@ -3279,9 +3279,10 @@ function nrCones(){
   </svg>`;
 }
 
-function viewNative(){
+// Pantry 4:3 section (#/pantry/native); the Pantry adds the "4:3" heading
+function nativeHtml(){
   cancelAnimationFrame(nrRaf);
-  app.innerHTML = `<h1 class="nr-title">4:3 <span>or How I Learned to Stop Worrying and Love Native Res</span></h1>
+  return `<p class="nr-sub">or How I Learned to Stop Worrying and Love Native Res</p>
     <p class="nr-lead">I've played since Counter Strike 0.9 beta, habit is not an excuse, adapt to survive.</p>
 
     <div class="tabs nr-modes">${Object.keys(NR).map(m =>
@@ -3316,9 +3317,8 @@ function viewNative(){
         <li>Inferno B Site frame from Toshi's 1920x1080 clip, cut to 4:3 with the angles above.</li>
       </ul>
     </div>`;
-  renderNrFacts();
-  nrStart();
 }
+function nrInit(){ renderNrFacts(); nrStart(); }
 function renderNrFacts(){
   document.getElementById('nrFacts').innerHTML = nrNumbers(nrMode).map(v => `<div class="fact">
     <div class="ft"><b>${esc(v.what)}</b><span>${esc(v.why)} <i class="nr-src-in">Source: ${srcLinks(v.src)}</i></span></div>
@@ -3418,7 +3418,7 @@ function render(keepScroll){
   else if(a==='entry' && b) viewEntry(b);
   else if(a==='pantry') viewPantry(b);
   // the 4:3 page lives in the Pantry bar; its view arrives with that page
-  else if(a==='native') (typeof viewNative === 'function' ? viewNative() : viewPantry('native'));
+  else if(a==='native') viewPantry('native');
   else if(a==='ingredients') viewIngredients(b || 'inferno');
   else if(a==='times') viewIngredients('inferno');
   else viewHome();
