@@ -2726,6 +2726,7 @@ const MAP_ICONS = {
     + '<path d="M2.5 7.5 6 4M2.5 11.5 7 7M2.5 15.5 7 11M5.5 16.5 7 15M17 7.5 20.5 4M17 11.5l4.5-4.5M17 15.5l4.5-4.5M20 16.5l1.5-1.5" stroke-width=".7" opacity=".75"/>'
     + '<g transform="translate(7.62 5.9) scale(.36)" stroke-width="3.3"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zM17 2h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></g>',
   nvidia:  '<rect x="2" y="6" width="20" height="11" rx="1"/><circle cx="9" cy="11.5" r="3"/><path d="M14.5 9h4M14.5 11.5h4M14.5 14h4M5 17v2.5M8 17v2.5M11 17v2.5"/>',
+  windows: '<rect x="2.5" y="4" width="19" height="16" rx="1.5"/><path d="M2.5 8h19M5 6h.01M7 6h.01M9 6h.01"/><path d="M7 12.5h10M7 15.5h6"/>',
   gear:    '<rect x="2.5" y="8" width="19" height="10" rx="1.5"/><path d="M5.5 11h1M8.5 11h1M11.5 11h1M14.5 11h1M17.5 11h1M5.5 14h1M17.5 14h1M8.5 14h7"/><path d="M12 8V5.5c0-1.2 1-2 2.5-2"/>'
 };
 // The Pantry's own top bar: one tab per section. 4:3 is its own page at #/native.
@@ -2733,6 +2734,7 @@ const PANTRY = [
   { id:'audio',      name:'Audio' },
   { id:'video',      name:'Video' },
   { id:'nvidia',     name:'NVIDIA' },
+  { id:'windows',    name:'Windows 11' },
   { id:'mouse',      name:'Mouse' },
   { id:'crosshairs', name:'Crosshairs' },
   { id:'configs',    name:'Configs' },
@@ -2820,6 +2822,39 @@ const NV_3D = [
   { what:'Threaded optimization', val:'Auto' },
   { what:'Triple buffering', val:'Off', why:'Only does anything with V-Sync.' },
   { what:'Vertical sync', val:'Off', why:'V-Sync holds a finished frame back when it engages.' }
+];
+
+// Windows 11 settings, one group per settings page
+const WIN = [
+  { where:'Settings &gt; Gaming', rows:[
+    { what:'Game Mode', val:'On', why:'Holds back Windows Update installs and notifications mid-game. Ryzen X3D with two CCDs (7950X3D, 9950X3D): must stay on, AMD\'s driver uses it to put CS2 on the cache cores.' },
+    { what:'Captures - Record what happened', val:'Off', why:'Background recording costs frame time.' }
+  ]},
+  { where:'Settings &gt; System &gt; Display', rows:[
+    { what:'Advanced display - Refresh rate', val:'Highest available', why:'Windows can drop to 60 Hz after a driver update or cable swap.' },
+    { what:'Dynamic refresh rate', val:'Off', why:'Lets Windows lower the refresh rate.' },
+    { what:'HDR', val:'On for OLED', why:'CS2 is SDR, and an OLED shows it cleanly in HDR mode. Run the Windows HDR Calibration app once. Off on other monitors: SDR inside HDR looks washed out there.' },
+    { what:'Auto HDR', val:'Off', why:'Adds highlights Valve never tuned. Bright skies and windows can hide players.' }
+  ]},
+  { where:'Settings &gt; System &gt; Display &gt; Graphics &gt; Advanced graphics settings', rows:[
+    { what:'Hardware-accelerated GPU scheduling', val:'On' },
+    { what:'Optimizations for windowed games', val:'On', why:'Lower latency in fullscreen windowed.' },
+    { what:'Variable refresh rate', val:'On', why:'G-SYNC works in fullscreen windowed too.' }
+  ]},
+  { where:'Control Panel &gt; Power Options', rows:[
+    { what:'Power plan', val:'Ultimate Performance', why:'Same as High performance on a desktop. Ryzen X3D: Balanced, so the chipset driver keeps CS2 on the cache cores.' }
+  ]},
+  { where:'Settings &gt; Bluetooth &amp; devices &gt; Mouse', rows:[
+    { what:'Enhance pointer precision', val:'Off', why:'CS2 uses raw input. This keeps the desktop and menus 1:1.' },
+    { what:'Mouse pointer speed', val:'10', why:'The middle notch, no scaling.' }
+  ]},
+  { where:'Windows Security &gt; Device security &gt; Core isolation', rows:[
+    { what:'Memory integrity', val:'Off', why:'Costs up to about 8% fps (measured on a Ryzen 5800X3D), more on older CPUs. Off also lowers protection against kernel malware.' }
+  ]},
+  { where:'Settings &gt; Apps &gt; Startup', rows:[
+    { what:'Startup apps', val:'Only what you use', why:'Launchers, RGB tools and updaters steal CPU time from a CPU-bound game. Ryzen X3D: keep the AMD chipset driver and Xbox Game Bar installed, the core parking needs both.' },
+    { what:'Overlays', val:'Off', why:'Discord and NVIDIA app overlays draw on top of every frame.' }
+  ]}
 ];
 
 const LAUNCH = [
@@ -2939,6 +2974,9 @@ const PANTRY_VIEWS = {
   nvidia: () => `<div class="panel">
       <p class="sub" style="margin:0 0 12px">NVIDIA Control Panel &gt; Manage 3D settings &gt; Program Settings &gt; Counter-Strike 2. Set each row to the value shown, not Use global setting.</p>
       ${facts(NV_3D)}</div>`,
+  windows: () => WIN.map(g => `<div class="panel">
+      <p class="sub" style="margin:0 0 12px">${g.where}</p>
+      ${facts(g.rows)}</div>`).join(''),
   mouse: () => `<div class="panel">${facts(MOUSE)}</div>
     <div class="panel"><h2>Sensitivity</h2>
       <div class="tabs">${PLAYERS.map((p,i) =>
