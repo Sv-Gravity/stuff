@@ -2768,7 +2768,7 @@ const AUDIO = [
   { what:'EQ Profile', val:'Crisp', why:'Lifts the highs where footsteps live and pulls back the bass that masks them.' },
   { what:'Perspective Correction', val:'On', why:'Keeps directional audio lined up with where you are looking.' },
   { what:'L/R Isolation', val:'50%', why:'Start here. Higher hardens left and right but flattens distance and front-to-back. Worth experimenting with.' },
-  { what:'Music volumes', val:'', why:'Same names as the Music tab in game.', list:[
+  { what:'Music volumes', val:'', list:[
     ['Master Volume','100%'],
     ['MVP','10%'],
     ['Ten Second Warning','20%'],
@@ -2800,7 +2800,7 @@ function viewPantry(){
     <h2 class="sect">Audio settings</h2>
     <div class="panel">
       ${AUDIO.map(v => `<div class="fact">
-        <div class="ft"><b>${esc(v.what)}</b><span>${esc(v.why)}</span>${v.list ? `<div class="vlist">${v.list.map(([k,x]) => `<div><span>${esc(k)}</span><b>${esc(x)}</b></div>`).join('')}</div>` : ''}</div>
+        <div class="ft"><b>${esc(v.what)}</b>${v.why ? `<span>${esc(v.why)}</span>` : ''}${v.list ? `<div class="vlist">${v.list.map(([k,x]) => `<div><span>${esc(k)}</span><b>${esc(x)}</b></div>`).join('')}</div>` : ''}</div>
         <div class="fv">${esc(v.val)}</div></div>`).join('')}
     </div>
     <h2 class="sect">Launch options</h2>
