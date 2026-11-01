@@ -48,6 +48,7 @@
   .fact .ft b{font-weight:600}
   .fact .ft span{display:block;color:var(--muted);font-size:13px;margin-top:2px}
   .fact .fv{font:700 20px ui-monospace,Menlo,Consolas,monospace;color:var(--accent);white-space:nowrap}
+  .fact .fv .swatch{display:inline-block;width:14px;height:14px;border-radius:3px;margin-right:10px;vertical-align:-1px;outline:1px solid #000}
   .fact .fv.todo{color:var(--muted);font-size:14px;font-weight:600}
   .callouts{margin:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#000}
   .callouts img{display:block;width:100%;height:auto;cursor:zoom-in}
@@ -2758,6 +2759,33 @@ const sensRows = p => {
 let sensTab = 0;
 window.setSensTab = i => { sensTab = i; render(true); };
 
+// CS2 defaults are filler until each player's crosshair is collected
+const XHAIR_DEFAULT = { style:4, dot:0, size:5, thickness:0.5, gap:1, outline:1, outlineThick:1,
+  r:50, g:250, b:50, alpha:200, sniper:1, splitdist:7, inner:1, outer:0.5, ratio:0.35 };
+const XHAIRS = PLAYERS.map(p => p.name === 'Toshi'
+  ? { style:4, dot:0, size:1.5, thickness:0.5, gap:null, outline:1, outlineThick:null,
+      r:255, g:0, b:255, alpha:255, sniper:2, splitdist:7, inner:1, outer:0.5, ratio:0.35 }
+  : XHAIR_DEFAULT);
+const XSTYLE = ['Default','Default Static','Classic','Classic Dynamic','Classic Static'];
+const xhRows = x => [
+  { what:'Style',               val:XSTYLE[x.style] },
+  { what:'Center dot',          val:x.dot ? 'On' : 'Off' },
+  { what:'Length',              val:x.size },
+  { what:'Thickness',           val:x.thickness },
+  { what:'Gap',                 val:x.gap },
+  { what:'Outline',             val:x.outline ? 'On' : 'Off' },
+  { what:'Outline thickness',   val:x.outlineThick },
+  { what:'Color (R G B)',       val:`${x.r} ${x.g} ${x.b}`, sw:`rgb(${x.r},${x.g},${x.b})` },
+  { what:'Alpha',               val:x.alpha },
+  { what:'Sniper width',        val:x.sniper },
+  { what:'Split distance',      val:x.splitdist },
+  { what:'Inner split alpha',   val:x.inner },
+  { what:'Outer split alpha',   val:x.outer },
+  { what:'Split size ratio',    val:x.ratio }
+];
+let xhTab = 0;
+window.setXhTab = i => { xhTab = i; render(true); };
+
 const AUDIO = [
   { what:'Virtual surround', val:'Off', why:'Outside CS2: Windows Sonic, Dolby Atmos for Headphones, headset 7.1. Steam Audio already spatialises for headphones, and a second pass smears it.' },
   { what:'EQ Profile', val:'Crisp', why:'Lifts the highs where footsteps live and pulls back the bass that masks them.' },
@@ -2786,6 +2814,15 @@ function viewPantry(){
       ${sensRows(PLAYERS[sensTab]).map(r => `<div class="fact">
         <div class="ft"><b>${esc(r.what)}</b></div>
         <div class="fv">${esc(r.val)}</div></div>`).join('')}
+    </div>
+    <h2 class="sect">Crosshairs</h2>
+    <div class="panel">
+      <div class="tabs">${PLAYERS.map((p,i) =>
+        `<button class="${i===xhTab?'on':''}" onclick="setXhTab(${i})">${esc(p.name)}</button>`).join('')}</div>
+      ${xhRows(XHAIRS[xhTab]).map(r => `<div class="fact">
+        <div class="ft"><b>${esc(r.what)}</b></div>
+        ${r.val == null ? '<div class="fv todo">Not set yet</div>'
+          : `<div class="fv">${r.sw ? `<i class="swatch" style="background:${r.sw}"></i>` : ''}${esc(String(r.val))}</div>`}</div>`).join('')}
     </div>
     <h2 class="sect">Audio settings</h2>
     <div class="panel">
