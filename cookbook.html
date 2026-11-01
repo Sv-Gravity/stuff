@@ -2796,27 +2796,27 @@ const VIDEO_REST = [
   { what:'High Dynamic Range', val:'Quality', why:'Cleaner lighting with less banding, so players stand out better in dark corners and bright doorways.' }
 ];
 
-// NVIDIA Control Panel, rows in the panel's own order
+// NVIDIA Control Panel > Manage 3D settings > Program Settings > Counter-Strike 2, rows in the panel's own order
 const NV_3D = [
   { what:'Image Scaling', val:'Off', why:'Adds an upscale and sharpening pass. Native needs neither.' },
+  { what:'Anisotropic filtering', val:'Application-controlled', why:'The in-game Anisotropic 16x handles it.' },
   { what:'Antialiasing - FXAA', val:'Off', why:'Blurs the whole frame. In-game MSAA handles edges.' },
+  { what:'Antialiasing - Gamma correction', val:'On', why:'Smoother MSAA edges, no frame cost.' },
   { what:'Antialiasing - Mode', val:'Application-controlled', why:'Leaves antialiasing to the 2x MSAA in CS2.' },
+  { what:'Antialiasing - Transparency', val:'Off', why:'Extra work on fences and foliage. Costs frame time.' },
+  { what:'Background Application Max Frame Rate', val:'Off', why:'Only matters when alt-tabbed.' },
   { what:'Low Latency Mode', val:'Off', why:'Reflex Enabled + Boost in CS2 replaces it.' },
   { what:'Max Frame Rate', val:'Off', why:'Cap fps in the game instead, if at all.' },
+  { what:'Multi-Frame Sampled AA (MFAA)', val:'Off', why:'Blends MSAA across frames. Adds blur in motion.' },
   { what:'Power management mode', val:'Prefer maximum performance', why:'Keeps GPU clocks up between frames.' },
   { what:'Preferred refresh rate', val:'Highest available', why:'CS2 can never fall back below the monitor maximum.' },
   { what:'Texture filtering - Anisotropic sample optimization', val:'Off', why:'An old-GPU shortcut that trades sharpness for speed you won\'t notice.' },
   { what:'Texture filtering - Negative LOD bias', val:'Allow' },
   { what:'Texture filtering - Quality', val:'High quality', why:'High performance blurs floors and walls at an angle. Costs almost nothing in fps.' },
   { what:'Texture filtering - Trilinear optimization', val:'Off', why:'Same shortcut as the sample optimization.' },
+  { what:'Threaded optimization', val:'Auto' },
   { what:'Triple buffering', val:'Off', why:'Only does anything with V-Sync.' },
   { what:'Vertical sync', val:'Off', why:'V-Sync holds a finished frame back when it engages.' }
-];
-const NV_DESKTOP = [
-  { what:'Scaling mode', val:'No scaling', why:'At native resolution there is nothing to scale.' },
-  { what:'Perform scaling on', val:'Display', why:'The GPU skips the resize step if a game ever runs below native.' },
-  { what:'Resolution', val:'Native' },
-  { what:'Refresh rate', val:'Monitor maximum' }
 ];
 
 const LAUNCH = [
@@ -2933,10 +2933,9 @@ const facts = list => list.map(v => `<div class="fact">
 const PANTRY_VIEWS = {
   audio: () => `<div class="panel">${facts(AUDIO)}</div>`,
   video: () => `<div class="panel">${facts([...VIDEO_LATENCY, ...VIDEO_REST])}</div>`,
-  nvidia: () => `<div class="panel"><h2>Manage 3D settings</h2>
-      <p class="sub" style="margin:0 0 12px">Set these under Global Settings. Then open Program Settings &gt; Counter-Strike 2: anything set there overrides Global, so set every row to Use global setting.</p>
-      ${facts(NV_3D)}</div>
-    <div class="panel"><h2>Adjust desktop size and position</h2>${facts(NV_DESKTOP)}</div>`,
+  nvidia: () => `<div class="panel">
+      <p class="sub" style="margin:0 0 12px">NVIDIA Control Panel &gt; Manage 3D settings &gt; Program Settings &gt; Counter-Strike 2. Set each row to the value shown, not Use global setting.</p>
+      ${facts(NV_3D)}</div>`,
   mouse: () => `<div class="panel">${facts(MOUSE)}</div>
     <div class="panel"><h2>Sensitivity</h2>
       <div class="tabs">${PLAYERS.map((p,i) =>
