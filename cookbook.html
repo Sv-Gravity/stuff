@@ -64,15 +64,6 @@
   .nr-ctl{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px}
   .nr-ctl button.on{border-color:var(--accent);color:var(--accent)}
   .nr-ctl span{color:var(--muted);font-size:13px;flex:1;min-width:220px}
-  .nr-game{cursor:crosshair;border-radius:6px;outline:none;margin-top:10px;touch-action:manipulation}
-  .nr-gtabs{display:flex;gap:8px;flex-wrap:wrap;align-items:center;max-width:760px;margin:12px auto 0}
-  .nr-gtabs button.on{border-color:var(--accent);color:var(--accent)}
-  .nr-sens{margin-left:auto;color:var(--muted);font-size:13px;display:flex;align-items:center;gap:6px}
-  .nr-sens input{width:70px;background:var(--panel2,#1b2029);color:var(--text);border:1px solid var(--line,#2f3947);border-radius:6px;padding:5px 6px;font:inherit}
-  .nr-gscore{display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:760px;margin:12px auto 0}
-  .nr-gscore div{border:1px solid var(--line,#2f3947);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:4px}
-  .nr-gscore b{font-size:13px}.nr-gscore span{color:var(--muted);font-size:13px}.nr-gscore em{font-style:normal;color:var(--accent);font-weight:700}
-  @media (max-width:560px){.nr-gscore{grid-template-columns:1fr}}
   .nr-note{margin:-6px 0 18px;padding:12px 14px;border-left:3px solid var(--accent);background:var(--panel);border-radius:0 10px 10px 0;font-size:14px}
   .nr-scene + .nr-scene{margin-top:22px}
   .nr-scene h3{margin:0 0 8px;font-size:15px}
@@ -3340,8 +3331,6 @@ function nativeHtml(){
       </div>
     </div>
 
-    ${nrGameHtml()}
-
     <h2 class="sect">The numbers</h2>
     <div class="panel" id="nrFacts"></div>
     <div class="panel"><h2>How fast he crosses your screen</h2>${nrSpeedTable()}</div>
@@ -3370,7 +3359,7 @@ function nativeHtml(){
 let nrModels = null, nrModel = null;
 function nrInit(){
   if(!nrModels) nrModels = [NATIVE_IMG.model_t, NATIVE_IMG.model_ct].map(src => { const i = new Image(); i.src = src; return i; });
-  renderNrFacts(); nrStart(); nrGameStart();
+  renderNrFacts(); nrStart();
 }
 function renderNrFacts(){
   document.getElementById('nrFacts').innerHTML = nrNumbers().map(v => `<div class="fact">
@@ -3461,166 +3450,6 @@ function nrStart(){
     if(!document.body.contains(cv)) { cancelAnimationFrame(nrRaf); window.removeEventListener('resize', nrResize); nrResize = null; }
   }
   nrRaf = requestAnimationFrame(frame);
-}
-
-// "Click the head" test: one screen, the same knife runner, rounds on 16:9 and on 4:3 stretched.
-// The view is a real rotating camera: the mouse turns you by the same angle on both, like CS2
-// (sens × 0.022° per count), so the only differences are what the stretch does to the picture.
-const NR_GAME_RUNS = 10, NR_HEAD_R = 4.6;
-let nrG = null;   // game state, kept across tab switches so scores survive
-function nrGameState(){
-  if(!nrG) nrG = {mode:'169', sens:1, score:{'169':null, '43':null}, raf:0};
-  return nrG;
-}
-function nrGameHtml(){
-  const G = nrGameState();
-  return `<div class="panel"><h2>Try it: click the head</h2>
-      <p class="nr-p">${NR_GAME_RUNS} runs per screen. The enemy runs past at ${NR_SPEED} u/s, ${NR_ANIM_D} units away, from a random side after a random wait. Click the screen to start, move the mouse to aim, click to shoot. One shot per run. Esc lets go of the mouse.</p>
-      <div class="nr-gtabs" role="tablist">
-        <button role="tab" data-m="169" onclick="nrGameMode('169')">Native 16:9</button>
-        <button role="tab" data-m="43" onclick="nrGameMode('43')">4:3 stretched</button>
-        <label class="nr-sens">CS2 sens <input id="nrSens" type="number" min="0.1" max="10" step="0.05" value="${G.sens}" onchange="nrGameSens(this.value)"></label>
-      </div>
-      <canvas id="nrGame" class="nr-canvas nr-game" tabindex="0" aria-label="Aim test: a running enemy crosses the screen, click when your crosshair is on his head."></canvas>
-      <div class="nr-gscore" id="nrGScore"></div>
-      <p class="nr-p">The mouse turns you by the same angle on both screens, like in game, so the same flick hits on both. What changes is the picture: on 4:3 stretched he shows up later and slides across faster. Raw mouse input in Chrome and Edge. On a phone, tap when he crosses the crosshair.</p>
-    </div>`;
-}
-function nrGameScore(){
-  const G = nrGameState(), el = document.getElementById('nrGScore'); if(!el) return;
-  const one = m => { const s = G.score[m], name = m === '169' ? 'Native 16:9' : '4:3 stretched';
-    if(!s) return `<div><b>${name}</b><span>not played yet</span></div>`;
-    if(!s.n) return `<div><b>${name}</b><span>playing…</span></div>`;
-    const avg = s.times.length ? (s.times.reduce((a, b) => a + b, 0) / s.times.length).toFixed(2) + ' s' : '–';
-    return `<div><b>${name}</b><span><em>${s.hits}/${s.n}</em> hit${s.n === 1 ? '' : 's'}${s.n < NR_GAME_RUNS ? ' so far' : ''} · ${avg} from first sight to hit</span></div>`; };
-  el.innerHTML = one('169') + one('43');
-  document.querySelectorAll('.nr-gtabs button').forEach(b => b.classList.toggle('on', b.dataset.m === G.mode));
-}
-window.nrGameMode = m => { const G = nrGameState(); G.mode = m; G.run = null; G.state = 'idle'; nrGameScore(); };
-window.nrGameSens = v => { const G = nrGameState(); const n = parseFloat(v); if(n > 0) G.sens = n; };
-
-function nrGameStart(){
-  const G = nrGameState(); cancelAnimationFrame(G.raf);
-  const cv = document.getElementById('nrGame'); if(!cv) return;
-  const ctx = cv.getContext('2d'), A = 16/9, D = NR_ANIM_D, X = 0.75 * A * D + 30;
-  G.state = 'idle'; G.run = null; G.yaw = 0;
-  let W = 0, H = 0;
-  const size = () => { const dpr = window.devicePixelRatio || 1; W = cv.clientWidth; H = Math.round(W / A);
-    cv.style.height = H + 'px'; cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); };
-  size(); const onResize = () => size(); window.addEventListener('resize', onResize);
-  nrGameScore();
-
-  const locked = () => document.pointerLockElement === cv;
-  const touch = window.matchMedia && matchMedia('(pointer: coarse)').matches;
-  const lock = () => { if(touch || locked() || !cv.requestPointerLock) return;
-    const p = cv.requestPointerLock({unadjustedMovement: true});
-    if(p && p.catch) p.catch(() => { try{ cv.requestPointerLock(); }catch(e){} }); };
-  const onMove = e => { if(locked() && G.state === 'play') G.yaw += e.movementX * G.sens * 0.022 * Math.PI / 180; };
-  document.addEventListener('mousemove', onMove);
-
-  // camera space: x right, z forward; the runner moves along the wall line z = D (before you turn)
-  const cam = wx => { const c = Math.cos(G.yaw), s = Math.sin(G.yaw); return [wx * c - D * s, wx * s + D * c]; };
-  const halfTan = () => G.mode === '169' ? 0.75 * A : 1;
-  const px = (x, z) => W/2 + (W/2) * (x / z) / halfTan();
-  const py = (y, z) => H/2 + (H/2) * (y / z) / 0.75;
-
-  function newRun(){
-    const dir = Math.random() < .5 ? 1 : -1;
-    G.run = {dir, wait: .6 + Math.random() * 1.4, t: 0, x: -dir * X, shot: false, seen: null, msg: null, msgT: 0,
-      model: nrModels ? nrModels[Math.floor(Math.random() * nrModels.length)] : null};
-    G.yaw = 0;
-  }
-  function begin(){
-    if(G.state === 'play') return;
-    G.score[G.mode] = {hits: 0, n: 0, times: []}; G.state = 'play'; newRun(); nrGameScore();
-  }
-  function shoot(){
-    const r = G.run; if(G.state !== 'play' || !r || r.shot || r.wait > 0) return;
-    r.shot = true; const [x, z] = cam(r.x), s = G.score[G.mode];
-    const hit = z > 0 && Math.abs(x) <= NR_HEAD_R;
-    if(hit){ s.hits++; const dt = r.seen === null ? 0 : r.t - r.seen; s.times.push(dt); r.msg = `Hit · ${dt.toFixed(2)} s`; r.hitAt = r.x; }
-    else r.msg = 'Miss';
-    r.msgT = .9; nrGameScore();
-  }
-  const onDown = e => { e.preventDefault(); cv.focus();
-    if(G.state !== 'play'){ lock(); begin(); return; }
-    if(!touch && !locked()){ lock(); return; }
-    shoot(); };
-  cv.addEventListener('pointerdown', onDown);
-  const onLock = () => { if(!locked() && G.state === 'play' && !touch){ G.paused = true; } else G.paused = false; };
-  document.addEventListener('pointerlockchange', onLock);
-
-  function finishRun(){
-    const s = G.score[G.mode]; s.n++; nrGameScore();
-    if(s.n >= NR_GAME_RUNS){ G.state = 'done'; G.run = null; if(locked()) document.exitPointerLock(); }
-    else newRun();
-  }
-
-  let last = performance.now();
-  function frame(now){
-    const dt = Math.min(.05, (now - last) / 1000); last = now;
-    if(!document.body.contains(cv)){ window.removeEventListener('resize', onResize); document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('pointerlockchange', onLock); if(locked()) document.exitPointerLock(); G.state = 'idle'; return; }
-    const r = G.run;
-    if(G.state === 'play' && r && !G.paused){
-      if(r.wait > 0) r.wait -= dt;
-      else {
-        r.t += dt; r.x += r.dir * NR_SPEED * dt;
-        if(r.shot){ r.msgT -= dt; if(r.msgT <= 0) finishRun(); }
-        else {
-          const [x, z] = cam(r.x); if(r.seen === null && z > 0 && Math.abs(x / z) <= halfTan()) r.seen = r.t;
-          if(r.dir * r.x > X){ r.shot = true; r.msg = 'Too slow'; r.msgT = .7; }
-        }
-      }
-    }
-    draw();
-    G.raf = requestAnimationFrame(frame);
-  }
-
-  function draw(){
-    const sky = ctx.createLinearGradient(0, 0, 0, H);
-    sky.addColorStop(0, '#1d2430'); sky.addColorStop(.5, '#232b37'); sky.addColorStop(.5, '#2a2620'); sky.addColorStop(1, '#3a3226');
-    ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
-    // wall markers every 25 units along his line
-    ctx.strokeStyle = 'rgba(140,152,169,.22)'; ctx.lineWidth = 1;
-    for(let wx = -600; wx <= 600; wx += 25){ const [x, z] = cam(wx); if(z <= 1) continue;
-      const sx = px(x, z); if(sx < -2 || sx > W + 2) continue;
-      ctx.beginPath(); ctx.moveTo(sx, py(-40, z)); ctx.lineTo(sx, py(64, z)); ctx.stroke(); }
-    const r = G.run;
-    if(r && r.wait <= 0){
-      const [x, z] = cam(r.x);
-      if(z > 1){
-        const sx = px(x, z), m = r.model;
-        if(m && m.complete && m.naturalWidth){
-          const h = (H/2) * (72 / z) / 0.75, half = 36 * m.naturalWidth / m.naturalHeight;   // half width in units
-          const l = px(x - half, z), rr = px(x + half, z);
-          ctx.save(); if(r.dir < 0){ ctx.translate(sx * 2, 0); ctx.scale(-1, 1); }
-          const dl = r.dir < 0 ? 2 * sx - rr : l;
-          ctx.drawImage(m, dl, py(64, z) - h, rr - l, h); ctx.restore();
-        } else {
-          ctx.fillStyle = '#f5a524'; ctx.beginPath();
-          ctx.ellipse(sx, py(0, z), px(x + NR_HEAD_R, z) - sx, (H/2) * (NR_HEAD_R / z) / 0.75, 0, 0, Math.PI * 2); ctx.fill();
-        }
-      }
-    }
-    // crosshair
-    const cx = W/2, cy = H/2; ctx.strokeStyle = '#e6eaf0'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(cx - 9, cy); ctx.lineTo(cx - 3, cy); ctx.moveTo(cx + 3, cy); ctx.lineTo(cx + 9, cy);
-    ctx.moveTo(cx, cy - 9); ctx.lineTo(cx, cy - 3); ctx.moveTo(cx, cy + 3); ctx.lineTo(cx, cy + 9); ctx.stroke();
-    ctx.strokeStyle = '#2f3947'; ctx.lineWidth = 1; ctx.strokeRect(.5, .5, W - 1, H - 1);
-    // labels
-    ctx.font = '600 13px system-ui,sans-serif'; ctx.textBaseline = 'top'; ctx.textAlign = 'left'; ctx.fillStyle = '#8c98a9';
-    ctx.fillText(G.mode === '169' ? 'Native 16:9' : '4:3 stretched', 10, 10);
-    const s = G.score[G.mode];
-    if(s && G.state !== 'idle'){ ctx.textAlign = 'right'; ctx.fillText(`${Math.min(s.n + (G.state === 'play' ? 1 : 0), NR_GAME_RUNS)}/${NR_GAME_RUNS} · ${s.hits} hit${s.hits === 1 ? '' : 's'}`, W - 10, 10); }
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const big = (t, c) => { ctx.font = '700 22px system-ui,sans-serif'; ctx.fillStyle = c; ctx.fillText(t, W/2, H * .3); };
-    if(G.state === 'idle') big(touch ? 'Tap to start' : 'Click to start', '#e6eaf0');
-    else if(G.state === 'done') big(`${s.hits}/${s.n} hits · ${touch ? 'tap' : 'click'} to go again`, '#f5a524');
-    else if(G.paused) big('Paused · click to carry on', '#e6eaf0');
-    else if(r && r.msg && r.msgT > 0) big(r.msg, r.msg.startsWith('Hit') ? '#4ade80' : '#ff6b6b');
-  }
-  G.raf = requestAnimationFrame(frame);
 }
 
 /* ---------- router ---------- */
