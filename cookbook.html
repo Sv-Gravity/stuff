@@ -39,6 +39,10 @@
   .cfghead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
   .cfghead h2{margin:0;flex:1}
   .cfghead .fn{color:var(--muted);font:13px ui-monospace,Menlo,Consolas,monospace}
+  .savepath{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+  .savepath b{font-weight:600;white-space:nowrap}
+  .savepath code{flex:1;min-width:0;overflow-wrap:anywhere;font:13px ui-monospace,Menlo,Consolas,monospace;color:var(--accent)}
+  .savepath span{flex-basis:100%;color:var(--muted);font-size:13px}
   .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px}
   .tabs button{font-weight:600}
   .tabs button.on{border-color:var(--accent);color:var(--accent)}
@@ -2696,7 +2700,7 @@ const CFGS = [
  {
   "name": "autoexec.cfg",
   "title": "Autoexec",
-  "note": "Personal settings for Toshi: crosshair, sensitivity, binds, sound, HUD. Not a universal config, but a fine place to start from if you want to build your own. Goes in your csgo/cfg folder.",
+  "note": "Personal settings for Toshi: crosshair, sensitivity, binds, sound, HUD. Not a universal config, but a fine place to start from if you want to build your own.",
   "text": "//CROSSHAIR\n// CS2 dropped cl_crosshaircolor, cl_crosshairgap, cl_crosshairgap_useweaponvalue,\n// cl_crosshair_outlinethickness, cl_crosshairusealpha and cl_fixedcrosshairgap.\n// Set those in Settings > Crosshair, or paste a share code.\ncl_crosshair_drawoutline \"1\"\ncl_crosshair_dynamic_maxdist_splitratio \"0.35\"\ncl_crosshair_dynamic_splitalpha_innermod \"1\"\ncl_crosshair_dynamic_splitalpha_outermod \"0.5\"\ncl_crosshair_dynamic_splitdist \"7\"\ncl_crosshair_recoil \"0\"\ncl_crosshair_sniper_width \"2\"\ncl_crosshairalpha \"255\"\ncl_crosshaircolor_b \"255\"\ncl_crosshaircolor_g \"0\"\ncl_crosshaircolor_r \"255\"\ncl_crosshairdot \"0\"\ncl_crosshairsize \"1.5\"\ncl_crosshairstyle \"4\"\ncl_crosshairthickness \"0.500000\"\n\n//SENSITIVITY\nzoom_sensitivity_ratio \"0.818933027098955175\"\nsensitivity \"1.34\"\n\n//KEYBOARD BINDS\n// clear first, then bind - otherwise a later unbind kills an earlier bind\nunbind \"f6\"\nunbind \"f7\"\nunbind \"f8\"\nunbind \"f9\"\nunbind \"f10\"\nunbind \"f11\"\nunbind \"f12\"\nunbind \"8\"\nunbind \"9\"\nunbind \"0\"\nunbind \"-\"\nunbind \"=\"\nunbind \"q\"\nunbind \"i\"\nunbind \"o\"\nunbind \"p\"\nunbind \"[\"\nunbind \"]\"\nunbind \"\\\"\nunbind \"h\"\nunbind \"j\"\nunbind \"k\"\nunbind \"l\"\nunbind \"n\"\nunbind \"/\"\nunbind \"INS\"\nunbind \"HOME\"\nunbind \"PGUP\"\nunbind \"END\"\n\nbind \"ctrl\" \"+duck;\"\nbind \"shift\" \"+sprint;\"\nbind space \"+jump\"\nbind \"w\" \"+forward;\"\nbind \"a\" \"+left;\"\nbind \"s\" \"+back;\"\nbind \"d\" \"+right;\"\nbind \"c\" \"+runthrow;\"\nbind \"v\" \"-attack\"\nbind \"mouse1\" \"+attack\"\nbind \"mouse2\" \"+attack2\"\nbind \"mwheelup\" \"slot7\"\nbind \"mwheeldown\" \"+jump\"\nbind \"f\" \"slot8\"\nbind \"mouse4\" \"slot10\"\nbind \"mouse5\" \"+voicerecord\"\nbind \"alt\" \"player_ping\"\nbind \"f1\" \"buy awp\"\nbind \"f2\" \"buy ak47; buy m4a1_silencer\"\nbind \"f3\" \"buy vesthelm; buy vest\"\nbind \"f4\" \"buy smokegrenade; buy flashbang; buy flashbang; buy hegrenade\"\nbind \"f5\" \"buy smokegrenade; buy flashbang; buy flashbang; buy molotov; buy incgrenade\"\nbind \"PGDN\" \"r_fullscreen_gamma 1.99\"\nbind \"PGUP\" \"r_fullscreen_gamma 2\"\nbind \"rightarrow\" \"noclip\"\nbind \"leftarrow\" \"sv_rethrow_last_grenade\"\nbind \"downarrow\" \"volume 0\"\nbind \"uparrow\" \"volume 1\"\nbind \"1\" \"slot1\"\nbind \"2\" \"slot2\"\nbind \"3\" \"slot3\"\nbind \"4\" \"slot6\"\nbind \"5\" \"slot5\"\nbind \"6\" \"slot9\"\nbind \"e\" \"+use\"\nbind \"r\" \"+reload\"\nbind \"t\" \"+lookatweapon\"\nbind \"y\" \"messagemode\"\nbind \"u\" \"messagemode2\"\nbind \"g\" \"drop\"\nbind \"z\" \"radio\"\nbind \"x\" \"+spray_menu\"\nbind \"b\" \"buymenu\"\nbind \"m\" \"teammenu\"\nbind \",\" \"buyammo1\"\nbind \".\" \"buyammo2\"\nbind \"TAB\" \"+showscores\"\nbind \"DEL\" \"sellbackall\"\n\n//SOUND\nsnd_headphone_eq \"1\"   // Crisp: lifts the highs where footsteps live\nsnd_steamaudio_enable_perspective_correction \"1\"\nsnd_tensecondwarning_volume \"0.2\"\nsnd_menumusic_volume \"0\"\nsnd_mapobjective_volume \"0\"\nsnd_deathcamera_volume \"0\"\nsnd_mvp_volume \"0.1\"\nsnd_roundaction_volume \"0\"\nsnd_roundend_volume \"0\"\nsnd_roundstart_volume \"0\"\nvolume 1\n\n//MISC\nrate \"786432\"\ncl_autohelp \"0\"\nfps_max \"0\"\ncl_teamid_overhead_mode \"2\"\ncl_radar_scale \"0.6\"\ncl_showloadout \"0\"\ncl_use_opens_buy_menu \"0\"\ncl_hide_avatar_images \"0\"\ncl_silencer_mode \"0\"\nviewmodel_presetpos \"1\"\n// HUD edge positions: horizontal as far in as CS2 allows (lower values clamp to the minimum),\n// vertical all the way out. Keeps the radar in peripheral view on an ultrawide.\nsafezonex \"0.5\"\nsafezoney \"1\"\nhud_showtargetid \"1\"\nr_fullscreen_gamma \"2.1\""
  },
  {
@@ -2877,12 +2881,26 @@ function viewPantry(){
           <button onclick="copyCfg(${i})">Copy</button>
           <button onclick="saveCfg(${i})">Download</button>
         </div>
+        <div class="savepath"><b>Save in</b><code>${esc(CFG_DIR)}</code>
+          <button onclick="copyText(CFG_DIR)">Copy path</button>
+          <span>Steam on another drive? Steam &gt; right-click Counter-Strike 2 &gt; Manage &gt; Browse local files, then open game\\csgo\\cfg.</span></div>
         <p class="sub" style="margin:0 0 12px">${esc(c.note)}${c.cmd ? ` <code class="cmd">${esc(c.cmd)}</code>` : ''}</p>
         <pre class="cfg">${esc(c.text)}</pre>
       </div>`).join('');
 }
 window.copyCfg = i => copyText(CFGS[i].text);
-window.saveCfg = i => {
+window.CFG_DIR = 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Counter-Strike Global Offensive\\game\\csgo\\cfg';
+// Chrome/Edge: real save dialog; the id makes it reopen in the last folder used (pick the cfg folder once).
+// Other browsers: plain download to Downloads.
+window.saveCfg = async i => {
+  if(window.showSaveFilePicker){
+    try{
+      const h = await showSaveFilePicker({id:'cs2cfg', suggestedName:CFGS[i].name,
+        types:[{description:'CS2 config', accept:{'text/plain':['.cfg']}}]});
+      const w = await h.createWritable(); await w.write(CFGS[i].text); await w.close();
+      toast('Saved ' + CFGS[i].name); return;
+    }catch(e){ if(e.name === 'AbortError') return; }
+  }
   const b = new Blob([CFGS[i].text], {type:'text/plain'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(b); a.download = CFGS[i].name;
