@@ -3626,14 +3626,15 @@ const MID_EN = { w:31, h:53, feet:753, l:1655, r:1787 }, MID_C = 1720;
 const MID_PXS = NR_SPEED * MID_EN.h / 72;                       // world px/s at 1440 tall: 250 u/s at ~1300 u
 const MID_D = Math.round(72 * 960 / MID_EN.h / 50) * 50;        // ~1300 units
 const MID_ROWS = [
+  { title:'21:9 (3440x1440)',            mon:3440, see:3440 },
   { title:'Native 16:9 (2560x1440)',     mon:2560, see:2560 },
   { title:'4:3 stretched (on 2560x1440)', mon:2560, see:1920 }
 ];
-let midPaused = false, midSlow = false, midZoom = true, midRaf = 0, midObs = null, midResize = null, midBg = null, midCt = null;
+let midPaused = false, midSlow = false, midZoom = false, midRaf = 0, midObs = null, midResize = null, midBg = null, midCt = null;
 
 function midHtml(){
   return `<div class="panel"><h2>Same run, Inferno Middle</h2>
-      <div class="nr-canvas mid-canvas" role="img" aria-label="Animation: a CT runs across the end of Middle on Inferno, seen on native 16:9 and 4:3 stretched. On 4:3 stretched he is wider and crosses the screen faster."><canvas id="midBg"></canvas><canvas id="midCanvas"></canvas></div>
+      <div class="nr-canvas mid-canvas" role="img" aria-label="Animation: a CT runs across the end of Middle on Inferno, seen on 21:9, native 16:9 and 4:3 stretched. On 4:3 stretched he is wider and crosses the screen faster."><canvas id="midBg"></canvas><canvas id="midCanvas"></canvas></div>
       <div class="nr-ctl">
         <button id="midPlay" onclick="midToggle()">${midPaused ? 'Play' : 'Pause'}</button>
         <button class="${midSlow?'on':''}" id="midSlowBtn" onclick="midSlowToggle()">Slow motion</button>
@@ -3660,7 +3661,7 @@ function midStart(){
   // each row shows a window of its monitor: the whole screen, or 960x540 monitor px around the crosshair when zoomed
   function size(){
     const dpr = window.devicePixelRatio || 1, W = stage.clientWidth, lab = 26;
-    const winW = midZoom ? 960 : 2560, winH = midZoom ? 540 : 1440, k = W / winW, H = Math.round(winH * k);
+    const winW = midZoom ? 960 : 3440, winH = midZoom ? 540 : 1440, k = W / winW, H = Math.round(winH * k);
     const TH = MID_ROWS.length * (H + lab) + (MID_ROWS.length - 1) * GAP;
     stage.style.height = TH + 'px';
     for(const [c, x] of [[bg, bctx], [cv, ctx]]){ c.width = Math.round(W * dpr); c.height = Math.round(TH * dpr); x.setTransform(dpr, 0, 0, dpr, 0, 0); }
