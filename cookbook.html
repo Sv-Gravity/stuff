@@ -3613,9 +3613,8 @@ const SP_PADX = 500, SP_PADY = 300, SP_MID = [1720, 720];
 const SP_F = 720 / 0.75, SP_PXDEG = SP_F * Math.PI / 180;     // 960 px focal length at 1440 tall; px per degree
 const SP_EN = { w:31, h:53, feet:753, l:1655, r:1787 };
 const SP_DIST = Math.round(72 * SP_F / SP_EN.h);               // ~1300 units: a 72-unit tall player 53 px tall
-// AK-47 pattern, degrees per bullet, cumulative (x right, y up). Worked out from CS2's weapons.vdata
-// (recoil seed 223, angle variance 70, magnitude 30) through Valve's recoil table and aim punch decay.
-const SP_PAT = [[0.0,0.0],[-0.03,0.05],[0.04,1.44],[-0.14,3.49],[-0.2,5.55],[0.53,7.28],[0.98,8.65],[1.69,9.52],[0.83,10.16],[-1.49,9.78],[-2.66,9.9],[-2.0,10.3],[-2.82,10.29],[-4.16,9.91],[-4.37,10.12],[-2.39,10.32],[-1.26,10.61],[-0.48,10.91],[0.9,10.93],[2.72,10.47],[1.7,10.53],[1.97,10.61],[1.57,10.88],[1.14,11.16],[2.14,11.01],[2.45,11.1],[1.39,11.18],[-0.38,11.0],[-2.69,10.16],[-3.55,10.12]];
+// AK-47 pattern from the Spray tab's data (SPRAY.ak47): degrees per bullet, cumulative, x right, y up
+const SP_PAT = SPRAY.ak47;
 // each ratio as its own 1440-tall monitor: 4:3 stretched across 16:9 (like most 4:3 players), native 16:9, native 21:9
 const SP_MODES = { '4:3':{ see:4/3, mon:16/9, label:'4:3 stretched' }, '16:9':{ see:16/9, mon:16/9, label:'16:9' }, '21:9':{ see:43/18, mon:43/18, label:'21:9' } };
 let spMode = '4:3', spSens = 1.34, spAim = SP_MID.slice(), spFiring = false, spIdx = 0, spNext = 0, spAmmo = 30, spReload = 0;
@@ -3624,7 +3623,7 @@ const spScore = { '4:3':[0,0], '16:9':[0,0], '21:9':[0,0] };   // kills, runs
 const spStage = () => document.getElementById('spStage');
 const spLocked = () => !!spStage() && document.pointerLockElement === spStage();
 
-function sprayHtml(){
+function spPanelHtml(){
   return `<div class="panel"><h2>Spray him down</h2>
       <div class="sp-stage" id="spStage" role="img" aria-label="Spray practice: an enemy runs across the end of an Inferno alley. Hold left click to spray him with the AK-47 pattern. Only hits are shown."><canvas id="spCanvas"></canvas></div>
       <div class="nr-ctl sp-ctl">
@@ -3750,7 +3749,7 @@ function nativeHtml(){
       </div>
     </div>
 
-    ${sprayHtml()}
+    ${spPanelHtml()}
 
     <h2 class="sect">The numbers</h2>
     <div class="panel" id="nrFacts"></div>
