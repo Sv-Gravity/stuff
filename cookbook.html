@@ -52,7 +52,7 @@
   .ss-set input{width:90px;font:600 15px ui-monospace,Menlo,Consolas,monospace;color:var(--accent);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
   .ss-cv{display:block;width:100%;aspect-ratio:16/9;border-radius:8px;cursor:crosshair;background:#12151a}
   .ss-res{margin-top:14px}
-  .ss-pull{margin:0 0 10px;min-height:2.8em}
+  p.ss-pull{margin:0 0 8px;min-height:1.5em}
   .ss-side{display:flex;gap:8px}
   .ss-side button{font-weight:600}
   .ss-side button span{color:var(--muted);font-weight:400;font-size:12px;margin-left:8px}
@@ -65,7 +65,7 @@
   .ss-legend{display:flex;gap:18px;color:var(--muted);font-size:13px;margin:0 0 6px}
   .ss-legend i{display:inline-block;width:18px;border-top:2px solid var(--accent);vertical-align:middle;margin-right:6px}
   .ss-legend i.need{border-top:2px dashed var(--muted)}
-  svg.ss-path{display:block;width:100%;aspect-ratio:720/260;background:#12151a;border-radius:8px}
+  svg.ss-path{display:block;width:100%;height:220px;background:#12151a;border-radius:8px}
   .sp-b{transition:opacity .15s}
   .sp-b.old{opacity:.15}
   .sp-b.off{opacity:0}
@@ -3483,7 +3483,8 @@ const PANTRY_VIEWS = {
 const pantryId = id => PANTRY.some(t => t.id === id) ? id : PANTRY[0].id;
 function viewPantry(id){
   const t = PANTRY.find(x => x.id === pantryId(id));
-  app.innerHTML = `<h1 style="margin-bottom:18px">${esc(t.title || t.name)}</h1>` + PANTRY_VIEWS[t.id]();
+  // Practice has no heading, so the window and its results fit on one screen
+  app.innerHTML = (t.id === 'practice' ? '' : `<h1 style="margin-bottom:18px">${esc(t.title || t.name)}</h1>`) + PANTRY_VIEWS[t.id]();
   if(t.id === 'spray') sprayPlay();
   if(t.id === 'practice') ssInit();
 }
