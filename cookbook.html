@@ -151,6 +151,21 @@
     border:1px solid currentColor;margin-right:6px}
   .t-Smoke{color:var(--smoke)} .t-Flash{color:var(--flash)} .t-Molotov{color:var(--molly)} .t-HE{color:var(--he)} .t-Spam{color:var(--spam)} .t-Strats{color:var(--strat)} .t-Sneaky{color:var(--sneaky)}
   .acts{display:flex;flex-wrap:wrap;gap:8px;margin:-14px 0 22px}
+  /* lineup header: a recipe card with the map's top-bar icon */
+  .rc{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 22px 18px;margin-bottom:22px}
+  .rc-top{display:flex;justify-content:space-between;gap:12px;font-size:12px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);
+    padding-bottom:12px;margin:0 -22px 18px;padding-left:22px;padding-right:22px;border-bottom:2px dashed var(--line)}
+  .rc-top i{font-style:normal;color:var(--accent)}
+  .rc-main{display:flex;align-items:center;gap:20px}
+  .rc-body{flex:1;min-width:0}
+  .rc h1{font-size:30px;margin:0 0 14px}
+  .rc-meta{display:flex;flex-wrap:wrap;gap:12px 32px}
+  .rc-meta > div{display:flex;flex-direction:column;gap:6px}
+  .rc-meta b{font-size:11px;letter-spacing:.18em;color:var(--muted);text-transform:uppercase}
+  .rc-meta .tag{margin-right:4px}
+  .rc .acts{margin:0}
+  .rc-art{flex:none;width:96px;height:96px;fill:none;stroke:var(--accent);stroke-width:1.1;stroke-linecap:round;stroke-linejoin:round}
+  @media(max-width:560px){ .rc{padding:14px 16px 16px} .rc-top{margin:0 -16px 14px;padding-left:16px;padding-right:16px;letter-spacing:.12em} .rc h1{font-size:24px} .rc-meta{flex-direction:column} .rc-art{width:56px;height:56px;align-self:flex-start} }
   .act{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--panel);
     border-radius:999px;padding:5px 13px 5px 9px;font-size:13px;font-weight:600}
   .act svg{width:24px;height:24px;display:block;fill:none;stroke:currentColor;
@@ -3311,6 +3326,12 @@ function viewHome(){
   </div>`;
 }
 
+// map page order: section, then side, then type
+function sortEntries(m, list){
+  const secIdx = id => m.sections.findIndex(x => x.id === id);
+  return list.slice().sort((a,b) => secIdx(sectionsOf(a)[0])-secIdx(sectionsOf(b)[0]) || a.side.localeCompare(b.side) || TYPES.indexOf(typesOf(a)[0])-TYPES.indexOf(typesOf(b)[0]));
+}
+
 function viewMap(mapId){
   const m = getMap(mapId); if(!m) return viewHome();
   const all = ENTRIES.filter(e => e.map === m.id);
@@ -3324,10 +3345,8 @@ function viewMap(mapId){
   const active = st.section.length + st.type.length;
 
   // stackable: OR within a group, AND across groups; nothing selected = everything
-  const secIdx = id => m.sections.findIndex(x => x.id === id);
-  const list = all
-    .filter(e => (!st.section.length || sectionsOf(e).some(x => st.section.includes(x))) && (!st.type.length || typesOf(e).some(t => st.type.includes(t))))
-    .sort((a,b) => secIdx(sectionsOf(a)[0])-secIdx(sectionsOf(b)[0]) || a.side.localeCompare(b.side) || TYPES.indexOf(typesOf(a)[0])-TYPES.indexOf(typesOf(b)[0]));
+  const list = sortEntries(m, all
+    .filter(e => (!st.section.length || sectionsOf(e).some(x => st.section.includes(x))) && (!st.type.length || typesOf(e).some(t => st.type.includes(t)))));
 
   const filters = `<div class="filters">
     <div class="fgroup">${secChips}</div>
@@ -3398,12 +3417,23 @@ function viewEntry(id){
   // the captions carry the lineup; Notes only shows when the steps add something
   const steps = (e.steps||[]).length ? list(e.steps) : '';
 
+  // recipe card: number in the map page's order, map, section, side, then ingredient and method
+  const no = sortEntries(m, ENTRIES.filter(x => x.map === m.id && !x.sample)).indexOf(e) + 1;
+  const acts = actChips(e);
   app.innerHTML = `
-    <div class="toolbar">
-      ${typeTags(e)}
+    <div class="rc">
+      <div class="rc-top"><span>${no ? `<i>Recipe ${String(no).padStart(2,'0')}</i> · ` : ''}${esc(m.name)}${s ? ` · ${esc(s.name)}` : ''}</span><span>${esc(e.side)} side</span></div>
+      <div class="rc-main">
+        <div class="rc-body">
+          <h1>${esc(e.name || e.location || entryName(e))}</h1>
+          <div class="rc-meta">
+            <div><b>Ingredient</b><span>${typeTags(e)}</span></div>
+            ${acts ? `<div><b>Method</b>${acts}</div>` : ''}
+          </div>
+        </div>
+        <svg class="rc-art" viewBox="0 0 24 24" aria-hidden="true">${MAP_ICONS[m.id] || ''}</svg>
+      </div>
     </div>
-    <h1 style="margin-bottom:24px">${esc(entryName(e))}</h1>
-    ${actChips(e)}
     ${e.sample?'<div class="sample">Sample entry. It will be replaced once we add real recipes.</div>':''}
     ${steps ? `<div class="panel"><h2>${sectionsOf(e).includes('strats') ? 'The play' : 'Notes'}</h2>${steps}</div>` : ''}
     <div class="panel">${shots}</div>`;
