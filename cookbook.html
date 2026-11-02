@@ -57,13 +57,13 @@
   .fact .ft{flex:1 1 200px;min-width:0}
   .fact .ft b{font-weight:600}
   .fact .ft span{display:block;color:var(--muted);font-size:13px;margin-top:2px}
-  .fact .fv{font:700 20px ui-monospace,Menlo,Consolas,monospace;color:var(--accent);white-space:nowrap}
+  .fact .fv,.fact .ft .vlist b{font:700 17px ui-monospace,Menlo,Consolas,monospace;color:var(--accent);white-space:nowrap;text-align:right}
   .xh{display:block;width:100%;max-width:360px;aspect-ratio:3/2;border-radius:8px;margin:0 0 14px;border:1px solid var(--line)}
   .fact .fv .swatch{display:inline-block;width:14px;height:14px;border-radius:3px;margin-right:10px;vertical-align:-1px;outline:1px solid var(--line)}
   .fact .ft .vlist{margin-top:8px}
   .fact .ft .gk{display:block;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px}
   .fact .ft .gn{font-size:17px}
-  .fact .ft .vlist div{display:flex;align-items:baseline;gap:14px;padding:5px 0;border-top:1px dashed var(--line)}
+  .fact .ft .vlist div{display:flex;align-items:baseline;gap:14px;padding:7px 0;border-top:1px dashed var(--line)}
   .fact .ft .vlist div:first-child{border-top:0}
   .nr-lead{margin:0 0 18px;color:var(--text)}
   .nr-canvas{display:block;width:100%;max-width:760px;margin:0 auto;position:relative}
@@ -113,7 +113,6 @@
   .nr-pair figure{margin:0}
   @media(max-width:560px){ .nr-pair{grid-template-columns:1fr} }
   .fact .ft .vlist span{display:block;flex:1;margin:0;color:var(--text);font-size:14px}
-  .fact .ft .vlist b{font:700 15px ui-monospace,Menlo,Consolas,monospace;color:var(--accent);white-space:nowrap}
   .fact .fv.todo{color:var(--muted);font-size:14px;font-weight:600}
   .kb-legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin:0 0 14px;font-size:13px;color:var(--muted)}
   .kb-legend span{display:inline-flex;align-items:center;gap:7px}
@@ -3201,7 +3200,7 @@ const sprayHtml = () => {
 
 const facts = list => list.map(v => `<div class="fact">
         <div class="ft"><b>${esc(v.what)}</b>${v.why ? `<span>${esc(v.why)}</span>` : ''}${v.list ? `<div class="vlist">${v.list.map(([k,x]) => `<div><span>${esc(k)}</span><b>${esc(x)}</b></div>`).join('')}</div>` : ''}</div>
-        ${v.val != null ? `<div class="fv">${esc(v.val)}</div>` : ''}</div>`).join('');
+        ${v.val ? `<div class="fv">${esc(v.val)}</div>` : ''}</div>`).join('');
 const PANTRY_VIEWS = {
   audio: () => `<div class="panel">${facts(AUDIO)}</div>`,
   video: () => `<div class="panel">${facts([...VIDEO_LATENCY, ...VIDEO_REST])}</div>`,
