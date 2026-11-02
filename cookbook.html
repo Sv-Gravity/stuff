@@ -47,6 +47,8 @@
   .tabs button{font-weight:600}
   .tabs button.on{border-color:var(--accent);color:var(--accent)}
   svg.spray{display:block;width:100%;max-width:360px;margin:0 auto;background:#12151a;border-radius:8px;cursor:pointer}
+  .eco-calc .ss-set{margin-bottom:14px}
+  .eco-out .fv.no{color:var(--muted)}
   .ss-set{display:flex;gap:16px;flex-wrap:wrap;margin:0 0 12px}
   .ss-set label{display:flex;align-items:center;gap:8px;font-weight:600}
   .ss-set input{width:90px;font:600 15px ui-monospace,Menlo,Consolas,monospace;color:var(--accent);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
@@ -2757,6 +2759,7 @@ const MAP_ICONS = {
   nvidia:  '<rect x="2" y="6" width="20" height="11" rx="1"/><circle cx="9" cy="11.5" r="3"/><path d="M14.5 9h4M14.5 11.5h4M14.5 14h4M5 17v2.5M8 17v2.5M11 17v2.5"/>',
   spray:   '<path d="M8 21v-3.5M8 14.5v-3M8 8.5c0-2.5 1.5-4.5 4.5-4.5M15.5 4c1.8 0 3 .8 3.5 2"/><circle cx="8" cy="21" r=".9"/><circle cx="8" cy="16" r=".9"/><circle cx="8" cy="11.5" r=".9"/><circle cx="9.5" cy="6.3" r=".9"/><circle cx="14" cy="4" r=".9"/><circle cx="18.5" cy="5.5" r=".9"/>',
   practice: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".9"/><path d="M12 1.5v4M12 18.5v4M1.5 12h4M18.5 12h4"/>',
+  economy: '<circle cx="12" cy="12" r="9"/><path d="M15 8.5c-.6-1-1.7-1.5-3-1.5-1.8 0-3 .9-3 2.3 0 3.2 6.2 1.8 6.2 5 0 1.4-1.3 2.4-3.2 2.4-1.4 0-2.6-.6-3.2-1.7M12 5v2M12 17v2"/>',
   gear:    '<rect x="2.5" y="8" width="19" height="10" rx="1.5"/><path d="M5.5 11h1M8.5 11h1M11.5 11h1M14.5 11h1M17.5 11h1M5.5 14h1M17.5 14h1M8.5 14h7"/><path d="M12 8V5.5c0-1.2 1-2 2.5-2"/>'
 };
 // The Pantry's own top bar: one tab per section.
@@ -2768,6 +2771,7 @@ const PANTRY = [
   { id:'mouse',      name:'Mouse' },
   { id:'keybinds',   name:'Keybinds' },
   { id:'configs',    name:'Configs' },
+  { id:'economy',    name:'Economy' },
   { id:'gear',       name:'Gear' },
   { id:'spray',      name:'Spray' },
   { id:'practice',   name:'Practice' }
@@ -3397,6 +3401,67 @@ function ssDraw(){
 const facts = list => list.map(v => `<div class="fact">
         <div class="ft"><b>${esc(v.what)}</b>${v.why ? `<span>${esc(v.why)}</span>` : ''}${v.list ? `<div class="vlist">${v.list.map(([k,x]) => `<div><span>${esc(k)}</span><b>${esc(x)}</b></div>`).join('')}</div>` : ''}</div>
         ${v.val ? `<div class="fv">${esc(v.val)}</div>` : ''}</div>`).join('');
+// CS2 competitive money (game/csgo/cfg/gamemode_competitive.cfg + scripts/weapons.vdata, checked 2026-11-02)
+const ECO_LOSS = [1900, 2400, 2900, 3400];          // loss bonus by losses in a row (pistol loss counts as the 1st)
+const ECO_FULL = { T:4800, CT:5500 };
+const ECO_BUY = [
+  { what:'T', why:'AK-47, Kevlar + Helmet, Smoke, Molotov, 2 Flashes', val:'4,800' },
+  { what:'CT', why:'M4, Kevlar + Helmet, Defuse Kit, Smoke, Incendiary, 2 Flashes', val:'5,500' }
+];
+const ECO_ROUND = [
+  { what:'Win', val:'3,250', why:'Elimination or time.' },
+  { what:'Win by bomb', val:'3,500', why:'T: bomb explodes. CT: bomb defused.' },
+  { what:'Bomb planted, round lost', val:'+600', why:'Every T, on top of the loss bonus.' },
+  { what:'Plant or defuse', val:'+300', why:'Only the player who does it.' },
+  { what:'Teamkill', val:'-300' },
+  { what:'Start / max money', val:'800 / 16,000' }
+];
+const ECO_LOSS_ROWS = [
+  { what:'1st loss', why:'Pistol round loss too.', val:'1,900' },
+  { what:'2nd loss', val:'2,400' },
+  { what:'3rd loss', val:'2,900' },
+  { what:'4th loss and more', val:'3,400' }
+];
+const ECO_KILLS = [
+  { what:'Knife', val:'1,500' },
+  { what:'Nova, MAG-7, Sawed-Off', val:'900' },
+  { what:'MAC-10, MP9, MP7, MP5-SD, UMP-45, PP-Bizon, XM1014', val:'600' },
+  { what:'Rifles, pistols, P90, SSG 08, auto snipers, M249, Negev, grenades', val:'300' },
+  { what:'AWP, Zeus x27', val:'100' }
+];
+let eco = { side:'T', money:2000, loss:0 };
+const ecoN = n => n.toLocaleString('en-US');
+function ecoOut(){
+  const lossCash = ECO_LOSS[eco.loss];
+  const full = ECO_FULL[eco.side];
+  const win = eco.money + 3250, lose = eco.money + lossCash;
+  const row = (what, v) => `<div class="fact"><div class="ft"><b>${what}</b><span>${v >= full ? 'Full buy' : 'No full buy (' + ecoN(full - v) + ' short)'}</span></div>
+    <div class="fv${v >= full ? '' : ' no'}">${ecoN(Math.min(v, 16000))}</div></div>`;
+  return row('If you win', win) + row('If you lose', lose)
+    + `<p class="sub" style="margin:10px 0 0">Next round, before you spend anything. Kills add more on top.</p>`;
+}
+function ecoHtml(){
+  return `<div class="panel eco-calc"><h2>Next round</h2>
+      <div class="ss-side tabs">${['T','CT'].map(x => `<button class="${eco.side===x?'on':''}" onclick="ecoSide('${x}')">${x}</button>`).join('')}</div>
+      <div class="ss-set">
+        <label for="ecoMoney">Money now <input id="ecoMoney" type="number" min="0" max="16000" step="50" value="${eco.money}" oninput="ecoSet()"></label>
+      </div>
+      <p class="sub" style="margin:0 0 8px">Your next loss pays</p>
+      <div class="ss-side tabs">${ECO_LOSS.map((v,i) => `<button class="${eco.loss===i?'on':''}" onclick="ecoLoss(${i})">${ecoN(v)}</button>`).join('')}</div>
+      <div class="eco-out" id="ecoOut">${ecoOut()}</div></div>
+    <div class="panel"><h2>Loss bonus</h2>
+      <p class="sub" style="margin:0 0 6px">A win takes one step off, it does not reset. Ts alive when the time runs out get no loss bonus.</p>
+      ${facts(ECO_LOSS_ROWS)}</div>
+    <div class="panel"><h2>Round money</h2>${facts(ECO_ROUND)}</div>
+    <div class="panel"><h2>Kill rewards</h2>${facts(ECO_KILLS)}</div>
+    <div class="panel"><h2>Full buy</h2>${facts(ECO_BUY)}</div>`;
+}
+window.ecoSide = x => { eco.side = x; render(true); };
+window.ecoLoss = i => { eco.loss = i; render(true); };
+window.ecoSet = () => {
+  eco.money = Math.max(0, Math.min(16000, +document.getElementById("ecoMoney").value || 0));
+  document.getElementById('ecoOut').innerHTML = ecoOut();
+};
 const PANTRY_VIEWS = {
   audio: () => `<div class="panel">${facts(AUDIO)}</div>`,
   video: () => `<div class="panel">${facts([...VIDEO_LATENCY, ...VIDEO_REST])}</div>`,
@@ -3442,6 +3507,7 @@ const PANTRY_VIEWS = {
         <pre class="cfg">${esc(c.text)}</pre>
       </div>`).join(''),
   keybinds: () => kbHtml(),
+  economy: () => ecoHtml(),
   spray: () => sprayHtml(),
   practice: () => ssHtml(),
   gear: () => `<div class="panel">${GEAR.map(g => `<div class="fact">
