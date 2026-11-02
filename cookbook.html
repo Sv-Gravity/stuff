@@ -2734,6 +2734,7 @@ const MAP_ICONS = {
   video:   '<rect x="2.5" y="4" width="19" height="12.5" rx="1"/><path d="M12 16.5v3M8.5 20h7"/><path d="M10.2 7.6v5.3l4.5-2.65z"/>',
   mouse:   '<rect x="6.5" y="3" width="11" height="18" rx="5.5"/><path d="M12 3v6M6.5 9h11"/>',
   crosshairs: '<circle cx="12" cy="12" r="7.5"/><path d="M12 2.5v5M12 16.5v5M2.5 12h5M16.5 12h5"/><circle cx="12" cy="12" r=".6"/>',
+  keybinds: '<rect x="3" y="3" width="18" height="18" rx="3"/><rect x="6.5" y="5.5" width="11" height="10" rx="1.5"/><path d="M10.5 8.5l1.5 4 1.5-4"/>',
   configs: '<path d="M6 3h8.5L19 7.5V20a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/><path d="M8.5 12.5l2 2-2 2M12.5 16.5h3"/>',
   // same monitor as the 4:3 page's own icon (hatched sides, thumbs-down)
   native:  '<rect x="2.5" y="4" width="19" height="12.5" rx="1"/><path d="M12 16.5v3M8.5 20h7M7 4v12.5M17 4v12.5"/>'
@@ -2747,8 +2748,9 @@ const PANTRY = [
   { id:'audio',      name:'Audio' },
   { id:'video',      name:'Video' },
   { id:'nvidia',     name:'NVIDIA' },
-  { id:'mouse',      name:'Mouse' },
   { id:'crosshairs', name:'Crosshairs' },
+  { id:'mouse',      name:'Mouse' },
+  { id:'keybinds',   name:'Keybinds' },
   { id:'configs',    name:'Configs' },
   { id:'native',     name:'4:3', title:'4:3 - or How I Learned to Stop Worrying and Love Native Res' },
   { id:'gear',       name:'Gear' }
@@ -2781,7 +2783,7 @@ const CFGS = [
   "name": "autoexec.cfg",
   "title": "Autoexec",
   "note": "Personal settings for Toshi: crosshair, sensitivity, binds, sound, HUD. Not a universal config, but a fine place to start from if you want to build your own.",
-  "text": "//CROSSHAIR\n// Share code: CSZweshaeVCbEJYfbeUqhsPtWMti5uf2JZkCphjLn2TnWL\n// Pixel values for 1440p (cl_crosshair_screen_height), the game rescales them at other resolutions.\ncl_crosshairstyle \"4\"\ncl_crosshaircolor_r \"255\"\ncl_crosshaircolor_g \"0\"\ncl_crosshaircolor_b \"255\"\ncl_crosshaircolor_a \"255\"\ncl_crosshair_drawoutline \"1\"\ncl_crosshairoutline_r \"0\"\ncl_crosshairoutline_g \"0\"\ncl_crosshairoutline_b \"0\"\ncl_crosshairoutline_a \"255\"\ncl_crosshair_thickness \"2\"\ncl_crosshairdot \"0\"\ncl_crosshair_length \"4\"\ncl_crosshair_gap \"3\"\ncl_crosshair_t \"0\"\ncl_ironsight_usecrosshaircolor \"0\"\ncl_ironsight_dot_scale \"1\"\ncl_crosshair_recoil \"0\"\ncl_crosshair_screen_height \"1440\"\ncl_crosshair_dynamic_spread_limit \"255\"\ncl_crosshair_dynamic_splitdist \"7\"\ncl_crosshair_dynamic_splitalpha_innermod \"1\"\ncl_crosshair_dynamic_splitalpha_outermod \"0.5\"\ncl_crosshair_dynamic_maxdist_splitratio \"0.3\"\ncl_crosshair_sniper_width \"2\"\n\n//SENSITIVITY\nzoom_sensitivity_ratio \"0.818933027098955175\"\nsensitivity \"1.34\"\n\n//KEYBOARD BINDS\n// clear first, then bind - otherwise a later unbind kills an earlier bind\nunbind \"f6\"\nunbind \"f7\"\nunbind \"f8\"\nunbind \"f9\"\nunbind \"f10\"\nunbind \"f11\"\nunbind \"f12\"\nunbind \"8\"\nunbind \"9\"\nunbind \"0\"\nunbind \"-\"\nunbind \"=\"\nunbind \"q\"\nunbind \"i\"\nunbind \"o\"\nunbind \"p\"\nunbind \"[\"\nunbind \"]\"\nunbind \"\\\"\nunbind \"h\"\nunbind \"j\"\nunbind \"k\"\nunbind \"l\"\nunbind \"n\"\nunbind \"/\"\nunbind \"INS\"\nunbind \"HOME\"\nunbind \"PGUP\"\nunbind \"END\"\n\nbind \"ctrl\" \"+duck;\"\nbind \"shift\" \"+sprint;\"\nbind space \"+jump\"\nbind \"w\" \"+forward;\"\nbind \"a\" \"+left;\"\nbind \"s\" \"+back;\"\nbind \"d\" \"+right;\"\nbind \"c\" \"+runthrow;\"\nbind \"v\" \"-attack\"\nbind \"mouse1\" \"+attack\"\nbind \"mouse2\" \"+attack2\"\nbind \"mwheelup\" \"slot7\"\nbind \"mwheeldown\" \"+jump\"\nbind \"f\" \"slot8\"\nbind \"mouse4\" \"slot10\"\nbind \"mouse5\" \"+voicerecord\"\nbind \"alt\" \"player_ping\"\nbind \"f1\" \"buy awp\"\nbind \"f2\" \"buy ak47; buy m4a1_silencer\"\nbind \"f3\" \"buy vesthelm; buy vest\"\nbind \"f4\" \"buy smokegrenade; buy flashbang; buy flashbang; buy hegrenade\"\nbind \"f5\" \"buy smokegrenade; buy flashbang; buy flashbang; buy molotov; buy incgrenade\"\nbind \"PGDN\" \"r_fullscreen_gamma 1.99\"\nbind \"PGUP\" \"r_fullscreen_gamma 2\"\nbind \"rightarrow\" \"noclip\"\nbind \"leftarrow\" \"sv_rethrow_last_grenade\"\nbind \"downarrow\" \"volume 0\"\nbind \"uparrow\" \"volume 1\"\nbind \"1\" \"slot1\"\nbind \"2\" \"slot2\"\nbind \"3\" \"slot3\"\nbind \"4\" \"slot6\"\nbind \"5\" \"slot5\"\nbind \"6\" \"slot9\"\nbind \"e\" \"+use\"\nbind \"r\" \"+reload\"\nbind \"t\" \"+lookatweapon\"\nbind \"y\" \"messagemode\"\nbind \"u\" \"messagemode2\"\nbind \"g\" \"drop\"\nbind \"z\" \"radio\"\nbind \"x\" \"+spray_menu\"\nbind \"b\" \"buymenu\"\nbind \"m\" \"teammenu\"\nbind \",\" \"buyammo1\"\nbind \".\" \"buyammo2\"\nbind \"TAB\" \"+showscores\"\nbind \"DEL\" \"sellbackall\"\n\n//SOUND\nsnd_headphone_eq \"1\"   // Crisp: lifts the highs where footsteps live\nsnd_steamaudio_enable_perspective_correction \"1\"\nsnd_tensecondwarning_volume \"0.2\"\nsnd_menumusic_volume \"0\"\nsnd_mapobjective_volume \"0\"\nsnd_deathcamera_volume \"0\"\nsnd_mvp_volume \"0.1\"\nsnd_roundaction_volume \"0\"\nsnd_roundend_volume \"0\"\nsnd_roundstart_volume \"0\"\nvolume 1\n\n//MISC\nrate \"786432\"\ncl_autohelp \"0\"\nfps_max \"0\"\ncl_teamid_overhead_mode \"2\"\ncl_radar_scale \"0.6\"\ncl_showloadout \"0\"\ncl_use_opens_buy_menu \"0\"\ncl_hide_avatar_images \"0\"\ncl_silencer_mode \"0\"\nviewmodel_presetpos \"1\"\n// HUD edge positions: horizontal as far in as CS2 allows (lower values clamp to the minimum),\n// vertical all the way out. Keeps the radar in peripheral view on an ultrawide.\nsafezonex \"0.5\"\nsafezoney \"1\"\nhud_showtargetid \"1\"\nr_fullscreen_gamma \"2.15\"   // 95% brightness"
+  "text": "//CROSSHAIR\n// Share code: CSZweshaeVCbEJYfbeUqhsPtWMti5uf2JZkCphjLn2TnWL\n// Pixel values for 1440p (cl_crosshair_screen_height), the game rescales them at other resolutions.\ncl_crosshairstyle \"4\"\ncl_crosshaircolor_r \"255\"\ncl_crosshaircolor_g \"0\"\ncl_crosshaircolor_b \"255\"\ncl_crosshaircolor_a \"255\"\ncl_crosshair_drawoutline \"1\"\ncl_crosshairoutline_r \"0\"\ncl_crosshairoutline_g \"0\"\ncl_crosshairoutline_b \"0\"\ncl_crosshairoutline_a \"255\"\ncl_crosshair_thickness \"2\"\ncl_crosshairdot \"0\"\ncl_crosshair_length \"4\"\ncl_crosshair_gap \"3\"\ncl_crosshair_t \"0\"\ncl_ironsight_usecrosshaircolor \"0\"\ncl_ironsight_dot_scale \"1\"\ncl_crosshair_recoil \"0\"\ncl_crosshair_screen_height \"1440\"\ncl_crosshair_dynamic_spread_limit \"255\"\ncl_crosshair_dynamic_splitdist \"7\"\ncl_crosshair_dynamic_splitalpha_innermod \"1\"\ncl_crosshair_dynamic_splitalpha_outermod \"0.5\"\ncl_crosshair_dynamic_maxdist_splitratio \"0.3\"\ncl_crosshair_sniper_width \"2\"\n\n//SENSITIVITY\nzoom_sensitivity_ratio \"0.818933027098955175\"\nsensitivity \"1.34\"\n\n//KEYBOARD BINDS\n// clear first, then bind - otherwise a later unbind kills an earlier bind\nunbind \"f6\"\nunbind \"f7\"\nunbind \"f8\"\nunbind \"f9\"\nunbind \"f10\"\nunbind \"f11\"\nunbind \"f12\"\nunbind \"8\"\nunbind \"9\"\nunbind \"0\"\nunbind \"-\"\nunbind \"=\"\nunbind \"q\"\nunbind \"i\"\nunbind \"o\"\nunbind \"p\"\nunbind \"[\"\nunbind \"]\"\nunbind \"\\\"\nunbind \"h\"\nunbind \"j\"\nunbind \"k\"\nunbind \"l\"\nunbind \"n\"\nunbind \"/\"\nunbind \"INS\"\nunbind \"HOME\"\nunbind \"PGUP\"\nunbind \"END\"\n\nbind \"ctrl\" \"+duck;\"\nbind \"shift\" \"+sprint;\"\nbind space \"+jump\"\nbind \"w\" \"+forward;\"\nbind \"a\" \"+left;\"\nbind \"s\" \"+back;\"\nbind \"d\" \"+right;\"\nbind \"v\" \"-attack\"\nbind \"mouse1\" \"+attack\"\nbind \"mouse2\" \"+attack2\"\nbind \"mwheelup\" \"slot7\"\nbind \"mwheeldown\" \"+jump\"\nbind \"f\" \"slot8\"\nbind \"mouse4\" \"slot10\"\nbind \"mouse5\" \"+voicerecord\"\nbind \"alt\" \"player_ping\"\nbind \"f1\" \"buy awp\"\nbind \"f2\" \"buy ak47; buy m4a1_silencer\"\nbind \"f3\" \"buy vesthelm; buy vest\"\nbind \"f4\" \"buy smokegrenade; buy flashbang; buy flashbang; buy hegrenade\"\nbind \"f5\" \"buy smokegrenade; buy flashbang; buy flashbang; buy molotov; buy incgrenade\"\nbind \"PGDN\" \"r_fullscreen_gamma 1.99\"\nbind \"PGUP\" \"r_fullscreen_gamma 2\"\nbind \"rightarrow\" \"noclip\"\nbind \"leftarrow\" \"sv_rethrow_last_grenade\"\nbind \"downarrow\" \"volume 0\"\nbind \"uparrow\" \"volume 1\"\nbind \"1\" \"slot1\"\nbind \"2\" \"slot2\"\nbind \"3\" \"slot3\"\nbind \"4\" \"slot6\"\nbind \"5\" \"slot5\"\nbind \"6\" \"slot9\"\nbind \"e\" \"+use\"\nbind \"r\" \"+reload\"\nbind \"t\" \"+lookatweapon\"\nbind \"y\" \"messagemode\"\nbind \"u\" \"messagemode2\"\nbind \"g\" \"drop\"\nbind \"z\" \"radio\"\nbind \"x\" \"+spray_menu\"\nbind \"b\" \"buymenu\"\nbind \"m\" \"teammenu\"\nbind \",\" \"buyammo1\"\nbind \".\" \"buyammo2\"\nbind \"TAB\" \"+showscores\"\nbind \"DEL\" \"sellbackall\"\n\n//SOUND\nsnd_headphone_eq \"1\"   // Crisp: lifts the highs where footsteps live\nsnd_steamaudio_enable_perspective_correction \"1\"\nsnd_tensecondwarning_volume \"0.2\"\nsnd_menumusic_volume \"0\"\nsnd_mapobjective_volume \"0\"\nsnd_deathcamera_volume \"0\"\nsnd_mvp_volume \"0.1\"\nsnd_roundaction_volume \"0\"\nsnd_roundend_volume \"0\"\nsnd_roundstart_volume \"0\"\nvolume 1\n\n//MISC\nrate \"786432\"\ncl_autohelp \"0\"\nfps_max \"0\"\ncl_teamid_overhead_mode \"2\"\ncl_radar_scale \"0.6\"\ncl_showloadout \"0\"\ncl_use_opens_buy_menu \"0\"\ncl_hide_avatar_images \"0\"\ncl_silencer_mode \"0\"\nviewmodel_presetpos \"1\"\n// HUD edge positions: horizontal as far in as CS2 allows (lower values clamp to the minimum),\n// vertical all the way out. Keeps the radar in peripheral view on an ultrawide.\nsafezonex \"0.5\"\nsafezoney \"1\"\nhud_showtargetid \"1\"\nr_fullscreen_gamma \"2.15\"   // 95% brightness"
  },
  {
   "name": "prac.cfg",
@@ -3019,7 +3021,7 @@ const KB_LABELS = {
   e:['gun','Use'], r:['gun','Reload'], t:['gun','Inspect'], g:['gun','Drop'], tab:['gun','Scores'],
   mouse1:['gun','Fire'], mouse2:['gun','Alt fire'],
   '4':['nade','HE'], '6':['nade','Decoy'], f:['nade','Smoke'], mwheelup:['nade','Flash'], mouse4:['nade','Molly'],
-  c:['nade','W + jump\nthrow'], v:['nade','Jump\nthrow'],
+  v:['nade','Jump\nthrow'],
   f1:['buy','AWP'], f2:['buy','AK/M4'], f3:['buy','Armor'], f4:['buy','Nades\n+ HE'], f5:['buy','Nades\n+ Molly'],
   b:['buy','Buy\nmenu'], ',':['buy','Ammo 1'], '.':['buy','Ammo 2'], del:['buy','Sell all'], m:['buy','Team'],
   y:['comms','All\nchat'], u:['comms','Team\nchat'], z:['comms','Radio'], x:['comms','Spray'],
@@ -3103,7 +3105,7 @@ function kbMouse(){
     ${call(158, 98, 186, 146, 'mouse2', false)}
   </svg>`;
 }
-const kbHtml = () => `<div class="panel"><h2>Keybinds</h2>
+const kbHtml = () => `<div class="panel">
     <div class="kb-legend">${KB_CATS.map(c => `<span><i style="border-color:${c.c};background:${c.c}33${c.dash ? ';border-style:dashed' : ''}"></i>${esc(c.name)}</span>`).join('')}</div>
     <div class="kb-wrap"><div class="kb-scroll">${kbBoard()}</div>${kbMouse()}</div>
   </div>`;
@@ -3142,7 +3144,6 @@ const PANTRY_VIEWS = {
         <figure><img src="${im.src}" alt="${esc(im.caption)}" loading="lazy">
         <figcaption>${esc(im.caption)}</figcaption></figure>`).join('')}</div>
     </div>`
-    + kbHtml()
     + CFGS.map((c,i) => `<div class="panel">
         <div class="cfghead">
           <h2>${esc(c.title)}</h2>
@@ -3156,6 +3157,7 @@ const PANTRY_VIEWS = {
         <p class="sub" style="margin:0 0 12px">${esc(c.note)}${c.cmd ? ` <code class="cmd">${esc(c.cmd)}</code>` : ''}</p>
         <pre class="cfg">${esc(c.text)}</pre>
       </div>`).join(''),
+  keybinds: () => kbHtml(),
   native: () => nativeHtml(),
   gear: () => `<div class="panel">${GEAR.map(g => `<div class="fact">
         <div class="ft"><span class="gk">${esc(g.kind)}</span><b class="gn">${esc(g.name)}</b>${g.why ? `<span>${esc(g.why)}</span>` : ''}</div></div>`).join('')}</div>`
