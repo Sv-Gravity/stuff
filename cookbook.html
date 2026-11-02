@@ -47,11 +47,15 @@
   .tabs button{font-weight:600}
   .tabs button.on{border-color:var(--accent);color:var(--accent)}
   svg.spray{display:block;width:100%;max-width:360px;margin:0 auto;background:#12151a;border-radius:8px;cursor:pointer}
-  .sp-b{animation:spIn .12s both}
+  .sp-b{transition:opacity .15s}
+  .sp-b.old{opacity:.15}
+  .sp-b.off{opacity:0}
+  .sp-b line{stroke:var(--accent);stroke-width:1.5;stroke-opacity:.5}
   .sp-b circle{fill:var(--accent);stroke:#12151a;stroke-width:1.5}
   .sp-b text{font:700 8px system-ui,sans-serif;fill:#12151a;text-anchor:middle}
-  @keyframes spIn{from{opacity:0;transform:scale(.3)}to{opacity:1;transform:none}}
-  .sp-b{transform-box:fill-box;transform-origin:center}
+  .spray-step{display:flex;align-items:center;gap:12px;max-width:360px;margin:12px auto 0}
+  .spray-step input{flex:1;accent-color:var(--accent)}
+  .spray-step span{color:var(--muted);font-variant-numeric:tabular-nums;min-width:48px;text-align:right}
   .fact{display:flex;flex-wrap:wrap;align-items:baseline;gap:14px;padding:12px 0;border-top:1px solid var(--line)}
   .fact:first-of-type{border-top:0}
   .fact .ft{flex:1 1 200px;min-width:0}
@@ -3153,40 +3157,59 @@ const SPRAY = {
   ak47: [[0,0],[-0.03,0.05],[0.04,1.44],[-0.14,3.49],[-0.2,5.55],[0.53,7.28],[0.98,8.65],[1.69,9.52],[0.83,10.16],[-1.49,9.78],[-2.66,9.9],[-2,10.3],[-2.82,10.29],[-4.16,9.91],[-4.37,10.12],[-2.39,10.32],[-1.26,10.61],[-0.48,10.91],[0.9,10.93],[2.72,10.47],[1.7,10.53],[1.97,10.61],[1.57,10.88],[1.14,11.16],[2.14,11.01],[2.45,11.1],[1.39,11.18],[-0.38,11],[-2.69,10.16],[-3.55,10.12]],
   m4a1s: [[0,0],[0.01,0.04],[0.04,0.47],[-0.19,1.5],[0.07,2.67],[-0.29,3.8],[-0.47,4.73],[0.27,5.25],[0.68,5.7],[1.63,5.68],[1.27,5.95],[0.49,6.13],[-0.73,5.96],[-1.69,5.82],[-2.59,5.55],[-2.48,5.78],[-2.06,6.05],[-2.51,5.93],[-3.04,5.76],[-2.89,5.94]],
   m4a4: [[0,0],[0.01,0.04],[0.07,0.83],[-0.27,2.14],[0.07,3.6],[-0.37,5],[-0.62,6.21],[0.25,6.96],[0.83,7.58],[2.05,7.61],[1.77,7.96],[0.87,8.27],[-0.7,8.11],[-2.05,7.88],[-3.32,7.47],[-3.38,7.7],[-2.99,8.08],[-3.53,7.99],[-4.23,7.76],[-4.14,7.95],[-2.43,8.07],[-1.79,8.3],[-0.41,8.34],[0.09,8.54],[0.71,8.69],[0.17,8.8],[0.45,8.87],[0.63,8.97],[0.81,9.08],[1.05,9.16]],
+  famas: [[0,0],[-0.03,0.03],[-0.09,0.26],[-0.6,1.19],[-0.72,2.45],[-0.68,3.76],[0.15,4.58],[1.07,5.12],[0.8,5.72],[-0.29,5.93],[-1.15,6.07],[-1.87,6.14],[-1.67,6.48],[-0.37,6.52],[0.18,6.66],[1.2,6.58],[1.56,6.74],[2.35,6.61],[2.47,6.8],[2.28,7.03],[1.01,7.06],[0.82,7.1],[1.35,6.99],[2.15,6.74],[3.02,6.29]],
+  galil: [[0,0],[0.03,0.03],[0.05,0.32],[0.51,1.28],[1.35,2.35],[1.33,3.66],[1.33,4.84],[1.63,5.69],[2.18,6.15],[1.9,6.68],[0.72,6.95],[-0.91,6.74],[-2.49,6.2],[-3,6.38],[-3.57,6.4],[-3.93,6.45],[-4.04,6.6],[-3.74,6.9],[-2.42,7.17],[-1.71,7.43],[-0.43,7.38],[1.3,6.8],[1.54,6.89],[0.96,7.17],[1.61,7.19],[2.19,7.23],[3.05,6.91],[2.5,7.03],[0.84,6.82],[-0.46,6.78],[-1.26,6.96],[-0.9,7.29],[-1.64,7.2],[-2.89,6.58],[-3.65,6.39]],
   mac10: [[0,0],[-0.03,0.02],[-0.13,0.16],[-0.16,0.76],[0.08,1.82],[0.74,2.95],[1.36,4.11],[1.82,5.15],[1.53,6.04],[1.96,6.54],[2.15,7.02],[2.32,7.38],[2.19,7.72],[2.08,7.97],[1.6,8.19],[0.4,8.07],[-1.04,7.62],[-1.16,7.61],[-1.77,7.49],[-1.48,7.57],[-1.8,7.56],[-2.46,7.37],[-2.93,7.36],[-2.12,7.43],[-1.47,7.59],[-0.66,7.75],[0.59,7.52],[0.65,7.62],[-0.44,7.39],[-0.34,7.43]],
-  mp9: [[0,0],[0,0.04],[-0.21,0.61],[-0.01,1.72],[-0.12,3.24],[0.54,4.65],[0.52,6.06],[0.06,7.24],[0.66,8.07],[1.83,8.5],[3.28,8.36],[4.74,7.92],[4.77,8.36],[4.86,8.9],[3.41,9.31],[2.71,9.8],[1.52,10.19],[0.73,10.54],[-0.66,10.43],[-2.33,9.94],[-2.16,10.02],[-1.32,10.19],[0,10.21],[0.16,10.36],[-0.9,10.2],[-2.33,9.87],[-2.81,10.04],[-3.44,10.09],[-2.9,10.35],[-2.55,10.63]],
-  cz75: [[0,0],[-0.04,0.03],[-1.35,0.8],[-1.15,2.6],[0.84,2.91],[2.55,4.26],[0.77,5.55],[-0.73,6.63],[-2.78,7.21],[-1.57,8.31],[-2.5,9.27],[-2.68,10.09]]
+  mp9: [[0,0],[0,0.04],[-0.21,0.61],[-0.01,1.72],[-0.12,3.24],[0.54,4.65],[0.52,6.06],[0.06,7.24],[0.66,8.07],[1.83,8.5],[3.28,8.36],[4.74,7.92],[4.77,8.36],[4.86,8.9],[3.41,9.31],[2.71,9.8],[1.52,10.19],[0.73,10.54],[-0.66,10.43],[-2.33,9.94],[-2.16,10.02],[-1.32,10.19],[0,10.21],[0.16,10.36],[-0.9,10.2],[-2.33,9.87],[-2.81,10.04],[-3.44,10.09],[-2.9,10.35],[-2.55,10.63]]
 };
 const SPRAY_GUNS = [
   { id:'ak47',  name:'AK-47',    rpm:600 },
   { id:'m4a1s', name:'M4A1-S',   rpm:600 },
   { id:'m4a4',  name:'M4A4',     rpm:666 },
+  { id:'famas', name:'FAMAS',    rpm:666 },
+  { id:'galil', name:'Galil AR', rpm:666 },
   { id:'mac10', name:'MAC-10',   rpm:800 },
-  { id:'mp9',   name:'MP9',      rpm:857 },
-  { id:'cz75',  name:'CZ75-Auto', rpm:600 }
+  { id:'mp9',   name:'MP9',      rpm:857 }
 ];
 let sprayTab = 0;
 window.setSprayTab = i => { sprayTab = i; render(true); };
 // Same scale for every gun so they compare: 1 degree = 30px.
 function spraySvg(g){
-  const pts = SPRAY[g.id], S = 30, W = 360, H = 420, ox = W / 2, oy = H - 30, gap = 60 / g.rpm;
-  const P = pts.map(([x,y]) => [ox + x * S, oy - y * S]);
-  const dots = P.map(([x,y], i) => ({x, y, i})).reverse().map(({x,y,i}) =>
-    `<g class="sp-b" style="animation-delay:${(i * gap).toFixed(3)}s"><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="7.5"/>
-      <text x="${x.toFixed(1)}" y="${(y + 3).toFixed(1)}">${i + 1}</text></g>`).join('');
-  return `<svg class="spray" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(g.name)} spray pattern" onclick="replaySpray(this)">
+  const pts = SPRAY[g.id], S = 30, W = 360, H = 420, ox = W / 2, oy = H - 30;
+  const P = pts.map(([x,y]) => [(ox + x * S).toFixed(1), (oy - y * S).toFixed(1)]);
+  const dots = P.map(([x,y], i) => `<g class="sp-b">${i ? `<line x1="${P[i-1][0]}" y1="${P[i-1][1]}" x2="${x}" y2="${y}"/>` : ''}
+      <circle cx="${x}" cy="${y}" r="7.5"/><text x="${x}" y="${(+y + 3).toFixed(1)}">${i + 1}</text></g>`).join('');
+  return `<svg class="spray" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(g.name)} spray pattern" onclick="sprayPlay()">
     <path d="M${ox} ${oy - 14}v-8M${ox} ${oy + 14}v8M${ox - 14} ${oy}h-8M${ox + 14} ${oy}h8" stroke="var(--muted)" stroke-width="1.5"/>
-    <polyline points="${P.map(p => p.map(v => v.toFixed(1)).join(',')).join(' ')}" fill="none" stroke="var(--accent)" stroke-opacity=".35" stroke-width="1.5"/>
     ${dots}</svg>`;
 }
-window.replaySpray = svg => svg.querySelectorAll('.sp-b').forEach(b => { b.style.animation = 'none'; b.getBBox(); b.style.animation = ''; });
+// Show bullets 1..n: the newest 4 bright, older ones faded. all = the whole pattern bright (end of playback).
+function sprayShow(n, all){
+  const bs = document.querySelectorAll('svg.spray .sp-b'), r = document.getElementById('sprayN');
+  bs.forEach((b, i) => b.setAttribute('class', 'sp-b' + (i >= n ? ' off' : !all && i < n - 4 ? ' old' : '')));
+  if(r){ r.value = n; document.getElementById('sprayLbl').textContent = n + ' / ' + bs.length; }
+}
+let sprayTimer = null;
+window.sprayStep = n => { clearTimeout(sprayTimer); sprayShow(+n, false); };
+window.sprayPlay = () => {
+  clearTimeout(sprayTimer);
+  const g = SPRAY_GUNS[sprayTab], len = SPRAY[g.id].length, gap = 60000 / g.rpm;
+  let n = 0;
+  const tick = () => {
+    sprayShow(++n, false);
+    sprayTimer = n < len ? setTimeout(tick, gap) : setTimeout(() => sprayShow(len, true), 900);
+  };
+  tick();
+};
 const sprayHtml = () => {
-  const g = SPRAY_GUNS[sprayTab];
+  const g = SPRAY_GUNS[sprayTab], len = SPRAY[g.id].length;
   return `<div class="panel">
       <div class="tabs">${SPRAY_GUNS.map((w,i) =>
         `<button class="${i===sprayTab?'on':''}" onclick="setSprayTab(${i})">${esc(w.name)}</button>`).join('')}</div>
-      <p class="sub" style="margin:0 0 12px">${SPRAY[g.id].length} bullets, no mouse movement. Pull the opposite way. Click to replay.</p>
+      <p class="sub" style="margin:0 0 12px">${len} bullets, no mouse movement. Pull the opposite way. Click to replay.</p>
       ${spraySvg(g)}
+      <div class="spray-step"><input type="range" id="sprayN" min="1" max="${len}" value="${len}" oninput="sprayStep(this.value)" aria-label="Bullet">
+        <span id="sprayLbl">${len} / ${len}</span></div>
     </div>`;
 };
 
@@ -3248,6 +3271,7 @@ function viewPantry(id){
   const t = PANTRY.find(x => x.id === pantryId(id));
   app.innerHTML = `<h1 style="margin-bottom:18px">${esc(t.title || t.name)}</h1>` + PANTRY_VIEWS[t.id]();
   if(t.id === 'native') nrInit();
+  if(t.id === 'spray') sprayPlay();
 }
 window.copyCfg = i => copyText(CFGS[i].text);
 window.CFG_DIR = 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Counter-Strike Global Offensive\\game\\csgo\\cfg';
