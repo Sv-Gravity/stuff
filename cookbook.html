@@ -3000,13 +3000,10 @@ window.setXhTab = i => { xhTab = i; render(true); };
 window.copyXh = () => copyText(XHAIRS[xhTab].code);
 
 const AUDIO = [
-  { what:'Virtual surround', val:'Off', why:'Outside CS2: Windows Sonic, Dolby Atmos for Headphones, headset 7.1. Steam Audio already spatialises for headphones, and a second pass smears it.' },
   { what:'Main Menu Ambience Volume', val:'100%', why:'' },
-  { what:'Audio Device', val:'Headphones', why:'' },
   { what:'EQ Profile', val:'Crisp', why:'Lifts the highs where footsteps live and pulls back the bass that masks them.' },
   { what:'L/R Isolation', val:'80%', why:'Hardens left and right. Higher flattens distance and front-to-back.' },
   { what:'Perspective Correction', val:'Yes', why:'Keeps directional audio lined up with where you are looking.' },
-  { what:'Play Audio When Game In Background', val:'No', why:'' },
   { what:'Music volumes', val:'', list:[
     ['Master Volume','100%'],
     ['MVP','10%'],
