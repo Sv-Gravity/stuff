@@ -2797,15 +2797,15 @@ const VIDEO_LATENCY = [
   { what:'Resolution / Aspect', val:'Native', why:'Native ultrawide. No frame-time reason to drop it on this GPU.' },
   { what:'Refresh Rate', val:'Monitor maximum', why:'Re-check it after driver updates and cable swaps. It resets quietly.' },
   { what:'Wait for Vertical Sync', val:'Off', why:'V-Sync holds a finished frame back when it engages.' },
-  { what:'NVIDIA Reflex Low Latency', val:'Enabled + Boost', why:'Keeps the render queue empty, and Boost holds GPU clocks up while the card is loafing.' },
-  { what:'Multisampling Anti-Aliasing', val:'2x MSAA', why:'At 1440p, 2x is the minimum that gets rid of jagged edges. At 1080p, consider 4x MSAA.' },
+  { what:'NVIDIA Reflex Low Latency', val:'Enabled + Boost', why:'Keeps the render queue empty, and Boost holds GPU clocks up. Tested: Boost gave better lows than Enabled alone (P99 5.86 vs 6.05 ms).' },
+  { what:'Multisampling Anti-Aliasing', val:'CMAA2', why:'Tested at 3440x1440: as fast as None. 2x MSAA adds 0.06 ms, 4x 0.2 ms, 8x 0.4 ms and slower lows. At 1440p the slight softening is a fair trade.' },
   { what:'Particle Detail', val:'Low', why:'Matters most in CS2. Volumetric smokes are the heaviest GPU moment in the game.' },
   { what:'Shader Detail', val:'Low', why:'Cuts per-pixel lighting work.' },
   { what:'Ambient Occlusion', val:'Disabled', why:'A full-screen pass that also darkens corners you want to see into.' },
   { what:'FidelityFX Super Resolution', val:'Disabled', why:'Upscaling adds a pass and softens the image. Native is the goal.' }
 ];
 const VIDEO_REST = [
-  { what:'Boost Player Contrast', val:'Enabled', why:'Free visibility, no frame cost.' },
+  { what:'Boost Player Contrast', val:'Enabled', why:'Makes players stand out from the background. Tested: costs about 0.1 ms on average and 0.24 ms on P99.' },
   { what:'Global Shadow Quality', val:'High', why:'Costs frame time, bought on purpose: enemy shadows round corners before the player does.' },
   { what:'Dynamic Shadows', val:'All', why:'Indoor lights cast player shadows too, so you can spot people around corners in tunnels and rooms. Small frame cost.' },
   { what:'Model / Texture Detail', val:'Low', why:'Fewer draw calls, which helps a CPU-bound game slightly.' },
@@ -2817,9 +2817,9 @@ const VIDEO_REST = [
 const NV_3D = [
   { what:'Image Scaling', val:'Off', why:'Adds an upscale and sharpening pass. Native needs neither.' },
   { what:'Anisotropic filtering', val:'Application-controlled', why:'The in-game Anisotropic 16x handles it.' },
-  { what:'Antialiasing - FXAA', val:'Off', why:'Blurs the whole frame. In-game MSAA handles edges.' },
-  { what:'Antialiasing - Gamma correction', val:'On', why:'Smoother MSAA edges, no frame cost.' },
-  { what:'Antialiasing - Mode', val:'Application-controlled', why:'Leaves antialiasing to the 2x MSAA in CS2.' },
+  { what:'Antialiasing - FXAA', val:'Off', why:'Blurs the whole frame. In-game CMAA2 handles edges.' },
+  { what:'Antialiasing - Gamma correction', val:'On', why:'Only affects MSAA. No frame cost.' },
+  { what:'Antialiasing - Mode', val:'Application-controlled', why:'Leaves antialiasing to CMAA2 in CS2.' },
   { what:'Antialiasing - Transparency', val:'Off', why:'Extra work on fences and foliage. Costs frame time.' },
   { what:'Background Application Max Frame Rate', val:'Off', why:'Only matters when alt-tabbed.' },
   { what:'Low Latency Mode', val:'Off', why:'Reflex Enabled + Boost in CS2 replaces it.' },
@@ -2833,7 +2833,8 @@ const NV_3D = [
   { what:'Texture filtering - Trilinear optimization', val:'Off', why:'Same shortcut as the sample optimization.' },
   { what:'Threaded optimization', val:'Auto' },
   { what:'Triple buffering', val:'Off', why:'Only does anything with V-Sync.' },
-  { what:'Vertical sync', val:'Off', why:'V-Sync holds a finished frame back when it engages.' }
+  { what:'Vertical sync', val:'Off', why:'V-Sync holds a finished frame back when it engages.' },
+  { what:'G-SYNC', val:'Disabled', why:'Display > Set up G-SYNC > untick Enable G-SYNC.' }
 ];
 
 const LAUNCH = [
