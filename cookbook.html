@@ -198,6 +198,26 @@
   .sample{background:#3b2f10;color:var(--accent);border:1px solid var(--accent);border-radius:8px;
     padding:8px 12px;font-size:13px;margin-bottom:18px}
   .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:18px}
+  /* practice mode: everything after the stand picture stays covered until you tap it */
+  .pbtn{margin-left:auto;display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--panel);
+    color:var(--muted);border-radius:999px;padding:6px 13px 6px 10px;font:600 13px system-ui,sans-serif;cursor:pointer}
+  .pbtn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.6}
+  .pbtn.on{border-color:var(--accent);color:var(--accent)}
+  .lineup figure.cov{position:relative;cursor:pointer}
+  .lineup figure.cov img{filter:blur(22px) brightness(.35);transform:scale(1.15);pointer-events:none}
+  .lineup figure.cov figcaption{visibility:hidden}
+  .lineup figure.cov .peek{position:absolute;left:0;right:0;top:0;aspect-ratio:16/9;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:6px;color:var(--text);font:600 14px system-ui,sans-serif}
+  .lineup figure.cov .peek b{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
+  .lineup figure.cov .peek svg{width:28px;height:28px;fill:none;stroke:var(--accent);stroke-width:1.6}
+  .lineup figure.cov:hover .peek{color:var(--accent)}
+  .drill{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+  .drill .q{font-size:14px;color:var(--muted);margin-right:4px}
+  .drill button{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:999px;padding:6px 14px;font:600 13px system-ui,sans-serif;cursor:pointer}
+  .drill button.hit:hover{border-color:var(--ok);color:var(--ok)}
+  .drill button.miss:hover{border-color:var(--he);color:var(--he)}
+  .drill .tally{margin-left:auto;font:700 14px ui-monospace,Menlo,Consolas,monospace;color:var(--accent)}
+  .drill .tally span{color:var(--muted);font-weight:400}
   .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;z-index:20;cursor:zoom-out}
   .lightbox img{max-width:96vw;max-height:94vh}
   .lightbox.show{display:flex}
@@ -3370,11 +3390,34 @@ const actChips = e => { const a = actionsOf(e); return a.length
   ? `<div class="acts">${a.map(x=>`<span class="act">${ACT_ICONS[x]||''}${esc(ACT_LABEL[x]||x)}</span>`).join('')}</div>`
   : ''; };
 
+/* practice mode */
+const EYE = '<svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+const TARGET = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/><path d="M12 1v5M12 18v5M1 12h5M18 12h5"/></svg>';
+const practiceOn = () => !!store('practice');
+function togglePractice(){ store('practice', !practiceOn()); render(true); }
+function peek(f){ f.classList.remove('cov'); f.querySelector('.peek').remove(); f.onclick = null; }
+function drillHtml(id){
+  const t = (store('drill') || {})[id] || [0, 0];
+  return `<div class="drill"><span class="q">How did it land?</span>
+    <button class="hit" onclick="drill('${id}',1)">Nailed it</button><button class="miss" onclick="drill('${id}',0)">Missed</button>
+    <span class="tally">${t[0]}/${t[1]} <span>landed</span></span></div>`;
+}
+function drill(id, hit){
+  const d = store('drill') || {}; const t = d[id] || [0, 0];
+  d[id] = [t[0] + hit, t[1] + 1]; store('drill', d); render(true);
+}
+
 function viewEntry(id){
   const e = ENTRIES.find(x => x.id === id); if(!e) return viewHome();
   const m = getMap(e.map); const s = m.sections.find(x => x.id === sectionsOf(e)[0]);
 
-  const grid = imgs => `<div class="shots lineup">${imgs.map(im => `
+  // practice mode: the stand picture stays, the rest are covered until tapped
+  const P = practiceOn() && !(e.stages||[]).length;
+  const PEEK = ['Aim', 'Close-up', 'Result'];
+  const grid = imgs => `<div class="shots lineup">${imgs.map((im,i) => P && i > 0 ? `
+        <figure class="cov" onclick="peek(this)"><img src="${esc(im.src)}" alt="" loading="lazy">
+        <div class="peek">${EYE}<b>${i === imgs.length-1 ? 'Result' : (PEEK[i-1]||'Picture')}</b>Tap to reveal</div>
+        ${im.caption?`<figcaption${im.caption === 'Bon appétit' ? ' class="bon"' : ''}>${esc(im.caption)}</figcaption>`:''}</figure>` : `
         <figure><img src="${esc(im.src)}" alt="${esc(im.caption||'')}" loading="lazy">
         ${im.caption?`<figcaption${im.caption === 'Bon appétit' ? ' class="bon"' : ''}>${esc(im.caption)}</figcaption>`:''}</figure>`).join('')}</div>`;
   const fig = (im, cls) => `<figure${cls ? ` class="${cls}"` : ''}><img src="${esc(im.src)}" alt="${esc(im.caption||'')}" loading="lazy">
@@ -3401,12 +3444,13 @@ function viewEntry(id){
   app.innerHTML = `
     <div class="toolbar">
       ${typeTags(e)}
+      <button class="pbtn${P?' on':''}" onclick="togglePractice()">${TARGET}Practice</button>
     </div>
     <h1 style="margin-bottom:24px">${esc(entryName(e))}</h1>
     ${actChips(e)}
     ${e.sample?'<div class="sample">Sample entry. It will be replaced once we add real recipes.</div>':''}
-    ${steps ? `<div class="panel"><h2>${sectionsOf(e).includes('strats') ? 'The play' : 'Notes'}</h2>${steps}</div>` : ''}
-    <div class="panel">${shots}</div>`;
+    ${steps && !P ? `<div class="panel"><h2>${sectionsOf(e).includes('strats') ? 'The play' : 'Notes'}</h2>${steps}</div>` : ''}
+    <div class="panel">${shots}${P ? drillHtml(e.id) : ''}</div>`;
 }
 
 const NATIVE_IMG = {
