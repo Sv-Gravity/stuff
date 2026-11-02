@@ -100,6 +100,20 @@
   .fact .ft .vlist span{display:block;flex:1;margin:0;color:var(--text);font-size:14px}
   .fact .ft .vlist b{font:700 15px ui-monospace,Menlo,Consolas,monospace;color:var(--accent);white-space:nowrap}
   .fact .fv.todo{color:var(--muted);font-size:14px;font-weight:600}
+  .kb-legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin:0 0 14px;font-size:13px;color:var(--muted)}
+  .kb-legend span{display:inline-flex;align-items:center;gap:7px}
+  .kb-legend i{width:14px;height:14px;border-radius:3px;border:1.5px solid}
+  .kb-wrap{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}
+  .kb-scroll{flex:1 1 540px;min-width:0;overflow-x:auto}
+  .kb-board{display:block;width:100%;min-width:620px}
+  .kb-mouse{display:block;flex:0 0 auto;width:230px;margin:0 auto}
+  .kb-board text,.kb-mouse text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .kb-board text{text-anchor:middle}
+  .kb-board .kb-leg{text-anchor:start}
+  .kb-off rect{fill:var(--bg);stroke:var(--line)}
+  .kb-off text{fill:#56647a}
+  .kb-on .kb-act text{fill:var(--text);font-weight:700}
+  .kb-leg{fill:var(--muted)}
   .callouts{margin:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#000}
   .callouts img{display:block;width:100%;height:auto;cursor:zoom-in}
   button,.btn{font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);
@@ -2783,15 +2797,15 @@ const VIDEO_LATENCY = [
   { what:'Resolution / Aspect', val:'Native', why:'Native ultrawide. No frame-time reason to drop it on this GPU.' },
   { what:'Refresh Rate', val:'Monitor maximum', why:'Re-check it after driver updates and cable swaps. It resets quietly.' },
   { what:'Wait for Vertical Sync', val:'Off', why:'V-Sync holds a finished frame back when it engages.' },
-  { what:'NVIDIA Reflex Low Latency', val:'Enabled + Boost', why:'Keeps the render queue empty, and Boost holds GPU clocks up while the card is loafing.' },
-  { what:'Multisampling Anti-Aliasing', val:'2x MSAA', why:'At 1440p, 2x is the minimum that gets rid of jagged edges. At 1080p, consider 4x MSAA.' },
+  { what:'NVIDIA Reflex Low Latency', val:'Enabled + Boost', why:'Keeps the render queue empty, and Boost holds GPU clocks up. Tested: Boost gave better lows than Enabled alone (P99 5.86 vs 6.05 ms).' },
+  { what:'Multisampling Anti-Aliasing', val:'CMAA2', why:'Tested at 3440x1440: as fast as None. 2x MSAA adds 0.06 ms, 4x 0.2 ms, 8x 0.4 ms and slower lows. At 1440p the slight softening is a fair trade.' },
   { what:'Particle Detail', val:'Low', why:'Matters most in CS2. Volumetric smokes are the heaviest GPU moment in the game.' },
   { what:'Shader Detail', val:'Low', why:'Cuts per-pixel lighting work.' },
   { what:'Ambient Occlusion', val:'Disabled', why:'A full-screen pass that also darkens corners you want to see into.' },
   { what:'FidelityFX Super Resolution', val:'Disabled', why:'Upscaling adds a pass and softens the image. Native is the goal.' }
 ];
 const VIDEO_REST = [
-  { what:'Boost Player Contrast', val:'Enabled', why:'Free visibility, no frame cost.' },
+  { what:'Boost Player Contrast', val:'Enabled', why:'Makes players stand out from the background. Tested: costs about 0.1 ms on average and 0.24 ms on P99.' },
   { what:'Global Shadow Quality', val:'High', why:'Costs frame time, bought on purpose: enemy shadows round corners before the player does.' },
   { what:'Dynamic Shadows', val:'All', why:'Indoor lights cast player shadows too, so you can spot people around corners in tunnels and rooms. Small frame cost.' },
   { what:'Model / Texture Detail', val:'Low', why:'Fewer draw calls, which helps a CPU-bound game slightly.' },
@@ -2803,9 +2817,9 @@ const VIDEO_REST = [
 const NV_3D = [
   { what:'Image Scaling', val:'Off', why:'Adds an upscale and sharpening pass. Native needs neither.' },
   { what:'Anisotropic filtering', val:'Application-controlled', why:'The in-game Anisotropic 16x handles it.' },
-  { what:'Antialiasing - FXAA', val:'Off', why:'Blurs the whole frame. In-game MSAA handles edges.' },
-  { what:'Antialiasing - Gamma correction', val:'On', why:'Smoother MSAA edges, no frame cost.' },
-  { what:'Antialiasing - Mode', val:'Application-controlled', why:'Leaves antialiasing to the 2x MSAA in CS2.' },
+  { what:'Antialiasing - FXAA', val:'Off', why:'Blurs the whole frame. In-game CMAA2 handles edges.' },
+  { what:'Antialiasing - Gamma correction', val:'On', why:'Only affects MSAA. No frame cost.' },
+  { what:'Antialiasing - Mode', val:'Application-controlled', why:'Leaves antialiasing to CMAA2 in CS2.' },
   { what:'Antialiasing - Transparency', val:'Off', why:'Extra work on fences and foliage. Costs frame time.' },
   { what:'Background Application Max Frame Rate', val:'Off', why:'Only matters when alt-tabbed.' },
   { what:'Low Latency Mode', val:'Off', why:'Reflex Enabled + Boost in CS2 replaces it.' },
@@ -2819,7 +2833,8 @@ const NV_3D = [
   { what:'Texture filtering - Trilinear optimization', val:'Off', why:'Same shortcut as the sample optimization.' },
   { what:'Threaded optimization', val:'Auto' },
   { what:'Triple buffering', val:'Off', why:'Only does anything with V-Sync.' },
-  { what:'Vertical sync', val:'Off', why:'V-Sync holds a finished frame back when it engages.' }
+  { what:'Vertical sync', val:'Off', why:'V-Sync holds a finished frame back when it engages.' },
+  { what:'G-SYNC', val:'Disabled', why:'Display > Set up G-SYNC > untick Enable G-SYNC.' }
 ];
 
 const LAUNCH = [
@@ -2985,6 +3000,114 @@ const GEAR = [   // Toshi's setup, names exactly as he wrote them
   { kind:'Monitor',    name:'LG 45GS95QE',                  why:'45" curved OLED ultrawide, 3440x1440, 240 Hz.' }
 ];
 
+/* ---------- keybind map (Configs) ---------- */
+// Colors per group; practice binds come from prac.cfg and get a dashed border.
+const KB_CATS = [
+  { id:'move',  name:'Move',     c:'#7bc96f' },
+  { id:'gun',   name:'Weapons',  c:'#5aa9e6' },
+  { id:'nade',  name:'Utility',  c:'#f5a524' },
+  { id:'buy',   name:'Buy',      c:'#b07ce8' },
+  { id:'comms', name:'Comms',    c:'#3fc1b0' },
+  { id:'tool',  name:'Tools',    c:'#e06c75' },
+  { id:'prac',  name:'Practice (prac.cfg)', c:'#8c98a9', dash:true }
+];
+// key -> [group, label on the key]; \n breaks the label into two lines
+const KB_LABELS = {
+  w:['move','Forward'], a:['move','Left'], s:['move','Back'], d:['move','Right'],
+  space:['move','Jump'], ctrl:['move','Crouch'], shift:['move','Walk'], mwheeldown:['move','Jump'],
+  '1':['gun','Primary'], '2':['gun','Pistol'], '3':['gun','Knife'], '5':['gun','Bomb'],
+  e:['gun','Use'], r:['gun','Reload'], t:['gun','Inspect'], g:['gun','Drop'], tab:['gun','Scores'],
+  mouse1:['gun','Fire'], mouse2:['gun','Alt fire'],
+  '4':['nade','HE'], '6':['nade','Decoy'], f:['nade','Smoke'], mwheelup:['nade','Flash'], mouse4:['nade','Molly'],
+  c:['nade','W + jump\nthrow'], v:['nade','Jump\nthrow'],
+  f1:['buy','AWP'], f2:['buy','AK/M4'], f3:['buy','Armor'], f4:['buy','Nades\n+ HE'], f5:['buy','Nades\n+ Molly'],
+  b:['buy','Buy\nmenu'], ',':['buy','Ammo 1'], '.':['buy','Ammo 2'], del:['buy','Sell all'], m:['buy','Team'],
+  y:['comms','All\nchat'], u:['comms','Team\nchat'], z:['comms','Radio'], x:['comms','Spray'],
+  alt:['comms','Ping'], mouse5:['comms','Voice'],
+  pgup:['tool','Gamma\n2'], pgdn:['tool','Gamma\n1.99'], uparrow:['tool','Vol\n100%'], downarrow:['tool','Mute'],
+  leftarrow:['tool','Rethrow'], rightarrow:['tool','Noclip'],
+  f6:['prac','All\nnades'], f7:['prac','God'], f8:['prac','Noclip'], f9:['prac','Rethrow'],
+  f10:['prac','Restart'], f11:['prac','Clear\nnades'], f12:['prac','Nade\npreview'], p:['prac','Place\nbot']
+};
+// the full command for each key, read from the configs so the tooltip never drifts
+const kbCmds = () => {
+  const m = {};
+  CFGS.forEach(c => c.text.replace(/^\s*bind\s+"?([^"\s]+)"?\s+"([^"]*)"/gmi, (_, k, v) => { m[k.toLowerCase()] = v.replace(/;\s*$/, ''); }));
+  return m;
+};
+// tenkeyless board, x/w in key units; [id, top legend, width]
+const KB_ROWS = [
+  { y:0, keys:[['escape','Esc',1,0],['f1','F1',1,2],['f2','F2'],['f3','F3'],['f4','F4'],['f5','F5',1,6.5],['f6','F6'],['f7','F7'],['f8','F8'],
+    ['f9','F9',1,11],['f10','F10'],['f11','F11'],['f12','F12'],['prtsc','PrtSc',1,15.25],['scrolllock','ScrLk'],['pause','Pause']] },
+  { y:1.4, keys:[['`','`'],['1','1'],['2','2'],['3','3'],['4','4'],['5','5'],['6','6'],['7','7'],['8','8'],['9','9'],['0','0'],['-','-'],['=','='],['backspace','Bksp',2],
+    ['ins','Ins',1,15.25],['home','Home'],['pgup','PgUp']] },
+  { y:2.4, keys:[['tab','Tab',1.5],['q','Q'],['w','W'],['e','E'],['r','R'],['t','T'],['y','Y'],['u','U'],['i','I'],['o','O'],['p','P'],['[','['],[']',']'],['\\','\\',1.5],
+    ['del','Del',1,15.25],['end','End'],['pgdn','PgDn']] },
+  { y:3.4, keys:[['capslock','Caps',1.75],['a','A'],['s','S'],['d','D'],['f','F'],['g','G'],['h','H'],['j','J'],['k','K'],['l','L'],[';',';'],["'","'"],['enter','Enter',2.25]] },
+  { y:4.4, keys:[['shift','Shift',2.25],['z','Z'],['x','X'],['c','C'],['v','V'],['b','B'],['n','N'],['m','M'],[',',','],['.','.'],['/','/'],['rshift','Shift',2.75],
+    ['uparrow','↑',1,16.25]] },
+  { y:5.4, keys:[['ctrl','Ctrl',1.25],['lwin','Win',1.25],['alt','Alt',1.25],['space','Space',6.25],['ralt','Alt',1.25],['rwin','Win',1.25],['apps','Menu',1.25],['rctrl','Ctrl',1.25],
+    ['leftarrow','←',1,15.25],['downarrow','↓'],['rightarrow','→']] }
+];
+const KB_U = 40, KB_GAP = 4;
+const kbCat = id => KB_CATS.find(c => c.id === id);
+const kbLines = (s, x, y, size) => {
+  const ls = s.split('\n');
+  return ls.map((l, i) => `<text x="${x}" y="${y + (i - (ls.length - 1) / 2) * (size + 1.5)}" font-size="${size}">${esc(l)}</text>`).join('');
+};
+function kbKey(id, legend, x, y, w, cmds){
+  const px = x * KB_U, py = y * KB_U, pw = w * KB_U - KB_GAP, ph = KB_U - KB_GAP;
+  const b = KB_LABELS[id], cat = b && kbCat(b[0]);
+  if(!cat) return `<g class="kb-off"><rect x="${px}" y="${py}" width="${pw}" height="${ph}" rx="5"/>
+    <text x="${px + pw/2}" y="${py + ph/2 + 3.5}" font-size="10">${esc(legend)}</text></g>`;
+  const tip = `${legend}: ${cmds[id] || ''}`;
+  return `<g class="kb-on"><title>${esc(tip)}</title>
+    <rect x="${px}" y="${py}" width="${pw}" height="${ph}" rx="5" fill="${cat.c}" fill-opacity=".2" stroke="${cat.c}"${cat.dash ? ' stroke-dasharray="3 2"' : ''}/>
+    <text class="kb-leg" x="${px + 4}" y="${py + 9.5}" font-size="8">${esc(legend)}</text>
+    <g class="kb-act">${kbLines(b[1], px + pw/2, py + ph/2 + 5, Math.max(...b[1].split('\n').map(l => l.length)) > 6 ? 7.5 : 8.5)}</g></g>`;
+}
+function kbBoard(){
+  const cmds = kbCmds();
+  let out = '';
+  KB_ROWS.forEach(r => { let x = 0;
+    r.keys.forEach(([id, leg, w = 1, at]) => { if(at != null) x = at; out += kbKey(id, leg, x, r.y, w, cmds); x += w; }); });
+  return `<svg class="kb-board" viewBox="-4 -4 ${18.25 * KB_U + 4} ${6.4 * KB_U + 4}" role="img" aria-label="Keyboard binds">${out}</svg>`;
+}
+// top-down mouse: buttons, wheel split in two (up / down), side buttons, each with a callout
+const KB_MOUSE_NAMES = { mouse1:'Left click', mouse2:'Right click', mwheelup:'Wheel up', mwheeldown:'Wheel down', mouse4:'Mouse 4', mouse5:'Mouse 5' };
+function kbMouse(){
+  const cmds = kbCmds();
+  const col = id => kbCat(KB_LABELS[id][0]).c;
+  const part = (id, d) => `<path d="${d}" fill="${col(id)}" fill-opacity=".2" stroke="${col(id)}" stroke-width="1.4"><title>${esc(KB_MOUSE_NAMES[id])}: ${esc(cmds[id] || '')}</title></path>`;
+  // elbow line from the part to a label at the side
+  const call = (px, py, ex, ly, id, left) => `<path d="M${px} ${py}H${ex}V${ly}H${left ? ex - 4 : ex + 4}" fill="none" stroke="#56647a" stroke-width="1"/>
+      <text x="${left ? ex - 7 : ex + 7}" y="${ly - 3}" text-anchor="${left ? 'end' : 'start'}" class="kb-leg" font-size="9">${esc(KB_MOUSE_NAMES[id])}</text>
+      <text x="${left ? ex - 7 : ex + 7}" y="${ly + 10}" text-anchor="${left ? 'end' : 'start'}" font-size="12" font-weight="700" fill="${col(id)}">${esc(KB_LABELS[id][1])}</text>`;
+  return `<svg class="kb-mouse" viewBox="0 0 262 262" role="img" aria-label="Mouse binds">
+    <g transform="translate(10,0)">
+    <path d="M115 30 C150 30 160 60 162 110 L164 190 C164 235 145 252 115 252 C85 252 66 235 66 190 L68 110 C70 60 80 30 115 30Z" fill="var(--panel2)" stroke="var(--line)" stroke-width="1.4"/>
+    ${part('mouse1', 'M112 33 C84 35 74 58 71 108 L112 108 Z')}
+    ${part('mouse2', 'M118 33 C146 35 156 58 159 108 L118 108 Z')}
+    ${part('mwheelup', 'M107 50 a8 8 0 0 1 16 0 V68 H107 Z')}
+    ${part('mwheeldown', 'M107 68 H123 V86 a8 8 0 0 1 -16 0 Z')}
+    ${part('mouse5', 'M67 122 h-4 a3 3 0 0 0 -3 3 v20 a3 3 0 0 0 3 3 h4 Z')}
+    ${part('mouse4', 'M67 154 h-4 a3 3 0 0 0 -3 3 v20 a3 3 0 0 0 3 3 h4 Z')}
+    <text x="115" y="62" text-anchor="middle" font-size="9" fill="var(--text)">▲</text>
+    <text x="115" y="83" text-anchor="middle" font-size="9" fill="var(--text)">▼</text>
+    </g>
+    ${call(98, 85, 62, 60, 'mouse1', true)}
+    ${call(70, 135, 62, 128, 'mouse5', true)}
+    ${call(70, 167, 62, 182, 'mouse4', true)}
+    ${call(132, 58, 186, 30, 'mwheelup', false)}
+    ${call(132, 78, 194, 88, 'mwheeldown', false)}
+    ${call(158, 98, 186, 146, 'mouse2', false)}
+  </svg>`;
+}
+const kbHtml = () => `<div class="panel"><h2>Keybinds</h2>
+    <div class="kb-legend">${KB_CATS.map(c => `<span><i style="border-color:${c.c};background:${c.c}33${c.dash ? ';border-style:dashed' : ''}"></i>${esc(c.name)}</span>`).join('')}</div>
+    <div class="kb-wrap"><div class="kb-scroll">${kbBoard()}</div>${kbMouse()}</div>
+  </div>`;
+
 const facts = list => list.map(v => `<div class="fact">
         <div class="ft"><b>${esc(v.what)}</b>${v.why ? `<span>${esc(v.why)}</span>` : ''}${v.list ? `<div class="vlist">${v.list.map(([k,x]) => `<div><span>${esc(k)}</span><b>${esc(x)}</b></div>`).join('')}</div>` : ''}</div>
         ${v.val != null ? `<div class="fv">${esc(v.val)}</div>` : ''}</div>`).join('');
@@ -3019,6 +3142,7 @@ const PANTRY_VIEWS = {
         <figure><img src="${im.src}" alt="${esc(im.caption)}" loading="lazy">
         <figcaption>${esc(im.caption)}</figcaption></figure>`).join('')}</div>
     </div>`
+    + kbHtml()
     + CFGS.map((c,i) => `<div class="panel">
         <div class="cfghead">
           <h2>${esc(c.title)}</h2>
