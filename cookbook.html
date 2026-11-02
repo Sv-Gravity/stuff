@@ -46,6 +46,12 @@
   .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px}
   .tabs button{font-weight:600}
   .tabs button.on{border-color:var(--accent);color:var(--accent)}
+  svg.spray{display:block;width:100%;max-width:360px;margin:0 auto;background:#12151a;border-radius:8px;cursor:pointer}
+  .sp-b{animation:spIn .12s both}
+  .sp-b circle{fill:var(--accent);stroke:#12151a;stroke-width:1.5}
+  .sp-b text{font:700 8px system-ui,sans-serif;fill:#12151a;text-anchor:middle}
+  @keyframes spIn{from{opacity:0;transform:scale(.3)}to{opacity:1;transform:none}}
+  .sp-b{transform-box:fill-box;transform-origin:center}
   .fact{display:flex;flex-wrap:wrap;align-items:baseline;gap:14px;padding:12px 0;border-top:1px solid var(--line)}
   .fact:first-of-type{border-top:0}
   .fact .ft{flex:1 1 200px;min-width:0}
@@ -2778,6 +2784,7 @@ const MAP_ICONS = {
     + '<path d="M2.5 7.5 6 4M2.5 11.5 7 7M2.5 15.5 7 11M5.5 16.5 7 15M17 7.5 20.5 4M17 11.5l4.5-4.5M17 15.5l4.5-4.5M20 16.5l1.5-1.5" stroke-width=".7" opacity=".75"/>'
     + '<g transform="translate(7.62 5.9) scale(.36)" stroke-width="3.3"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zM17 2h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></g>',
   nvidia:  '<rect x="2" y="6" width="20" height="11" rx="1"/><circle cx="9" cy="11.5" r="3"/><path d="M14.5 9h4M14.5 11.5h4M14.5 14h4M5 17v2.5M8 17v2.5M11 17v2.5"/>',
+  spray:   '<path d="M8 21v-3.5M8 14.5v-3M8 8.5c0-2.5 1.5-4.5 4.5-4.5M15.5 4c1.8 0 3 .8 3.5 2"/><circle cx="8" cy="21" r=".9"/><circle cx="8" cy="16" r=".9"/><circle cx="8" cy="11.5" r=".9"/><circle cx="9.5" cy="6.3" r=".9"/><circle cx="14" cy="4" r=".9"/><circle cx="18.5" cy="5.5" r=".9"/>',
   gear:    '<rect x="2.5" y="8" width="19" height="10" rx="1.5"/><path d="M5.5 11h1M8.5 11h1M11.5 11h1M14.5 11h1M17.5 11h1M5.5 14h1M17.5 14h1M8.5 14h7"/><path d="M12 8V5.5c0-1.2 1-2 2.5-2"/>'
 };
 // The Pantry's own top bar: one tab per section. 4:3 is its own page at #/native.
@@ -2788,6 +2795,7 @@ const PANTRY = [
   { id:'crosshairs', name:'Crosshairs' },
   { id:'mouse',      name:'Mouse' },
   { id:'keybinds',   name:'Keybinds' },
+  { id:'spray',      name:'Spray' },
   { id:'configs',    name:'Configs' },
   { id:'native',     name:'4:3', title:'4:3 - or How I Learned to Stop Worrying and Love Native Res' },
   { id:'gear',       name:'Gear' }
@@ -3147,6 +3155,50 @@ const kbHtml = () => `<div class="panel">
     <div class="kb-wrap"><div class="kb-scroll">${kbBoard()}</div>${kbMouse()}</div>
   </div>`;
 
+// Spray patterns: where each bullet lands with no mouse movement, in degrees from the first shot
+// (x right, y up). Generated from CS2 weapons.vdata (m_nRecoilSeed, recoil angle/magnitude + variance)
+// with Valve's recoil table + aim punch decay; the AK matches the classic community table. Shared with the spray trainer.
+const SPRAY = {
+  ak47: [[0,0],[-0.03,0.05],[0.04,1.44],[-0.14,3.49],[-0.2,5.55],[0.53,7.28],[0.98,8.65],[1.69,9.52],[0.83,10.16],[-1.49,9.78],[-2.66,9.9],[-2,10.3],[-2.82,10.29],[-4.16,9.91],[-4.37,10.12],[-2.39,10.32],[-1.26,10.61],[-0.48,10.91],[0.9,10.93],[2.72,10.47],[1.7,10.53],[1.97,10.61],[1.57,10.88],[1.14,11.16],[2.14,11.01],[2.45,11.1],[1.39,11.18],[-0.38,11],[-2.69,10.16],[-3.55,10.12]],
+  m4a1s: [[0,0],[0.01,0.04],[0.04,0.47],[-0.19,1.5],[0.07,2.67],[-0.29,3.8],[-0.47,4.73],[0.27,5.25],[0.68,5.7],[1.63,5.68],[1.27,5.95],[0.49,6.13],[-0.73,5.96],[-1.69,5.82],[-2.59,5.55],[-2.48,5.78],[-2.06,6.05],[-2.51,5.93],[-3.04,5.76],[-2.89,5.94]],
+  m4a4: [[0,0],[0.01,0.04],[0.07,0.83],[-0.27,2.14],[0.07,3.6],[-0.37,5],[-0.62,6.21],[0.25,6.96],[0.83,7.58],[2.05,7.61],[1.77,7.96],[0.87,8.27],[-0.7,8.11],[-2.05,7.88],[-3.32,7.47],[-3.38,7.7],[-2.99,8.08],[-3.53,7.99],[-4.23,7.76],[-4.14,7.95],[-2.43,8.07],[-1.79,8.3],[-0.41,8.34],[0.09,8.54],[0.71,8.69],[0.17,8.8],[0.45,8.87],[0.63,8.97],[0.81,9.08],[1.05,9.16]],
+  mac10: [[0,0],[-0.03,0.02],[-0.13,0.16],[-0.16,0.76],[0.08,1.82],[0.74,2.95],[1.36,4.11],[1.82,5.15],[1.53,6.04],[1.96,6.54],[2.15,7.02],[2.32,7.38],[2.19,7.72],[2.08,7.97],[1.6,8.19],[0.4,8.07],[-1.04,7.62],[-1.16,7.61],[-1.77,7.49],[-1.48,7.57],[-1.8,7.56],[-2.46,7.37],[-2.93,7.36],[-2.12,7.43],[-1.47,7.59],[-0.66,7.75],[0.59,7.52],[0.65,7.62],[-0.44,7.39],[-0.34,7.43]],
+  mp9: [[0,0],[0,0.04],[-0.21,0.61],[-0.01,1.72],[-0.12,3.24],[0.54,4.65],[0.52,6.06],[0.06,7.24],[0.66,8.07],[1.83,8.5],[3.28,8.36],[4.74,7.92],[4.77,8.36],[4.86,8.9],[3.41,9.31],[2.71,9.8],[1.52,10.19],[0.73,10.54],[-0.66,10.43],[-2.33,9.94],[-2.16,10.02],[-1.32,10.19],[0,10.21],[0.16,10.36],[-0.9,10.2],[-2.33,9.87],[-2.81,10.04],[-3.44,10.09],[-2.9,10.35],[-2.55,10.63]],
+  cz75: [[0,0],[-0.04,0.03],[-1.35,0.8],[-1.15,2.6],[0.84,2.91],[2.55,4.26],[0.77,5.55],[-0.73,6.63],[-2.78,7.21],[-1.57,8.31],[-2.5,9.27],[-2.68,10.09]]
+};
+const SPRAY_GUNS = [
+  { id:'ak47',  name:'AK-47',    rpm:600 },
+  { id:'m4a1s', name:'M4A1-S',   rpm:600 },
+  { id:'m4a4',  name:'M4A4',     rpm:666 },
+  { id:'mac10', name:'MAC-10',   rpm:800 },
+  { id:'mp9',   name:'MP9',      rpm:857 },
+  { id:'cz75',  name:'CZ75-Auto', rpm:600 }
+];
+let sprayTab = 0;
+window.setSprayTab = i => { sprayTab = i; render(true); };
+// Same scale for every gun so they compare: 1 degree = 30px.
+function spraySvg(g){
+  const pts = SPRAY[g.id], S = 30, W = 360, H = 420, ox = W / 2, oy = H - 30, gap = 60 / g.rpm;
+  const P = pts.map(([x,y]) => [ox + x * S, oy - y * S]);
+  const dots = P.map(([x,y], i) => ({x, y, i})).reverse().map(({x,y,i}) =>
+    `<g class="sp-b" style="animation-delay:${(i * gap).toFixed(3)}s"><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="7.5"/>
+      <text x="${x.toFixed(1)}" y="${(y + 3).toFixed(1)}">${i + 1}</text></g>`).join('');
+  return `<svg class="spray" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(g.name)} spray pattern" onclick="replaySpray(this)">
+    <path d="M${ox} ${oy - 14}v-8M${ox} ${oy + 14}v8M${ox - 14} ${oy}h-8M${ox + 14} ${oy}h8" stroke="var(--muted)" stroke-width="1.5"/>
+    <polyline points="${P.map(p => p.map(v => v.toFixed(1)).join(',')).join(' ')}" fill="none" stroke="var(--accent)" stroke-opacity=".35" stroke-width="1.5"/>
+    ${dots}</svg>`;
+}
+window.replaySpray = svg => svg.querySelectorAll('.sp-b').forEach(b => { b.style.animation = 'none'; b.getBBox(); b.style.animation = ''; });
+const sprayHtml = () => {
+  const g = SPRAY_GUNS[sprayTab];
+  return `<div class="panel">
+      <div class="tabs">${SPRAY_GUNS.map((w,i) =>
+        `<button class="${i===sprayTab?'on':''}" onclick="setSprayTab(${i})">${esc(w.name)}</button>`).join('')}</div>
+      <p class="sub" style="margin:0 0 12px">${SPRAY[g.id].length} bullets, no mouse movement. Pull the opposite way. Click to replay.</p>
+      ${spraySvg(g)}
+    </div>`;
+};
+
 const facts = list => list.map(v => `<div class="fact">
         <div class="ft"><b>${esc(v.what)}</b>${v.why ? `<span>${esc(v.why)}</span>` : ''}${v.list ? `<div class="vlist">${v.list.map(([k,x]) => `<div><span>${esc(k)}</span><b>${esc(x)}</b></div>`).join('')}</div>` : ''}</div>
         ${v.val != null ? `<div class="fv">${esc(v.val)}</div>` : ''}</div>`).join('');
@@ -3195,6 +3247,7 @@ const PANTRY_VIEWS = {
         <pre class="cfg">${esc(c.text)}</pre>
       </div>`).join(''),
   keybinds: () => kbHtml(),
+  spray: () => sprayHtml(),
   native: () => nativeHtml(),
   gear: () => `<div class="panel">${GEAR.map(g => `<div class="fact">
         <div class="ft"><span class="gk">${esc(g.kind)}</span><b class="gn">${esc(g.name)}</b>${g.why ? `<span>${esc(g.why)}</span>` : ''}</div></div>`).join('')}</div>`
