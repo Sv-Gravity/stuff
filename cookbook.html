@@ -2871,8 +2871,6 @@ window.setSensTab = i => { sensTab = i; render(true); };
 const XHAIR_DEFAULT = { style:'Static Cross', color:[50,250,50,200], outline:'Full Outline', outlineColor:[0,0,0,255],
   thickness:1, dot:'No', length:5, gap:1, tstyle:'No', scopeColor:'No', scopeScale:'1.00', recoil:'No' };
 const XHAIR_SET = {
-  Twistzz: { style:'Static Cross', color:[0,255,135,255], outline:'No Outline', outlineColor:null,
-      thickness:3, dot:'No', length:8, gap:3, tstyle:'No', scopeColor:'No', scopeScale:'1.00', recoil:'No' },
   faded: { code:'CSV6Zq69bK95UtYoWay5vpHm6ovALU9Dm4v9bCcvs7C5Qh', style:'Static Cross', color:[255,0,206,255], outline:'No Outline', outlineColor:null,
       thickness:3, dot:'No', length:5, gap:1, tstyle:'No', scopeColor:'No', scopeScale:'1.00', recoil:'No' },
   // decoded from the players' CS2 share codes
@@ -2898,7 +2896,8 @@ const XHAIR_SET = {
   Wr4thy: { code:'CSqSyW8z2BouJoNxNzJmHvEQXUDVSE8kdPnwjOMqL2j38j', style:'Static Cross', color:[0,255,0,255], outline:'Full Outline', outlineColor:[0,0,0,255],
       thickness:3, dot:'No', length:5, gap:3, tstyle:'No', scopeColor:'No', scopeScale:'1.00', recoil:'No' }
 };
-const XHAIRS = PLAYERS.map(p => XHAIR_SET[p.name] || (p.dpi == null ? null : p.name === 'Toshi'
+const XH_PLAYERS = PLAYERS.filter(p => p.name !== 'Twistzz');   // no pro tabs in Crosshairs
+const XHAIRS = XH_PLAYERS.map(p => XHAIR_SET[p.name] || (p.dpi == null ? null : p.name === 'Toshi'
   ? { code:'CSZweshaeVCbEJYfbeUqhsPtWMti5uf2JZkCphjLn2TnWL', style:'Static Cross', color:[255,0,255,255], outline:'Full Outline', outlineColor:[0,0,0,255],
       thickness:2, dot:'No', length:4, gap:3, tstyle:'No', scopeColor:'No', scopeScale:'1.00', recoil:'No' }
   : XHAIR_DEFAULT));
@@ -2973,7 +2972,7 @@ const PANTRY_VIEWS = {
         ${r.val == null ? '<div class="fv todo">Placeholder</div>' : `<div class="fv">${esc(r.val)}</div>`}</div>`).join('')}
     </div>`,
   crosshairs: () => `<div class="panel">
-      <div class="tabs">${PLAYERS.map((p,i) =>
+      <div class="tabs">${XH_PLAYERS.map((p,i) =>
         `<button class="${i===xhTab?'on':''}" onclick="setXhTab(${i})">${esc(p.name)}</button>`).join('')}</div>
       ${XHAIRS[xhTab] && XHAIRS[xhTab].length != null ? xhSvg(XHAIRS[xhTab]) : ''}
       ${XHAIRS[xhTab] && XHAIRS[xhTab].code ? `<div class="savepath"><b>Share code</b><code>${esc(XHAIRS[xhTab].code)}</code>
