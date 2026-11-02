@@ -51,19 +51,21 @@
   .ss-set label{display:flex;align-items:center;gap:8px;font-weight:600}
   .ss-set input{width:90px;font:600 15px ui-monospace,Menlo,Consolas,monospace;color:var(--accent);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
   .ss-cv{display:block;width:100%;aspect-ratio:16/9;border-radius:8px;cursor:crosshair;background:#12151a}
-  .ss-res:not(:empty){margin-top:14px}
+  .ss-res{margin-top:14px}
+  .ss-pull{margin:0 0 10px;min-height:2.8em}
   .ss-side{display:flex;gap:8px}
   .ss-side button{font-weight:600}
   .ss-side button span{color:var(--muted);font-weight:400;font-size:12px;margin-left:8px}
   .ss-side button.on{border-color:var(--accent);color:var(--accent)}
   .ss-stats{flex-wrap:wrap}
   .ss-stats{display:flex;gap:28px;margin:0 0 8px}
+  .ss-stats>div{min-width:64px}
   .ss-stats b{display:block;font:700 22px ui-monospace,Menlo,Consolas,monospace;color:var(--accent)}
   .ss-stats span{color:var(--muted);font-size:13px}
   .ss-legend{display:flex;gap:18px;color:var(--muted);font-size:13px;margin:0 0 6px}
   .ss-legend i{display:inline-block;width:18px;border-top:2px solid var(--accent);vertical-align:middle;margin-right:6px}
   .ss-legend i.need{border-top:2px dashed var(--muted)}
-  svg.ss-path{display:block;width:100%;background:#12151a;border-radius:8px}
+  svg.ss-path{display:block;width:100%;aspect-ratio:720/260;background:#12151a;border-radius:8px}
   .sp-b{transition:opacity .15s}
   .sp-b.old{opacity:.15}
   .sp-b.off{opacity:0}
@@ -2797,6 +2799,7 @@ const MAP_ICONS = {
     + '<g transform="translate(7.62 5.9) scale(.36)" stroke-width="3.3"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zM17 2h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></g>',
   nvidia:  '<rect x="2" y="6" width="20" height="11" rx="1"/><circle cx="9" cy="11.5" r="3"/><path d="M14.5 9h4M14.5 11.5h4M14.5 14h4M5 17v2.5M8 17v2.5M11 17v2.5"/>',
   spray:   '<path d="M8 21v-3.5M8 14.5v-3M8 8.5c0-2.5 1.5-4.5 4.5-4.5M15.5 4c1.8 0 3 .8 3.5 2"/><circle cx="8" cy="21" r=".9"/><circle cx="8" cy="16" r=".9"/><circle cx="8" cy="11.5" r=".9"/><circle cx="9.5" cy="6.3" r=".9"/><circle cx="14" cy="4" r=".9"/><circle cx="18.5" cy="5.5" r=".9"/>',
+  practice: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".9"/><path d="M12 1.5v4M12 18.5v4M1.5 12h4M18.5 12h4"/>',
   gear:    '<rect x="2.5" y="8" width="19" height="10" rx="1.5"/><path d="M5.5 11h1M8.5 11h1M11.5 11h1M14.5 11h1M17.5 11h1M5.5 14h1M17.5 14h1M8.5 14h7"/><path d="M12 8V5.5c0-1.2 1-2 2.5-2"/>'
 };
 // The Pantry's own top bar: one tab per section. 4:3 is its own page at #/native.
@@ -2810,7 +2813,8 @@ const PANTRY = [
   { id:'configs',    name:'Configs' },
   { id:'native',     name:'4:3', title:'4:3 - or How I Learned to Stop Worrying and Love Native Res' },
   { id:'gear',       name:'Gear' },
-  { id:'spray',      name:'Spray' }
+  { id:'spray',      name:'Spray' },
+  { id:'practice',   name:'Practice' }
 ];
 // page: 'map' | 'ing' | 'pantry' (mid = section id) | 'other' (no map); null hides the bar
 function setNav(page, mid){
@@ -3280,7 +3284,9 @@ const ssHit = (x, y) => {
 const ssSide = () => SS_SIDES.find(x => x.id === store('ssside')) || SS_SIDES[0];
 window.ssSetSide = id => { store('ssside', id); render(true); };
 window.ssSet = (k, v) => { v = parseFloat(v); if(v > 0) store(k, v); };
-const ssHtml = () => `<div class="panel"><h2>Practice</h2>
+const ssHtml = () => `<div class="panel">
+    <div class="tabs">${SPRAY_GUNS.map((w,i) =>
+      `<button class="${i===sprayTab?'on':''}" onclick="setSprayTab(${i})">${esc(w.name)}</button>`).join('')}</div>
     <p class="sub" style="margin:0 0 12px">Your sens, the real pattern. Click the window, then hold left click and pull against it. Esc to stop.</p>
     <div class="ss-set">
       <label>Sensitivity <input type="number" step="0.01" min="0.01" value="${ssSens()}" onchange="ssSet('sssens', this.value)"></label>
@@ -3288,7 +3294,7 @@ const ssHtml = () => `<div class="panel"><h2>Practice</h2>
       <div class="ss-side">${SS_SIDES.map(x => `<button class="${x.id === ssSide().id ? 'on' : ''}" onclick="ssSetSide('${x.id}')">${x.name}<span>${esc(x.agent)}</span></button>`).join('')}</div>
     </div>
     <canvas id="ssCv" class="ss-cv"></canvas>
-    <div id="ssRes" class="ss-res"></div>
+    <div id="ssRes" class="ss-res">${ssResHtml(null)}</div>
   </div>`;
 
 function ssInit(){
@@ -3324,7 +3330,7 @@ function ssInit(){
 }
 function ssFire(){
   Object.assign(ss, { aim:[0,0], punch:[0,0], holes:[], aims:[], firing:true, done:false, next:performance.now() });
-  document.getElementById('ssRes').innerHTML = '';
+  document.getElementById('ssRes').innerHTML = ssResHtml(null);
 }
 function ssShoot(){
   const i = ss.holes.length, [px, py] = ss.pts[i], x = ss.aim[0] + px, y = ss.aim[1] + py;
@@ -3337,29 +3343,39 @@ function ssEnd(){
   if(!ss.holes.length) return;
   ss.aim = [0, 0];                                   // back on the chest so you see where the bullets went
   ss.done = true;
-  const n = ss.holes.length, hits = ss.holes.filter(h => h.hit).length;
-  const zoneN = z => ss.holes.filter(h => h.hit === z).length;
-  const best = store('ssbest') || {}, key = ss.g.id;
+  const n = ss.holes.length, best = store('ssbest') || {}, key = ss.g.id;
+  const hits = ss.holes.filter(h => h.hit).length;
   if(n === ss.pts.length && hits > (best[key] || 0)){ best[key] = hits; store('ssbest', best); }
-  const need = ss.pts[n - 1][1], you = -ss.aims[n - 1][1];
-  document.getElementById('ssRes').innerHTML = `
-    <div class="ss-stats"><div><b>${hits}/${n}</b><span>Hits</span></div>${SS_ZONES.slice(1).map((zn, z) =>
-      `<div><b style="color:rgb(${zn.c})">${zoneN(z + 1)}</b><span>${zn.name}</span></div>`).join('')}
-      <div><b>${best[key] != null ? best[key] + '/' + ss.pts.length : '-'}</b><span>Best</span></div></div>
-    <p class="sub" style="margin:0 0 10px">${n} bullets need ${ssCm(need).toFixed(1)} cm of pull down at ${ssSens()} sens, ${ssDpi()} DPI. You pulled ${ssCm(you).toFixed(1)} cm.</p>
-    ${ssPathSvg()}`;
+  document.getElementById('ssRes').innerHTML = ssResHtml(ss);
+}
+// Results block. Always the same size (null = before the first spray), so nothing on the page moves.
+function ssResHtml(r){
+  const g = SPRAY_GUNS[sprayTab], len = SPRAY[g.id].length, best = (store('ssbest') || {})[g.id];
+  const n = r ? r.holes.length : 0, dash = v => r ? v : '-';
+  const zoneN = z => r.holes.filter(h => h.hit === z).length;
+  const need = r ? r.pts[n - 1][1] : 0, you = r ? -r.aims[n - 1][1] : 0;
+  return `<div class="ss-stats"><div><b>${dash(r && r.holes.filter(h => h.hit).length + '/' + n)}</b><span>Hits</span></div>${SS_ZONES.slice(1).map((zn, z) =>
+      `<div><b style="color:rgb(${zn.c})">${dash(r && zoneN(z + 1))}</b><span>${zn.name}</span></div>`).join('')}
+      <div><b>${best != null ? best + '/' + len : '-'}</b><span>Best</span></div></div>
+    <p class="sub ss-pull">${r ? `${n} bullets need ${ssCm(need).toFixed(1)} cm of pull down at ${ssSens()} sens, ${ssDpi()} DPI. You pulled ${ssCm(you).toFixed(1)} cm.`
+      : ''}</p>
+    ${ssPathSvg(r)}`;
 }
 // where your aim was at each bullet vs where it had to be (the pattern flipped)
-function ssPathSvg(){
-  const need = ss.pts.slice(0, ss.aims.length).map(([x, y]) => [-x, -y]), you = ss.aims;
-  const all = need.concat(you), S = 22, pad = 14;
+// Fixed 720x260 box; the drawing is scaled to fit inside it.
+function ssPathSvg(r){
+  const W = 720, H = 260, pad = 16;
+  const legend = `<div class="ss-legend"><span><i class="need"></i>Needed pull</span><span><i></i>Your pull</span></div>`;
+  if(!r || !r.aims.length) return legend + `<svg class="ss-path" viewBox="0 0 ${W} ${H}"></svg>`;
+  const need = r.pts.slice(0, r.aims.length).map(([x, y]) => [-x, -y]), you = r.aims;
+  const all = need.concat(you);
   const x0 = Math.min(...all.map(p => p[0])), x1 = Math.max(...all.map(p => p[0]));
   const y0 = Math.min(...all.map(p => p[1])), y1 = Math.max(...all.map(p => p[1]));
-  const W = Math.max(200, (x1 - x0) * S + pad * 2), H = (y1 - y0) * S + pad * 2;
-  const P = ([x, y]) => [(pad + (x - x0) * S).toFixed(1), (pad + (y1 - y) * S).toFixed(1)];
+  const S = Math.min(22, (W - pad * 2) / Math.max(.01, x1 - x0), (H - pad * 2) / Math.max(.01, y1 - y0));
+  const ox = (W - (x1 - x0) * S) / 2, oy = (H - (y1 - y0) * S) / 2;
+  const P = ([x, y]) => [(ox + (x - x0) * S).toFixed(1), (oy + (y1 - y) * S).toFixed(1)];
   const line = ps => ps.map(p => P(p).join(',')).join(' ');
-  return `<div class="ss-legend"><span><i class="need"></i>Needed pull</span><span><i></i>Your pull</span></div>
-    <svg class="ss-path" viewBox="0 0 ${W.toFixed(0)} ${H.toFixed(0)}" style="max-width:${(W * 1.4).toFixed(0)}px">
+  return legend + `<svg class="ss-path" viewBox="0 0 ${W} ${H}">
     <polyline points="${line(need)}" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="4 3"/>
     <polyline points="${line(you)}" fill="none" stroke="var(--accent)" stroke-width="2"/>
     ${you.map(p => { const [x, y] = P(p); return `<circle cx="${x}" cy="${y}" r="2.5" fill="var(--accent)"/>`; }).join('')}
@@ -3458,7 +3474,8 @@ const PANTRY_VIEWS = {
         <pre class="cfg">${esc(c.text)}</pre>
       </div>`).join(''),
   keybinds: () => kbHtml(),
-  spray: () => sprayHtml() + ssHtml(),
+  spray: () => sprayHtml(),
+  practice: () => ssHtml(),
   native: () => nativeHtml(),
   gear: () => `<div class="panel">${GEAR.map(g => `<div class="fact">
         <div class="ft"><span class="gk">${esc(g.kind)}</span><b class="gn">${esc(g.name)}</b>${g.why ? `<span>${esc(g.why)}</span>` : ''}</div></div>`).join('')}</div>`
@@ -3468,7 +3485,8 @@ function viewPantry(id){
   const t = PANTRY.find(x => x.id === pantryId(id));
   app.innerHTML = `<h1 style="margin-bottom:18px">${esc(t.title || t.name)}</h1>` + PANTRY_VIEWS[t.id]();
   if(t.id === 'native') nrInit();
-  if(t.id === 'spray'){ sprayPlay(); ssInit(); }
+  if(t.id === 'spray') sprayPlay();
+  if(t.id === 'practice') ssInit();
 }
 window.copyCfg = i => copyText(CFGS[i].text);
 window.CFG_DIR = 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Counter-Strike Global Offensive\\game\\csgo\\cfg';
