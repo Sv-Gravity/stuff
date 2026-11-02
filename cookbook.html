@@ -60,7 +60,8 @@
   .fact .ft .vlist div{display:flex;align-items:baseline;gap:14px;padding:5px 0;border-top:1px dashed var(--line)}
   .fact .ft .vlist div:first-child{border-top:0}
   .nr-lead{margin:0 0 18px;color:var(--text)}
-  .nr-canvas{display:block;width:100%;max-width:760px;margin:0 auto}
+  .nr-canvas{display:block;width:100%;max-width:760px;margin:0 auto;position:relative}
+  .nr-canvas canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
   .nr-ctl{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px}
   .nr-ctl button.on{border-color:var(--accent);color:var(--accent)}
   .nr-ctl span{color:var(--muted);font-size:13px;flex:1;min-width:220px}
@@ -3453,7 +3454,7 @@ const NR_SPEED = 250, NR_W = 2560, NR_H = 1440;
 const nrPx = (d, stretched) => (NR_W / 2) / (d * (stretched ? 1 : 4/3));
 const NR_DIST = [250, 500, 1000];
 const NR_ANIM_D = 150;
-let nrSlow = false, nrPaused = false, nrRaf = 0, nrResize = null;
+let nrSlow = false, nrPaused = false, nrRaf = 0, nrResize = null, nrObs = null;
 const hfov = a => 2 * Math.atan(0.75 * a) * 180 / Math.PI;
 const pct = x => Math.round((x - 1) * 100);
 
@@ -3534,7 +3535,7 @@ function nativeHtml(){
   return `    <p class="nr-lead">I've played since Counter Strike 0.9 beta, habit is not an excuse, adapt to survive.</p>
 
     <div class="panel"><h2>Same head, two screens</h2>
-      <canvas id="nrCanvas" class="nr-canvas" aria-label="Animation: the same enemy runs across a native screen and a 4:3 stretched screen on the same monitor. On the stretched screen his head is wider and moves faster, and he is on screen for less time."></canvas>
+      <div class="nr-canvas" role="img" aria-label="Animation: the same enemy runs across a native screen and a 4:3 stretched screen on the same monitor. On the stretched screen his head is wider and moves faster, and he is on screen for less time."><canvas id="nrBg"></canvas><canvas id="nrCanvas"></canvas></div>
       <div class="nr-ctl">
         <button id="nrPlay" onclick="nrToggle()">${nrPaused ? 'Play' : 'Pause'}</button>
         <button class="${nrSlow?'on':''}" id="nrSlowBtn" onclick="nrSlowToggle()">Slow motion</button>
@@ -3580,87 +3581,130 @@ function renderNrFacts(){
 window.nrToggle = () => { nrPaused = !nrPaused; document.getElementById('nrPlay').textContent = nrPaused ? 'Play' : 'Pause'; };
 window.nrSlowToggle = () => { nrSlow = !nrSlow; document.getElementById('nrSlowBtn').classList.toggle('on', nrSlow); };
 
+// two stacked canvases: the screens, walls and labels are painted once per resize on the back one;
+// each frame only clears and redraws the runner, his head ring and the crosshair on the front one
 function nrStart(){
-  cancelAnimationFrame(nrRaf);
+  cancelAnimationFrame(nrRaf); nrRaf = 0;
   if(nrResize) window.removeEventListener('resize', nrResize);
-  const cv = document.getElementById('nrCanvas'); if(!cv) return;
-  const ctx = cv.getContext('2d');
+  if(nrObs) nrObs.disconnect();
+  const bg = document.getElementById('nrBg'), cv = document.getElementById('nrCanvas'); if(!cv || !bg) return;
+  const stage = cv.parentNode, bctx = bg.getContext('2d'), ctx = cv.getContext('2d');
   const A = 16/9, D = NR_ANIM_D, SPEED = NR_SPEED, GAP = 18;   // units, units/s, px between screens
   const X = 0.75 * A * D + 30;                                  // run from just off the native screen's edge
-  let t = 0, last = performance.now();
+  const u = v => v / D;
+  let t = 0, last = 0, g, screens, bmps = {};
   if(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches && !nrPaused){ nrPaused = true;
     const b = document.getElementById('nrPlay'); if(b) b.textContent = 'Play'; }
 
   function size(){
-    const dpr = window.devicePixelRatio || 1, W = cv.clientWidth;
-    const H = Math.round(W / A), lab = W < 560 ? 42 : 26;
-    cv.style.height = (2 * (H + lab) + GAP) + 'px';
-    cv.width = Math.round(W * dpr); cv.height = Math.round((2 * (H + lab) + GAP) * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    return {W, H, lab};
+    const dpr = window.devicePixelRatio || 1, W = stage.clientWidth;
+    const H = Math.round(W / A), lab = W < 560 ? 42 : 26, TH = 2 * (H + lab) + GAP;
+    stage.style.height = TH + 'px';
+    for(const [c, x] of [[bg, bctx], [cv, ctx]]){ c.width = Math.round(W * dpr); c.height = Math.round(TH * dpr); x.setTransform(dpr, 0, 0, dpr, 0, 0); }
+    const sy = (H/2) / 0.75;
+    g = {W, H, lab, dpr};
+    screens = [
+      {y0: 0,             sx: sy,  sy, halfTan: 0.75 * A, title: 'Native 16:9',   pxs: SPEED * nrPx(D, false)},
+      {y0: H + lab + GAP, sx: W/2, sy, halfTan: 1,        title: '4:3 stretched', pxs: SPEED * nrPx(D, true)}
+    ];
+    screens.forEach(paintBack);
+    bmps = {};
+    // scale both runners for both screens up front so a swap never stalls a frame
+    if(nrModels) nrModels.forEach((img, k) => (img.decode ? img.decode() : Promise.resolve()).then(() => screens.forEach(s => model(img, k, s)), () => {}));
   }
-  let g = size();
-  nrResize = () => { g = size(); };
-  window.addEventListener('resize', nrResize);
 
-  // one screen: sx = px per unit of (x/D) horizontally, sy = px per unit of (y/D) vertically
-  function screen(y0, sx, sy, halfTan, title, xw, pxs){
-    const {W, H, lab} = g, top = y0 + lab;
-    ctx.fillStyle = '#e6eaf0'; ctx.font = '600 13px system-ui,sans-serif'; ctx.textBaseline = 'middle';
-    ctx.fillText(title, 0, lab > 26 ? y0 + 10 : y0 + lab/2);
-    ctx.save(); ctx.beginPath(); ctx.rect(0, top, W, H); ctx.clip();
-    const sky = ctx.createLinearGradient(0, top, 0, top + H);
+  // the still parts of one screen
+  function paintBack(s){
+    const {W, H, lab} = g, {y0, sx, sy} = s, top = y0 + lab, c = bctx;
+    c.fillStyle = '#e6eaf0'; c.font = '600 13px system-ui,sans-serif'; c.textBaseline = 'middle';
+    c.fillText(s.title, 0, lab > 26 ? y0 + 10 : y0 + lab/2);
+    const sky = c.createLinearGradient(0, top, 0, top + H);
     sky.addColorStop(0, '#1d2430'); sky.addColorStop(.5, '#232b37'); sky.addColorStop(.5, '#2a2620'); sky.addColorStop(1, '#3a3226');
-    ctx.fillStyle = sky; ctx.fillRect(0, top, W, H);
+    c.fillStyle = sky; c.fillRect(0, top, W, H);
     const cx = W/2, cy = top + H/2;
+    c.save(); c.beginPath(); c.rect(0, top, W, H); c.clip();
     // wall markers every 25 units at the enemy's distance
-    ctx.strokeStyle = 'rgba(140,152,169,.22)'; ctx.lineWidth = 1;
-    for(let wx = -400; wx <= 400; wx += 25){ const x = cx + sx * wx / D; ctx.beginPath(); ctx.moveTo(x, cy - sy * 40 / D); ctx.lineTo(x, cy + sy * 64 / D); ctx.stroke(); }
-    ctx.beginPath(); ctx.moveTo(0, cy + sy * 64 / D); ctx.lineTo(W, cy + sy * 64 / D); ctx.strokeStyle = 'rgba(140,152,169,.4)'; ctx.stroke();
+    c.strokeStyle = 'rgba(140,152,169,.22)'; c.lineWidth = 1;
+    for(let wx = -400; wx <= 400; wx += 25){ const x = cx + sx * wx / D; c.beginPath(); c.moveTo(x, cy - sy * 40 / D); c.lineTo(x, cy + sy * 64 / D); c.stroke(); }
+    c.beginPath(); c.moveTo(0, cy + sy * 64 / D); c.lineTo(W, cy + sy * 64 / D); c.strokeStyle = 'rgba(140,152,169,.4)'; c.stroke();
+    c.restore();
+    c.strokeStyle = '#2f3947'; c.lineWidth = 1; c.strokeRect(.5, top + .5, W - 1, H - 1);
+    s.vis = null;
+  }
+
+  // the runner, scaled once per screen size with high quality resampling instead of every frame
+  function model(img, k, s){
+    const key = k + ':' + (s === screens[0] ? 0 : 1), b = bmps[key];
+    if(b) return b === 1 ? null : b;
+    const h = s.sy * u(72), w = h * img.naturalWidth / img.naturalHeight * (s.sx / s.sy);
+    bmps[key] = 1;
+    if(window.createImageBitmap) createImageBitmap(img, {resizeWidth: Math.max(1, Math.round(w * g.dpr)), resizeHeight: Math.max(1, Math.round(h * g.dpr)), resizeQuality: 'high'})
+      .then(bm => { if(bmps[key] === 1) bmps[key] = {bm, w, h}; }, () => { bmps[key] = {bm: img, w, h}; });
+    else bmps[key] = {bm: img, w, h};
+    return null;
+  }
+
+  // the moving parts of one screen
+  function paintFront(s, xw){
+    const {W, H, lab} = g, {y0, sx, sy, halfTan} = s, top = y0 + lab, c = ctx;
+    const cx = W/2, cy = top + H/2;
+    c.save(); c.beginPath(); c.rect(1, top + 1, W - 2, H - 2); c.clip(); c.clearRect(0, top, W, H);
     // enemy: eyes at the camera's height (64 u), feet 64 u below, 72 u tall
-    const ex = cx + sx * xw / D, u = v => v / D;
+    const ex = cx + sx * xw / D;
     const hx = sx * u(4.6), hy = sy * u(4.6);
     const onX = Math.abs(ex - cx) < hx;
-    if(nrModel && nrModel.complete && nrModel.naturalWidth){
-      const h = sy * u(72), w = h * nrModel.naturalWidth / nrModel.naturalHeight * (sx / sy);
-      ctx.drawImage(nrModel, ex - w/2, cy + sy * u(64) - h, w, h);
-      if(onX){ ctx.strokeStyle = '#ff4d4d'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(ex, cy, hx * 1.6, hy * 1.6, 0, 0, Math.PI * 2); ctx.stroke(); }
+    const img = nrModel && nrModel.complete && nrModel.naturalWidth ? nrModel : null;
+    if(img){
+      const m = model(img, nrModels.indexOf(img), s);
+      const h = sy * u(72), w = h * img.naturalWidth / img.naturalHeight * (sx / sy);
+      if(m) c.drawImage(m.bm, ex - w/2, cy + sy * u(64) - h, w, h); else c.drawImage(img, ex - w/2, cy + sy * u(64) - h, w, h);
+      if(onX){ c.strokeStyle = '#ff4d4d'; c.lineWidth = 2; c.beginPath(); c.ellipse(ex, cy, hx * 1.6, hy * 1.6, 0, 0, Math.PI * 2); c.stroke(); }
     } else {
-      ctx.fillStyle = '#5d6878';
-      ctx.beginPath(); ctx.ellipse(ex, cy + sy * u(26), sx * u(8), sy * u(22), 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillRect(ex - sx * u(7), cy + sy * u(40), sx * u(5), sy * u(24)); ctx.fillRect(ex + sx * u(2), cy + sy * u(40), sx * u(5), sy * u(24));
-      ctx.fillStyle = onX ? '#ff4d4d' : '#f5a524';
-      ctx.beginPath(); ctx.ellipse(ex, cy, hx, hy, 0, 0, Math.PI * 2); ctx.fill();
+      c.fillStyle = '#5d6878';
+      c.beginPath(); c.ellipse(ex, cy + sy * u(26), sx * u(8), sy * u(22), 0, 0, Math.PI * 2); c.fill();
+      c.fillRect(ex - sx * u(7), cy + sy * u(40), sx * u(5), sy * u(24)); c.fillRect(ex + sx * u(2), cy + sy * u(40), sx * u(5), sy * u(24));
+      c.fillStyle = onX ? '#ff4d4d' : '#f5a524';
+      c.beginPath(); c.ellipse(ex, cy, hx, hy, 0, 0, Math.PI * 2); c.fill();
     }
     // crosshair
-    ctx.strokeStyle = '#e6eaf0'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(cx - 9, cy); ctx.lineTo(cx - 3, cy); ctx.moveTo(cx + 3, cy); ctx.lineTo(cx + 9, cy);
-    ctx.moveTo(cx, cy - 9); ctx.lineTo(cx, cy - 3); ctx.moveTo(cx, cy + 3); ctx.lineTo(cx, cy + 9); ctx.stroke();
-    ctx.restore();
-    ctx.strokeStyle = '#2f3947'; ctx.lineWidth = 1; ctx.strokeRect(.5, top + .5, W - 1, H - 1);
-    // readout
+    c.strokeStyle = '#e6eaf0'; c.lineWidth = 2;
+    c.beginPath(); c.moveTo(cx - 9, cy); c.lineTo(cx - 3, cy); c.moveTo(cx + 3, cy); c.lineTo(cx + 9, cy);
+    c.moveTo(cx, cy - 9); c.lineTo(cx, cy - 3); c.moveTo(cx, cy + 3); c.lineTo(cx, cy + 9); c.stroke();
+    c.restore();
+    // readout: only repainted when he enters or leaves the screen
     const visible = Math.abs(xw / D) <= halfTan;
-    const narrow = lab > 26;
-    ctx.textAlign = narrow ? 'left' : 'right'; ctx.fillStyle = visible ? '#f5a524' : '#8c98a9'; ctx.font = '600 12px ui-monospace,Menlo,Consolas,monospace';
-    ctx.fillText(`${Math.round(pxs)} px/s`, narrow ? 0 : W, narrow ? y0 + 29 : y0 + lab/2);
-    ctx.textAlign = 'left';
+    if(visible !== s.vis){
+      s.vis = visible;
+      const narrow = lab > 26;
+      c.clearRect(0, narrow ? y0 + 20 : y0, W, narrow ? lab - 20 : lab);
+      c.textBaseline = 'middle'; c.textAlign = narrow ? 'left' : 'right'; c.fillStyle = visible ? '#f5a524' : '#8c98a9'; c.font = '600 12px ui-monospace,Menlo,Consolas,monospace';
+      c.fillText(`${Math.round(s.pxs)} px/s`, narrow ? 0 : W, narrow ? y0 + 29 : y0 + lab/2);
+      c.textAlign = 'left';
+    }
   }
 
   function frame(now){
-    const dt = Math.min(.05, (now - last) / 1000); last = now;
+    if(!cv.isConnected){ nrStop(); return; }
+    const dt = last ? Math.min(.05, (now - last) / 1000) : 0; last = now;
     if(!nrPaused) t += dt * (nrSlow ? .25 : 1);
     const run = 2 * X / SPEED, cyc = run + .7, tt = t % cyc;
     const xw = Math.min(X, -X + SPEED * tt);
     if(nrModels) nrModel = nrModels[Math.floor(t / cyc) % nrModels.length];
-    const {W, H, lab} = g;
-    ctx.clearRect(0, 0, W, 2 * (H + lab) + GAP);
-    const sy = (H/2) / 0.75;
-    screen(0, sy, sy, 0.75 * A, 'Native 16:9', xw, SPEED * nrPx(D, false));
-    screen(H + lab + GAP, W/2, sy, 1, '4:3 stretched', xw, SPEED * nrPx(D, true));
+    for(const s of screens) paintFront(s, xw);
     nrRaf = requestAnimationFrame(frame);
-    if(!document.body.contains(cv)) { cancelAnimationFrame(nrRaf); window.removeEventListener('resize', nrResize); nrResize = null; }
   }
-  nrRaf = requestAnimationFrame(frame);
+  const go = () => { if(!nrRaf){ last = 0; nrRaf = requestAnimationFrame(frame); } };
+  const halt = () => { cancelAnimationFrame(nrRaf); nrRaf = 0; };
+  function nrStop(){ halt(); window.removeEventListener('resize', nrResize); nrResize = null; if(nrObs){ nrObs.disconnect(); nrObs = null; } }
+
+  size();
+  nrResize = () => { size(); for(const s of screens) s.vis = null; };
+  window.addEventListener('resize', nrResize);
+  // no drawing while it's scrolled out of view
+  if(window.IntersectionObserver){
+    nrObs = new IntersectionObserver(es => { es[es.length - 1].isIntersecting ? go() : halt(); });
+    nrObs.observe(stage);
+  } else go();
 }
 
 /* ---------- router ---------- */
