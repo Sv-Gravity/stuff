@@ -155,7 +155,6 @@
   .rc{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 22px 18px;margin-bottom:22px}
   .rc-top{display:flex;justify-content:space-between;gap:12px;font-size:12px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);
     padding-bottom:12px;margin:0 -22px 18px;padding-left:22px;padding-right:22px;border-bottom:2px dashed var(--line)}
-  .rc-top i{font-style:normal;color:var(--accent)}
   .rc-main{display:flex;align-items:center;gap:20px}
   .rc-body{flex:1;min-width:0}
   .rc h1{font-size:30px;margin:0 0 14px}
@@ -3417,12 +3416,11 @@ function viewEntry(id){
   // the captions carry the lineup; Notes only shows when the steps add something
   const steps = (e.steps||[]).length ? list(e.steps) : '';
 
-  // recipe card: number in the map page's order, map, section, side, then ingredient and method
-  const no = sortEntries(m, ENTRIES.filter(x => x.map === m.id && !x.sample)).indexOf(e) + 1;
+  // recipe card: map, section, side, then ingredient and method
   const acts = actChips(e);
   app.innerHTML = `
     <div class="rc">
-      <div class="rc-top"><span>${no ? `<i>Recipe ${String(no).padStart(2,'0')}</i> · ` : ''}${esc(m.name)}${s ? ` · ${esc(s.name)}` : ''}</span><span>${esc(e.side)} side</span></div>
+      <div class="rc-top"><span>${esc(m.name)}${s ? ` · ${esc(s.name)}` : ''}</span><span>${esc(e.side)} side</span></div>
       <div class="rc-main">
         <div class="rc-body">
           <h1>${esc(e.name || e.location || entryName(e))}</h1>
