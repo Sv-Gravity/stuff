@@ -47,8 +47,6 @@
   .tabs button{font-weight:600}
   .tabs button.on{border-color:var(--accent);color:var(--accent)}
   svg.spray{display:block;width:100%;max-width:360px;margin:0 auto;background:#12151a;border-radius:8px;cursor:pointer}
-  .eco-calc .ss-set{margin-bottom:14px}
-  .eco-out .fv.no{color:var(--muted)}
   .ss-set{display:flex;gap:16px;flex-wrap:wrap;margin:0 0 12px}
   .ss-set label{display:flex;align-items:center;gap:8px;font-weight:600}
   .ss-set input{width:90px;font:600 15px ui-monospace,Menlo,Consolas,monospace;color:var(--accent);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
@@ -3402,12 +3400,6 @@ const facts = list => list.map(v => `<div class="fact">
         <div class="ft"><b>${esc(v.what)}</b>${v.why ? `<span>${esc(v.why)}</span>` : ''}${v.list ? `<div class="vlist">${v.list.map(([k,x]) => `<div><span>${esc(k)}</span><b>${esc(x)}</b></div>`).join('')}</div>` : ''}</div>
         ${v.val ? `<div class="fv">${esc(v.val)}</div>` : ''}</div>`).join('');
 // CS2 competitive money (game/csgo/cfg/gamemode_competitive.cfg + scripts/weapons.vdata, checked 2026-11-02)
-const ECO_LOSS = [1900, 2400, 2900, 3400];          // loss bonus by losses in a row (pistol loss counts as the 1st)
-const ECO_FULL = { T:4800, CT:5500 };
-const ECO_BUY = [
-  { what:'T', why:'AK-47, Kevlar + Helmet, Smoke, Molotov, 2 Flashes', val:'4,800' },
-  { what:'CT', why:'M4, Kevlar + Helmet, Defuse Kit, Smoke, Incendiary, 2 Flashes', val:'5,500' }
-];
 const ECO_ROUND = [
   { what:'Win', val:'3,250', why:'Elimination or time.' },
   { what:'Win by bomb', val:'3,500', why:'T: bomb explodes. CT: bomb defused.' },
@@ -3429,39 +3421,13 @@ const ECO_KILLS = [
   { what:'Rifles, pistols, P90, SSG 08, auto snipers, M249, Negev, grenades', val:'300' },
   { what:'AWP, Zeus x27', val:'100' }
 ];
-let eco = { side:'T', money:2000, loss:0 };
-const ecoN = n => n.toLocaleString('en-US');
-function ecoOut(){
-  const lossCash = ECO_LOSS[eco.loss];
-  const full = ECO_FULL[eco.side];
-  const win = eco.money + 3250, lose = eco.money + lossCash;
-  const row = (what, v) => `<div class="fact"><div class="ft"><b>${what}</b><span>${v >= full ? 'Full buy' : 'No full buy (' + ecoN(full - v) + ' short)'}</span></div>
-    <div class="fv${v >= full ? '' : ' no'}">${ecoN(Math.min(v, 16000))}</div></div>`;
-  return row('If you win', win) + row('If you lose', lose)
-    + `<p class="sub" style="margin:10px 0 0">Next round, before you spend anything. Kills add more on top.</p>`;
-}
 function ecoHtml(){
-  return `<div class="panel eco-calc"><h2>Next round</h2>
-      <div class="ss-side tabs">${['T','CT'].map(x => `<button class="${eco.side===x?'on':''}" onclick="ecoSide('${x}')">${x}</button>`).join('')}</div>
-      <div class="ss-set">
-        <label for="ecoMoney">Money now <input id="ecoMoney" type="number" min="0" max="16000" step="50" value="${eco.money}" oninput="ecoSet()"></label>
-      </div>
-      <p class="sub" style="margin:0 0 8px">Your next loss pays</p>
-      <div class="ss-side tabs">${ECO_LOSS.map((v,i) => `<button class="${eco.loss===i?'on':''}" onclick="ecoLoss(${i})">${ecoN(v)}</button>`).join('')}</div>
-      <div class="eco-out" id="ecoOut">${ecoOut()}</div></div>
-    <div class="panel"><h2>Loss bonus</h2>
+  return `<div class="panel"><h2>Loss bonus</h2>
       <p class="sub" style="margin:0 0 6px">A win takes one step off, it does not reset. Ts alive when the time runs out get no loss bonus.</p>
       ${facts(ECO_LOSS_ROWS)}</div>
     <div class="panel"><h2>Round money</h2>${facts(ECO_ROUND)}</div>
-    <div class="panel"><h2>Kill rewards</h2>${facts(ECO_KILLS)}</div>
-    <div class="panel"><h2>Full buy</h2>${facts(ECO_BUY)}</div>`;
+    <div class="panel"><h2>Kill rewards</h2>${facts(ECO_KILLS)}</div>`;
 }
-window.ecoSide = x => { eco.side = x; render(true); };
-window.ecoLoss = i => { eco.loss = i; render(true); };
-window.ecoSet = () => {
-  eco.money = Math.max(0, Math.min(16000, +document.getElementById("ecoMoney").value || 0));
-  document.getElementById('ecoOut').innerHTML = ecoOut();
-};
 const PANTRY_VIEWS = {
   audio: () => `<div class="panel">${facts(AUDIO)}</div>`,
   video: () => `<div class="panel">${facts([...VIDEO_LATENCY, ...VIDEO_REST])}</div>`,
