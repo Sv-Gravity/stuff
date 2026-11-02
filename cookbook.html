@@ -3315,6 +3315,7 @@ function ssInit(){
       if(!ss || document.pointerLockElement !== ss.cv) return;
       const k = 0.022 * ssSens();
       ss.aim[0] += e.movementX * k; ss.aim[1] -= e.movementY * k;
+      ssClamp();
     });
     document.addEventListener('mousedown', e => {
       if(!ss || e.button !== 0) return;
@@ -3329,19 +3330,19 @@ function ssInit(){
   ss.raf = requestAnimationFrame(ssFrame);
 }
 function ssFire(){
-  Object.assign(ss, { aim:[0,0], punch:[0,0], holes:[], aims:[], firing:true, done:false, next:performance.now() });
+  // the aim stays wherever you put it; the pull is measured from here
+  Object.assign(ss, { start:[ss.aim[0], ss.aim[1]], holes:[], aims:[], firing:true, done:false, next:performance.now() });
   document.getElementById('ssRes').innerHTML = ssResHtml(null);
 }
 function ssShoot(){
   const i = ss.holes.length, [px, py] = ss.pts[i], x = ss.aim[0] + px, y = ss.aim[1] + py;
-  ss.aims.push([ss.aim[0], ss.aim[1]]);
+  ss.aims.push([ss.aim[0] - ss.start[0], ss.aim[1] - ss.start[1]]);
   ss.holes.push({ x, y, hit:ssHit(x, y) });
   if(ss.holes.length >= ss.pts.length) ssEnd();
 }
 function ssEnd(){
   ss.firing = false;
   if(!ss.holes.length) return;
-  ss.aim = [0, 0];                                   // back on the chest so you see where the bullets went
   ss.done = true;
   const n = ss.holes.length, best = store('ssbest') || {}, key = ss.g.id;
   const hits = ss.holes.filter(h => h.hit).length;
@@ -3381,6 +3382,16 @@ function ssPathSvg(r){
     ${you.map(p => { const [x, y] = P(p); return `<circle cx="${x}" cy="${y}" r="2.5" fill="var(--accent)"/>`; }).join('')}
   </svg>`;
 }
+// The view can't leave the player: his whole width and his head always stay on screen, down to at least the hips.
+// Degrees from the chest; the view is SS_VIEW wide, 16:9, crosshair 58% down.
+function ssClamp(){
+  const k = ssDegPx(), m = .3, vw = SS_VIEW / 2, vh = SS_VIEW * 9 / 16, up = vh * .58, down = vh - up;
+  const left = -SS_IMG.cx * k, right = (SS_IMG.w - SS_IMG.cx) * k, top = SS_IMG.cy * k, hips = -(SS_IMG.h - SS_IMG.cy) * k * .45;
+  const kick = [ss.punch[0] * .45, ss.punch[1] * .45];
+  const cl = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  ss.aim[0] = cl(ss.aim[0] + kick[0], right + m - vw, left - m + vw) - kick[0];
+  ss.aim[1] = cl(ss.aim[1] + kick[1], top + m - up, hips - m + down) - kick[1];
+}
 function ssFrame(now){
   if(!ss || !ss.cv.isConnected){ if(document.pointerLockElement && ss && !ss.cv.isConnected) document.exitPointerLock(); ss = null; return; }
   while(ss.firing && now >= ss.next){ ssShoot(); ss.next += ss.gap; }
@@ -3389,6 +3400,7 @@ function ssFrame(now){
   const dt = ss.t ? Math.min(.05, (now - ss.t) / 1000) : 0, a = 1 - Math.exp(-dt * (ss.firing ? 30 : 6));
   ss.t = now;
   ss.punch[0] += (last[0] - ss.punch[0]) * a; ss.punch[1] += (last[1] - ss.punch[1]) * a;
+  ssClamp();
   ssDraw();
   ss.raf = requestAnimationFrame(ssFrame);
 }
