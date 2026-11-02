@@ -47,6 +47,18 @@
   .tabs button{font-weight:600}
   .tabs button.on{border-color:var(--accent);color:var(--accent)}
   svg.spray{display:block;width:100%;max-width:360px;margin:0 auto;background:#12151a;border-radius:8px;cursor:pointer}
+  .ss-set{display:flex;gap:16px;flex-wrap:wrap;margin:0 0 12px}
+  .ss-set label{display:flex;align-items:center;gap:8px;font-weight:600}
+  .ss-set input{width:90px;font:600 15px ui-monospace,Menlo,Consolas,monospace;color:var(--accent);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+  .ss-cv{display:block;width:100%;aspect-ratio:16/9;border-radius:8px;cursor:crosshair;background:#12151a}
+  .ss-res:not(:empty){margin-top:14px}
+  .ss-stats{display:flex;gap:28px;margin:0 0 8px}
+  .ss-stats b{display:block;font:700 22px ui-monospace,Menlo,Consolas,monospace;color:var(--accent)}
+  .ss-stats span{color:var(--muted);font-size:13px}
+  .ss-legend{display:flex;gap:18px;color:var(--muted);font-size:13px;margin:0 0 6px}
+  .ss-legend i{display:inline-block;width:18px;border-top:2px solid var(--accent);vertical-align:middle;margin-right:6px}
+  .ss-legend i.need{border-top:2px dashed var(--muted)}
+  svg.ss-path{display:block;width:100%;background:#12151a;border-radius:8px}
   .sp-b{transition:opacity .15s}
   .sp-b.old{opacity:.15}
   .sp-b.off{opacity:0}
@@ -3213,6 +3225,150 @@ const sprayHtml = () => {
     </div>`;
 };
 
+// Spray practice. Mouse counts turn into degrees the way CS2 does it (0.022 x sensitivity, m_yaw/m_pitch).
+// A bullet lands at your aim + SPRAY[i]; the view kicks 45% of that (view_recoil_tracking) and the
+// crosshair stays in the middle (cl_crosshair_recoil 0). Target: a player 15 m away (590 units), aim at the chest.
+const SS_F = 180 / Math.PI / 590;                    // degrees per unit at 15 m
+const SS_HEAD = { x:0, y:16 * SS_F, r:4.6 * SS_F };
+const SS_BOXES = [[-13, -16, 13, 10], [-9, -50, -2, -16], [2, -50, 9, -16]].map(b => b.map(v => v * SS_F)); // torso, legs
+const SS_VIEW = 24;                                  // degrees across the practice window
+const ssMe = PLAYERS.find(p => p.name === 'toshi');
+let ss = null, ssHooked = false;
+const ssSens = () => +(store('sssens') || ssMe.sens);
+const ssDpi = () => +(store('ssdpi') || ssMe.dpi);
+const ssCm = deg => deg / (0.022 * ssSens()) / ssDpi() * 2.54;
+const ssHit = (x, y) => Math.hypot(x - SS_HEAD.x, y - SS_HEAD.y) <= SS_HEAD.r ? 2
+  : SS_BOXES.some(([a, b, c, d]) => x >= a && x <= c && y >= b && y <= d) ? 1 : 0;
+window.ssSet = (k, v) => { v = parseFloat(v); if(v > 0) store(k, v); };
+const ssHtml = () => `<div class="panel"><h2>Practice</h2>
+    <p class="sub" style="margin:0 0 12px">Your sens, the real pattern. Click the window, then hold left click and pull against it. Esc to stop.</p>
+    <div class="ss-set">
+      <label>Sensitivity <input type="number" step="0.01" min="0.01" value="${ssSens()}" onchange="ssSet('sssens', this.value)"></label>
+      <label>DPI <input type="number" step="50" min="50" value="${ssDpi()}" onchange="ssSet('ssdpi', this.value)"></label>
+    </div>
+    <canvas id="ssCv" class="ss-cv"></canvas>
+    <div id="ssRes" class="ss-res"></div>
+  </div>`;
+
+function ssInit(){
+  const cv = document.getElementById('ssCv');
+  if(!cv) return;
+  const g = SPRAY_GUNS[sprayTab];
+  ss = { cv, c:cv.getContext('2d'), g, pts:SPRAY[g.id], gap:60000 / g.rpm, aim:[0,0], punch:[0,0],
+    holes:[], aims:[], firing:false, next:0, raf:0, done:false };
+  if(!ssHooked){
+    ssHooked = true;
+    document.addEventListener('pointerlockchange', () => {
+      if(!ss) return;
+      if(document.pointerLockElement !== ss.cv && ss.firing) ssEnd();
+      ssDraw();
+    });
+    document.addEventListener('mousemove', e => {
+      if(!ss || document.pointerLockElement !== ss.cv) return;
+      const k = 0.022 * ssSens();
+      ss.aim[0] += e.movementX * k; ss.aim[1] -= e.movementY * k;
+    });
+    document.addEventListener('mousedown', e => {
+      if(!ss || e.button !== 0) return;
+      if(document.pointerLockElement === ss.cv) ssFire();
+      else if(e.target === ss.cv){
+        const r = ss.cv.requestPointerLock({ unadjustedMovement:true });   // raw counts where the browser allows it
+        if(r && r.catch) r.catch(() => ss.cv.requestPointerLock());
+      }
+    });
+    document.addEventListener('mouseup', e => { if(ss && e.button === 0 && ss.firing) ssEnd(); });
+  }
+  ss.raf = requestAnimationFrame(ssFrame);
+}
+function ssFire(){
+  Object.assign(ss, { aim:[0,0], punch:[0,0], holes:[], aims:[], firing:true, done:false, next:performance.now() });
+  document.getElementById('ssRes').innerHTML = '';
+}
+function ssShoot(){
+  const i = ss.holes.length, [px, py] = ss.pts[i], x = ss.aim[0] + px, y = ss.aim[1] + py;
+  ss.aims.push([ss.aim[0], ss.aim[1]]);
+  ss.holes.push({ x, y, hit:ssHit(x, y) });
+  if(ss.holes.length >= ss.pts.length) ssEnd();
+}
+function ssEnd(){
+  ss.firing = false;
+  if(!ss.holes.length) return;
+  ss.aim = [0, 0];                                   // back on the chest so you see where the bullets went
+  ss.done = true;
+  const n = ss.holes.length, hits = ss.holes.filter(h => h.hit).length, heads = ss.holes.filter(h => h.hit === 2).length;
+  const best = store('ssbest') || {}, key = ss.g.id;
+  if(n === ss.pts.length && hits > (best[key] || 0)){ best[key] = hits; store('ssbest', best); }
+  const need = ss.pts[n - 1][1], you = -ss.aims[n - 1][1];
+  document.getElementById('ssRes').innerHTML = `
+    <div class="ss-stats"><div><b>${hits}/${n}</b><span>Hits</span></div><div><b>${heads}</b><span>Head</span></div>
+      <div><b>${best[key] != null ? best[key] + '/' + ss.pts.length : '-'}</b><span>Best</span></div></div>
+    <p class="sub" style="margin:0 0 10px">${n} bullets need ${ssCm(need).toFixed(1)} cm of pull down at ${ssSens()} sens, ${ssDpi()} DPI. You pulled ${ssCm(you).toFixed(1)} cm.</p>
+    ${ssPathSvg()}`;
+}
+// where your aim was at each bullet vs where it had to be (the pattern flipped)
+function ssPathSvg(){
+  const need = ss.pts.slice(0, ss.aims.length).map(([x, y]) => [-x, -y]), you = ss.aims;
+  const all = need.concat(you), S = 22, pad = 14;
+  const x0 = Math.min(...all.map(p => p[0])), x1 = Math.max(...all.map(p => p[0]));
+  const y0 = Math.min(...all.map(p => p[1])), y1 = Math.max(...all.map(p => p[1]));
+  const W = Math.max(200, (x1 - x0) * S + pad * 2), H = (y1 - y0) * S + pad * 2;
+  const P = ([x, y]) => [(pad + (x - x0) * S).toFixed(1), (pad + (y1 - y) * S).toFixed(1)];
+  const line = ps => ps.map(p => P(p).join(',')).join(' ');
+  return `<div class="ss-legend"><span><i class="need"></i>Needed pull</span><span><i></i>Your pull</span></div>
+    <svg class="ss-path" viewBox="0 0 ${W.toFixed(0)} ${H.toFixed(0)}" style="max-width:${(W * 1.4).toFixed(0)}px">
+    <polyline points="${line(need)}" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="4 3"/>
+    <polyline points="${line(you)}" fill="none" stroke="var(--accent)" stroke-width="2"/>
+    ${you.map(p => { const [x, y] = P(p); return `<circle cx="${x}" cy="${y}" r="2.5" fill="var(--accent)"/>`; }).join('')}
+  </svg>`;
+}
+function ssFrame(now){
+  if(!ss || !ss.cv.isConnected){ if(document.pointerLockElement && ss && !ss.cv.isConnected) document.exitPointerLock(); ss = null; return; }
+  while(ss.firing && now >= ss.next){ ssShoot(); ss.next += ss.gap; }
+  // view kick follows the last bullet, then settles back when you let go
+  const last = ss.firing && ss.holes.length ? ss.pts[ss.holes.length - 1] : [0, 0];
+  const dt = ss.t ? Math.min(.05, (now - ss.t) / 1000) : 0, a = 1 - Math.exp(-dt * (ss.firing ? 30 : 6));
+  ss.t = now;
+  ss.punch[0] += (last[0] - ss.punch[0]) * a; ss.punch[1] += (last[1] - ss.punch[1]) * a;
+  ssDraw();
+  ss.raf = requestAnimationFrame(ssFrame);
+}
+function ssDraw(){
+  const { cv, c } = ss, dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = Math.round(w * 9 / 16);
+  if(cv.width !== Math.round(w * dpr)){ cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const ppd = w / SS_VIEW, cx = w / 2, cy = h * .58;
+  const camX = ss.aim[0] + ss.punch[0] * .45, camY = ss.aim[1] + ss.punch[1] * .45;
+  const X = x => cx + (x - camX) * ppd, Y = y => cy - (y - camY) * ppd;
+  c.fillStyle = '#12151a'; c.fillRect(0, 0, w, h);
+  // wall grid, 1 degree per square, so you can see the view move
+  c.strokeStyle = '#1b2028'; c.lineWidth = 1; c.beginPath();
+  for(let gx = Math.floor(camX - SS_VIEW / 2); gx <= camX + SS_VIEW / 2; gx++){ c.moveTo(X(gx), 0); c.lineTo(X(gx), h); }
+  for(let gy = Math.floor(camY - h / ppd / 2); gy <= camY + h / ppd / 2; gy++){ c.moveTo(0, Y(gy)); c.lineTo(w, Y(gy)); }
+  c.stroke();
+  // the player
+  c.fillStyle = '#2f3947';
+  for(const [a, b, d, e] of SS_BOXES){
+    c.beginPath(); c.roundRect ? c.roundRect(X(a), Y(e), (d - a) * ppd, (e - b) * ppd, ppd * .25) : c.rect(X(a), Y(e), (d - a) * ppd, (e - b) * ppd); c.fill();
+  }
+  c.fillStyle = '#3b4757'; c.beginPath(); c.arc(X(SS_HEAD.x), Y(SS_HEAD.y), SS_HEAD.r * ppd, 0, 7); c.fill();
+  // bullet holes
+  for(const hl of ss.holes){
+    c.fillStyle = hl.hit ? '#f5a524' : '#8c98a9';
+    c.beginPath(); c.arc(X(hl.x), Y(hl.y), Math.max(2.5, ppd * .09), 0, 7); c.fill();
+  }
+  // crosshair stays put (no crosshair recoil)
+  c.strokeStyle = '#e6eaf0'; c.lineWidth = 2; c.beginPath();
+  c.moveTo(cx - 9, cy); c.lineTo(cx - 3, cy); c.moveTo(cx + 3, cy); c.lineTo(cx + 9, cy);
+  c.moveTo(cx, cy - 9); c.lineTo(cx, cy - 3); c.moveTo(cx, cy + 3); c.lineTo(cx, cy + 9); c.stroke();
+  c.font = '600 13px system-ui,sans-serif'; c.textBaseline = 'top';
+  c.fillStyle = '#8c98a9'; c.textAlign = 'left'; c.fillText(`${ss.g.name}  ${ss.pts.length - ss.holes.length}`, 12, 10);
+  if(document.pointerLockElement !== cv){
+    c.fillStyle = 'rgba(18,21,26,.7)'; c.fillRect(0, 0, w, h);
+    c.fillStyle = '#e6eaf0'; c.textAlign = 'center'; c.font = '600 16px system-ui,sans-serif';
+    c.fillText(document.exitPointerLock ? 'Click to start' : 'Needs a mouse', cx, h * .22);
+  }
+}
+
 const facts = list => list.map(v => `<div class="fact">
         <div class="ft"><b>${esc(v.what)}</b>${v.why ? `<span>${esc(v.why)}</span>` : ''}${v.list ? `<div class="vlist">${v.list.map(([k,x]) => `<div><span>${esc(k)}</span><b>${esc(x)}</b></div>`).join('')}</div>` : ''}</div>
         ${v.val ? `<div class="fv">${esc(v.val)}</div>` : ''}</div>`).join('');
@@ -3261,7 +3417,7 @@ const PANTRY_VIEWS = {
         <pre class="cfg">${esc(c.text)}</pre>
       </div>`).join(''),
   keybinds: () => kbHtml(),
-  spray: () => sprayHtml(),
+  spray: () => sprayHtml() + ssHtml(),
   native: () => nativeHtml(),
   gear: () => `<div class="panel">${GEAR.map(g => `<div class="fact">
         <div class="ft"><span class="gk">${esc(g.kind)}</span><b class="gn">${esc(g.name)}</b>${g.why ? `<span>${esc(g.why)}</span>` : ''}</div></div>`).join('')}</div>`
@@ -3271,7 +3427,7 @@ function viewPantry(id){
   const t = PANTRY.find(x => x.id === pantryId(id));
   app.innerHTML = `<h1 style="margin-bottom:18px">${esc(t.title || t.name)}</h1>` + PANTRY_VIEWS[t.id]();
   if(t.id === 'native') nrInit();
-  if(t.id === 'spray') sprayPlay();
+  if(t.id === 'spray'){ sprayPlay(); ssInit(); }
 }
 window.copyCfg = i => copyText(CFGS[i].text);
 window.CFG_DIR = 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\Counter-Strike Global Offensive\\game\\csgo\\cfg';
