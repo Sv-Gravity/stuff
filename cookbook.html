@@ -3194,7 +3194,7 @@ const sprayHtml = () => {
 };
 
 // Spray practice. Mouse counts turn into degrees the way CS2 does it (0.022 x sensitivity, m_yaw/m_pitch).
-// A bullet lands at your aim + SPRAY[i]; the view kicks 45% of that (view_recoil_tracking) and the
+// A bullet lands at your aim + SPRAY[i]; the view moves and shakes like in game (see ssStep below) and the
 // crosshair stays in the middle (cl_crosshair_recoil 0). Target: a player 10 m away (394 units, a typical spray fight), aim at the chest.
 // Hitboxes and agent outlines: cs2analysis.com front views (standing, 2048 px = 3 m), every agent shares the hitboxes.
 // The zones picture doubles as the hit map: each zone has its own colour.
@@ -3261,7 +3261,7 @@ function ssInit(){
   if(!cv) return;
   const g = SPRAY_GUNS[sprayTab];
   ssLoadPics();
-  ss = { cv, c:cv.getContext('2d'), g, pts:SPRAY[g.id], gap:60000 / g.rpm, aim:[0,0], punch:[0,0],
+  ss = { cv, c:cv.getContext('2d'), g, pts:SPRAY[g.id], gap:60000 / g.rpm, aim:[0,0], ap:[0,0], av:[0,0], vp:[0,0], kicks:ssKicks(g),
     holes:[], aims:[], firing:false, next:0, raf:0, done:false };
   if(!ssHooked){
     ssHooked = true;
@@ -3290,7 +3290,7 @@ function ssInit(){
 }
 function ssFire(){
   // the aim stays wherever you put it; the pull is measured from here
-  Object.assign(ss, { start:[ss.aim[0], ss.aim[1]], holes:[], aims:[], firing:true, done:false, next:performance.now() });
+  Object.assign(ss, { start:[ss.aim[0], ss.aim[1]], holes:[], aims:[], firing:true, done:false, next:ss.simT || performance.now() });
   document.getElementById('ssRes').innerHTML = ssResHtml(null);
 }
 function ssShoot(){
@@ -3343,22 +3343,73 @@ function ssPathSvg(r){
 }
 // The view can't leave the player: his whole width and his head always stay on screen, down to at least the hips.
 // Degrees from the chest; the view is SS_VIEW wide, 16:9, crosshair halfway down.
+// The view while spraying, the way CS2 does it (CS:GO source KickBack / DecayAimPunchAngle, same cvars in CS2):
+// each shot kicks the aim punch velocity; the punch decays exp 8 + 18 deg/s linear, its velocity 4.5/s.
+// Bullets land at aim + 2 x punch (weapon_recoil_scale), which is SPRAY. The camera sits at aim + 0.9 x punch
+// (2 x view_recoil_tracking 0.45) plus the screen shake: 5.5% of every kick (weapon_recoil_view_punch_extra),
+// gone again at exp 18/s (view_punch_decay). The crosshair stays in the middle (cl_crosshair_recoil 0).
+const SS_DT = 1 / 512;
+function ssStep(p, v){
+  const f = Math.exp(-8 * SS_DT), lin = 18 * SS_DT;
+  p[0] *= f; p[1] *= f;
+  const L = Math.hypot(p[0], p[1]);
+  if(L > lin){ p[0] *= 1 - lin / L; p[1] *= 1 - lin / L; } else p[0] = p[1] = 0;
+  p[0] += v[0] * SS_DT / 2; p[1] += v[1] * SS_DT / 2;
+  const g = Math.exp(-4.5 * SS_DT); v[0] *= g; v[1] *= g;
+  p[0] += v[0] * SS_DT / 2; p[1] += v[1] * SS_DT / 2;
+}
+// The kick of every shot, worked back from SPRAY so the punch hits the pattern exactly at each shot.
+const ssKickMemo = {};
+function ssKicks(g){
+  if(ssKickMemo[g.id]) return ssKickMemo[g.id];
+  const pts = SPRAY[g.id], n = Math.round(60 / g.rpm / SS_DT), ks = [];
+  const run = (p, v, k) => { const P = [p[0], p[1]], V = [v[0] + k[0], v[1] + k[1]]; for(let i = 0; i < n; i++) ssStep(P, V); return [P, V]; };
+  let p = [0, 0], v = [0, 0];
+  for(let i = 0; i < pts.length; i++){
+    const k = ks.length ? [...ks[ks.length - 1]] : [0, 20];
+    if(i < pts.length - 1){
+      const want = [pts[i + 1][0] / 2, pts[i + 1][1] / 2];
+      for(let it = 0; it < 20; it++){
+        const P = run(p, v, k)[0], e = [want[0] - P[0], want[1] - P[1]];
+        if(Math.hypot(e[0], e[1]) < 1e-4) break;
+        const h = .01, A = run(p, v, [k[0] + h, k[1]])[0], B = run(p, v, [k[0], k[1] + h])[0];
+        const a = (A[0] - P[0]) / h, b = (B[0] - P[0]) / h, c = (A[1] - P[1]) / h, d = (B[1] - P[1]) / h, det = a * d - b * c;
+        if(!det) break;
+        k[0] += (d * e[0] - b * e[1]) / det; k[1] += (a * e[1] - c * e[0]) / det;
+      }
+    }
+    ks.push(k);
+    [p, v] = run(p, v, k);
+  }
+  return ssKickMemo[g.id] = ks;
+}
+// camera offset from the aim: aim punch (what you pull against) + shake
+const ssCam = (shake = true) => [ss.ap[0] * .9 + (shake ? ss.vp[0] : 0), ss.ap[1] * .9 + (shake ? ss.vp[1] : 0)];
 function ssClamp(){
   const k = ssDegPx(), m = .3, vw = SS_VIEW / 2, vh = SS_VIEW * 9 / 16, up = vh * .5, down = vh - up;
   const left = -SS_IMG.cx * k, right = (SS_IMG.w - SS_IMG.cx) * k, top = SS_IMG.cy * k, hips = -(SS_IMG.h - SS_IMG.cy) * k * .45;
-  const kick = [ss.punch[0] * .45, ss.punch[1] * .45];
+  const kick = ssCam(false);
   const cl = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
   ss.aim[0] = cl(ss.aim[0] + kick[0], right + m - vw, left - m + vw) - kick[0];
   ss.aim[1] = cl(ss.aim[1] + kick[1], top + m - up, hips - m + down) - kick[1];
 }
 function ssFrame(now){
   if(!ss || !ss.cv.isConnected){ if(document.pointerLockElement && ss && !ss.cv.isConnected) document.exitPointerLock(); ss = null; return; }
-  while(ss.firing && now >= ss.next){ ssShoot(); ss.next += ss.gap; }
-  // view kick follows the last bullet, then settles back when you let go
-  const last = ss.firing && ss.holes.length ? ss.pts[ss.holes.length - 1] : [0, 0];
-  const dt = ss.t ? Math.min(.05, (now - ss.t) / 1000) : 0, a = 1 - Math.exp(-dt * (ss.firing ? 30 : 6));
-  ss.t = now;
-  ss.punch[0] += (last[0] - ss.punch[0]) * a; ss.punch[1] += (last[1] - ss.punch[1]) * a;
+  // run the recoil in small fixed steps; shots land on their exact fire times
+  const ms = SS_DT * 1000, vf = Math.exp(-18 * SS_DT);
+  if(!ss.simT || now - ss.simT > 200) ss.simT = now - ms;
+  while(ss.simT + ms <= now){
+    if(ss.firing && ss.simT >= ss.next){
+      const k = ss.kicks[ss.holes.length];
+      ssShoot();
+      ss.av[0] += k[0]; ss.av[1] += k[1];
+      ss.vp[0] += k[0] * .055; ss.vp[1] += k[1] * .055;
+      ss.next += ss.gap;
+    }
+    ssStep(ss.ap, ss.av);
+    ss.vp[0] *= vf; ss.vp[1] *= vf;
+    ss.simT += ms;
+  }
   ssClamp();
   ssDraw();
   ss.raf = requestAnimationFrame(ssFrame);
@@ -3368,7 +3419,7 @@ function ssDraw(){
   if(cv.width !== Math.round(w * dpr)){ cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
   const ppd = w / SS_VIEW, cx = w / 2, cy = h * .5;
-  const camX = ss.aim[0] + ss.punch[0] * .45, camY = ss.aim[1] + ss.punch[1] * .45;
+  const cam = ssCam(), camX = ss.aim[0] + cam[0], camY = ss.aim[1] + cam[1];
   const X = x => cx + (x - camX) * ppd, Y = y => cy - (y - camY) * ppd;
   c.fillStyle = '#12151a'; c.fillRect(0, 0, w, h);
   // wall grid, 1 degree per square, so you can see the view move
