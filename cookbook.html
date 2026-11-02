@@ -3554,8 +3554,6 @@ const SRC = {
   scope: ['scope.gg', 'https://scope.gg/guides/resolution_csgo_en/'],
   ggr: ['GGRecon', 'https://www.ggrecon.com/articles/why-cs-go-players-use-4-3-stretched/'],
   ps: ['ProSettings', 'https://prosettings.net/blog/cs2-resolutions/'],
-  move: ['CSDB movement guide', 'https://csdb.gg/guides/movement-guide/'],
-  trade: ['Tradeit', 'https://tradeit.gg/blog/cs2-weapon-stats/'],
   test: ["Toshi's test below", null]
 };
 const srcLinks = keys => keys.map(k => SRC[k][1] ? `<a href="${SRC[k][1]}" target="_blank" rel="noopener">${SRC[k][0]}</a>` : SRC[k][0]).join(', ');
@@ -3564,7 +3562,7 @@ function nrNumbers(){
   return [
     {what:'Horizontal view', why:'Vertical view is locked at 73.74°. Horizontal grows with the aspect ratio.',
       val:`${hfov(4/3).toFixed(0)}° vs ${hfov(16/9).toFixed(0)}°`, src:['csdb','um']},
-    {what:'Knife run speed', why:'Fastest you move on the ground in CS2.', val:`${NR_SPEED} u/s`, src:['move','trade']},
+    {what:'Knife run speed', why:'Fastest you move on the ground in CS2.', val:`${NR_SPEED} u/s`, src:[]},
     {what:'Head width on 4:3 stretched', why:'Height stays the same. The picture is only pulled sideways.', val:`+${pct(k)}%`, src:['csdb']},
     {what:'Head speed across the screen', why:'The same at any distance and any speed: 4:3 stretched fits 90° into the width native uses for 106°. See the table below.', val:`+${pct(k)}%`, src:['csdb','scope','ggr']},
     {what:'Mouse distance to the head', why:'Same flick on 4:3 and 16:9. Only the picture changes.', val:'Same', src:['scope']},
@@ -3628,7 +3626,6 @@ const MID_EN = { w:31, h:53, feet:753, l:1655, r:1787 }, MID_C = 1720;
 const MID_PXS = NR_SPEED * MID_EN.h / 72;                       // world px/s at 1440 tall: 250 u/s at ~1300 u
 const MID_D = Math.round(72 * 960 / MID_EN.h / 50) * 50;        // ~1300 units
 const MID_ROWS = [
-  { title:'21:9 (3440x1440)',            mon:3440, see:3440 },
   { title:'Native 16:9 (2560x1440)',     mon:2560, see:2560 },
   { title:'4:3 stretched (on 2560x1440)', mon:2560, see:1920 }
 ];
@@ -3636,7 +3633,7 @@ let midPaused = false, midSlow = false, midZoom = true, midRaf = 0, midObs = nul
 
 function midHtml(){
   return `<div class="panel"><h2>Same run, Inferno Middle</h2>
-      <div class="nr-canvas mid-canvas" role="img" aria-label="Animation: a CT runs across the end of Middle on Inferno, seen on 21:9, native 16:9 and 4:3 stretched. On 4:3 stretched he is wider and crosses the screen faster."><canvas id="midBg"></canvas><canvas id="midCanvas"></canvas></div>
+      <div class="nr-canvas mid-canvas" role="img" aria-label="Animation: a CT runs across the end of Middle on Inferno, seen on native 16:9 and 4:3 stretched. On 4:3 stretched he is wider and crosses the screen faster."><canvas id="midBg"></canvas><canvas id="midCanvas"></canvas></div>
       <div class="nr-ctl">
         <button id="midPlay" onclick="midToggle()">${midPaused ? 'Play' : 'Pause'}</button>
         <button class="${midSlow?'on':''}" id="midSlowBtn" onclick="midSlowToggle()">Slow motion</button>
@@ -3663,7 +3660,7 @@ function midStart(){
   // each row shows a window of its monitor: the whole screen, or 960x540 monitor px around the crosshair when zoomed
   function size(){
     const dpr = window.devicePixelRatio || 1, W = stage.clientWidth, lab = 26;
-    const winW = midZoom ? 960 : 3440, winH = midZoom ? 540 : 1440, k = W / winW, H = Math.round(winH * k);
+    const winW = midZoom ? 960 : 2560, winH = midZoom ? 540 : 1440, k = W / winW, H = Math.round(winH * k);
     const TH = MID_ROWS.length * (H + lab) + (MID_ROWS.length - 1) * GAP;
     stage.style.height = TH + 'px';
     for(const [c, x] of [[bg, bctx], [cv, ctx]]){ c.width = Math.round(W * dpr); c.height = Math.round(TH * dpr); x.setTransform(dpr, 0, 0, dpr, 0, 0); }
@@ -3776,8 +3773,6 @@ function nativeHtml(){
         <li><a href="https://scope.gg/guides/resolution_csgo_en/" target="_blank" rel="noopener">scope.gg</a>: "Due to the enemy model becoming visually wider while having the same amount of pixels, it will also move visually faster on your screen." "When you aim at your opponents' head you'll move your mouse by the same distance on both 4:3 and 16:9 aspect ratios."</li>
         <li><a href="https://www.ggrecon.com/articles/why-cs-go-players-use-4-3-stretched/" target="_blank" rel="noopener">GGRecon</a>: "the targets will move slightly quicker with your screen stretched."</li>
         <li><a href="https://prosettings.net/blog/cs2-resolutions/" target="_blank" rel="noopener">ProSettings</a>: "The enemy on the left can easily be seen on 16:9. On the other hand, 4:3 almost completely cuts the enemy from your display."</li>
-        <li><a href="https://csdb.gg/guides/movement-guide/" target="_blank" rel="noopener">CSDB movement guide</a>: "Knife / C4: 250 u/s — fastest movement, use for rotations".</li>
-        <li><a href="https://tradeit.gg/blog/cs2-weapon-stats/" target="_blank" rel="noopener">Tradeit, CS2 weapon stats</a>: knife "Move speed" 250, "The maximum movement speed in units per second while holding the weapon."</li>
         <li>Toshi's test (Nov 1, 2026): screenshots from the same spot at 3440x1440, 2560x1440 and 1920x1440. The 16:9 and 4:3 shots match the middle of the 21:9 shot at the same scale.</li>
       </ul>
     </div>`;
@@ -3790,7 +3785,7 @@ function nrInit(){
 }
 function renderNrFacts(){
   document.getElementById('nrFacts').innerHTML = nrNumbers().map(v => `<div class="fact">
-    <div class="ft"><b>${esc(v.what)}</b><span>${esc(v.why)} <i class="nr-src-in">Source: ${srcLinks(v.src)}</i></span></div>
+    <div class="ft"><b>${esc(v.what)}</b><span>${esc(v.why)}${v.src.length ? ` <i class="nr-src-in">Source: ${srcLinks(v.src)}</i>` : ''}</span></div>
     <div class="fv">${esc(v.val)}</div></div>`).join('');
 }
 window.nrToggle = () => { nrPaused = !nrPaused; document.getElementById('nrPlay').textContent = nrPaused ? 'Play' : 'Pause'; };
