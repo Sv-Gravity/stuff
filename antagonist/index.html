@@ -2,11 +2,45 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1b130c">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>Antagonist</title>
 <style>
-  html, body { margin: 0; height: 100%; background: #1b130c; overflow: hidden; font-family: system-ui, sans-serif; color: #f0e6d2; }
-  canvas { display: block; width: 100vw; height: 100vh; }
+  html, body { margin: 0; height: 100%; background: #1b130c; overflow: hidden; font-family: system-ui, sans-serif; color: #f0e6d2; touch-action: none; -webkit-user-select: none; user-select: none; overscroll-behavior: none; }
+  canvas { display: block; width: 100vw; height: 100vh; height: 100dvh; touch-action: none; }
+  .hidden { display: none !important; }
+  #menu { overflow-y: auto; }
+  /* meeting */
+  #meeting { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(8,5,2,0.72); z-index: 5; }
+  #meeting .mcard { width: min(640px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); overflow: auto; padding: 18px; border-radius: 16px; background: rgba(30,20,10,0.96); border: 2px solid #ffd27a; box-sizing: border-box; user-select: text; -webkit-user-select: text; }
+  #meeting h2 { margin: 0; color: #ffd27a; font-size: 22px; }
+  #mInfo { font-size: 13px; color: #cbb89a; margin: 4px 0 12px; }
+  #mList { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .mrow { margin: 0; display: flex; align-items: center; gap: 8px; padding: 10px; font-size: 15px; font-weight: 600; text-align: left; background: #140d06; color: #f0e6d2; border: 1px solid #5a4126; border-radius: 10px; }
+  .mrow:hover { background: #24180c; } .mrow.picked { border-color: #ff6b6b; background: #3a1410; }
+  .mrow:disabled { opacity: 0.4; } .mrow em { color: #ff6b6b; font-style: normal; font-size: 12px; }
+  .mrow .dot { width: 12px; height: 12px; border-radius: 50%; flex: none; } .mrow .nm { flex: 1; } .mrow .st { font-size: 12px; color: #9cf4a0; font-weight: 400; }
+  .mme { grid-column: 1 / -1; font-size: 13px; color: #cbb89a; }
+  #mSkip { margin-top: 10px; padding: 8px; font-size: 15px; background: #5a4126; color: #f0e6d2; }
+  #mChat { margin-top: 12px; height: 130px; overflow-y: auto; background: #140d06; border-radius: 10px; padding: 8px 10px; font-size: 14px; line-height: 1.45; }
+  #mChat .hint { color: #8a7a62; }
+  #mForm { display: flex; gap: 8px; margin-top: 8px; } #mForm input { flex: 1; } #mForm button { margin: 0; width: auto; padding: 8px 14px; font-size: 15px; }
+  /* touch controls */
+  #touch { display: none; } #touch.on { display: block; }
+  #touch .stickzone { position: fixed; left: 0; bottom: 0; width: 50vw; height: 70vh; z-index: 2; }
+  #touch .stick { position: fixed; left: 90px; top: calc(100dvh - 120px); width: 110px; height: 110px; margin: -55px 0 0 -55px; border-radius: 50%; background: rgba(255,255,255,0.08); border: 2px solid rgba(255,255,255,0.2); pointer-events: none; z-index: 3; opacity: 0.5; }
+  #touch .stick.active { opacity: 1; }
+  #touch .knob { position: absolute; left: 50%; top: 50%; width: 50px; height: 50px; border-radius: 50%; background: rgba(255,210,122,0.7); transform: translate(-50%,-50%); }
+  #touch .btns { position: fixed; right: max(12px, env(safe-area-inset-right)); bottom: max(14px, env(safe-area-inset-bottom)); display: grid; grid-template-columns: repeat(2, 72px); gap: 10px; z-index: 3; }
+  #touch .btns button { margin: 0; width: 72px; height: 72px; border-radius: 50%; padding: 0; font-size: 12px; font-weight: 800; background: rgba(255,210,122,0.25); color: #fff; border: 2px solid rgba(255,210,122,0.6); }
+  #touch .btns button.hit { background: rgba(255,210,122,0.7); }
+  #touch .btns button[data-act=grab] { grid-column: 2; grid-row: 3; width: 84px; height: 84px; background: rgba(156,244,160,0.3); border-color: #9cf4a0; }
+  #touch .btns .tr { display: none; background: rgba(255,107,107,0.3); border-color: #ff6b6b; }
+  body.traitor #touch .btns .tr { display: block; }
+  #menu:not(.hidden) ~ #pauseBtn, #menu:not(.hidden) ~ #touch, #meeting:not(.hidden) ~ #touch { display: none; }
+  #pauseBtn { position: fixed; top: 10px; right: 10px; margin: 0; width: 44px; height: 44px; padding: 0; font-size: 20px; border-radius: 10px; background: rgba(0,0,0,0.4); color: #fff; z-index: 4; }
   #menu { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 50% 40%, rgba(60,40,20,0.85), rgba(10,6,3,0.96)); }
   #menu.hidden { display: none; }
   .card { width: min(520px, calc(100vw - 32px)); padding: 28px; border-radius: 16px; background: rgba(30,20,10,0.9); border: 1px solid #5a4126; box-shadow: 0 20px 60px rgba(0,0,0,0.6); box-sizing: border-box; }
@@ -30,7 +64,7 @@
     <h1>ANT<span>AGONIST</span></h1>
     <p class="tag">You're a stickman the size of an ant. Haul the giant food home together. One of you is a traitor.</p>
     <label for="name">Your name</label>
-    <input id="name" type="text" maxlength="12" value="You">
+    <input id="name" type="text" maxlength="12" value="Scout">
     <label for="count">Ants in the colony: <b id="countLabel">6</b> (you + bots)</label>
     <input id="count" type="range" min="4" max="10" value="6">
     <div class="row">
@@ -40,18 +74,46 @@
       </div>
       <div>
         <label for="mode">Traitor</label>
-        <select id="mode"><option value="same">Same traitor all match</option><option value="shuffle">New traitor each round</option></select>
+        <select id="mode"><option value="same">Same all match</option><option value="shuffle">New each round</option></select>
+      </div>
+      <div>
+        <label for="traitors">Traitors</label>
+        <select id="traitors"><option value="auto">Auto (2 at 8+ ants)</option><option value="1">1</option><option value="2">2</option></select>
       </div>
     </div>
     <button id="start">Start match</button>
     <div class="how">
       <b>Workers:</b> explore the yard, find the big food, grab it (Space) and push toward the nest. Everyone's push adds up, so one ant pulling the wrong way slows the whole team. Bring crumbs home for extra time.<br>
+      <b>Scents:</b> when someone finds the food, a scent arrow points everyone to it. Traitors can plant fake scents (T) that look identical, until an honest ant gets close and sniffs out the lie.<br>
       <b>Traitor:</b> you always know where the food is. Grab on and drag it the wrong way, trip ants off it (Q), eat crumbs (Q). Run out the clock.<br>
       <b>Accuse:</b> stand next to an ant and press V. If a majority accuses the same ant they get webbed. Wrong guess and the accusers lose their vote for the round.<br>
-      First side to 3 points wins.
+      <b>Antennae meeting (M):</b> once per round per ant, freeze everyone to talk and vote. The clock keeps running.<br>
+      After each round a replay shows who really pushed which way. First side to 3 points wins.
     </div>
   </div>
 </div>
+<div id="meeting" class="hidden">
+  <div class="mcard">
+    <h2 id="mTitle">Antennae meeting</h2>
+    <div id="mInfo"></div>
+    <div id="mList"></div>
+    <button id="mSkip">Skip vote (0)</button>
+    <div id="mChat"></div>
+    <form id="mForm"><input id="mSay" type="text" maxlength="90" autocomplete="off" placeholder="Say something, e.g. Pip keeps pulling backwards"><button>Send</button></form>
+  </div>
+</div>
+<div id="touch">
+  <div class="stickzone"></div>
+  <div class="stick"><div class="knob"></div></div>
+  <div class="btns">
+    <button data-act="act" class="tr">TRIP<br>EAT</button>
+    <button data-act="scent" class="tr">FAKE<br>SCENT</button>
+    <button data-act="vote">ACCUSE</button>
+    <button data-act="meet">MEET</button>
+    <button data-act="grab">GRAB</button>
+  </div>
+</div>
+<button id="pauseBtn" aria-label="Menu">&#9776;</button>
 <script type="module" src="src/main.js"></script>
 </body>
 </html>

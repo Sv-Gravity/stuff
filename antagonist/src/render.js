@@ -1,5 +1,6 @@
 // Canvas renderer. Draws only from a view (viewFor), never from the raw state.
 import { CFG } from './config.js';
+import { numTraitors } from './sim.js';
 
 let groundPattern = null;
 function makeGround() {
@@ -26,7 +27,8 @@ const lerp = (a, b, t) => a + (b - a) * t;
 
 export class Renderer {
   constructor(canvas) {
-    this.c = canvas; this.g = canvas.getContext('2d');
+    this.c = canvas; this.g = canvas.getContext('2d', { alpha: false, desynchronized: true });
+    this.sprites = new Map(); this.spriteZ = 0;
     this.fog = document.createElement('canvas');
     this.particles = []; this.floaters = [];
     this.cam = { x: 0, y: 0, z: 2 };
@@ -35,17 +37,49 @@ export class Renderer {
   }
 
   resize() {
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    // Cap the backing-store size: fill-rate is the main cost on big/retina screens.
+    const maxPx = 2.4e6;
+    const dpr = Math.max(0.75, Math.min(window.devicePixelRatio || 1, 2, Math.sqrt(maxPx / (innerWidth * innerHeight))));
     this.dpr = dpr;
+    this.spriteZ = 0;
     this.c.width = innerWidth * dpr; this.c.height = innerHeight * dpr;
     this.fog.width = this.c.width; this.fog.height = this.c.height;
+  }
+
+  // Pre-render a static thing once at the current zoom; afterwards it's one drawImage.
+  spr(key, half, fn) {
+    let c = this.sprites.get(key);
+    if (!c) {
+      c = document.createElement('canvas');
+      const px = Math.max(2, Math.ceil(half * 2 * this.spriteZ));
+      c.width = c.height = px;
+      const sg = c.getContext('2d');
+      sg.setTransform(this.spriteZ, 0, 0, this.spriteZ, px / 2, px / 2);
+      const old = this.g; this.g = sg; fn(); this.g = old;
+      this.sprites.set(key, c);
+    }
+    return c;
+  }
+  blit(key, x, y, half, fn) { this.g.drawImage(this.spr(key, half, fn), x - half, y - half, half * 2, half * 2); }
+
+  buildFog(W, H, z) {
+    const fg = this.fog.getContext('2d');
+    fg.globalCompositeOperation = 'source-over';
+    fg.clearRect(0, 0, W, H);
+    fg.fillStyle = 'rgba(12,8,4,0.86)'; fg.fillRect(0, 0, W, H);
+    fg.globalCompositeOperation = 'destination-out';
+    const R = CFG.VISION * z;
+    const grd = fg.createRadialGradient(W / 2, H / 2, R * 0.55, W / 2, H / 2, R);
+    grd.addColorStop(0, 'rgba(0,0,0,1)'); grd.addColorStop(1, 'rgba(0,0,0,0)');
+    fg.fillStyle = grd; fg.beginPath(); fg.arc(W / 2, H / 2, R, 0, 7); fg.fill();
+    fg.globalCompositeOperation = 'source-over';
   }
 
   // Interpolation between the last two sim ticks so movement stays smooth at any fps.
   snapshot(view) {
     const m = {};
     for (const p of view.players) m['p' + p.id] = [p.x, p.y];
-    m.food = [view.food.x, view.food.y];
+    if (!view.food.hidden) m.food = [view.food.x, view.food.y];
     for (const c of view.crumbs) m['c' + c.id] = [c.x, c.y];
     return { round: view.round, m };
   }
@@ -60,9 +94,15 @@ export class Renderer {
       if (e.t === 'trip' && p) { this.burst(e.x, e.y, '#d8c8a0', 14); this.floater(e.x, e.y - 18, 'tripped!', '#ffd27a'); }
       if (e.t === 'eat') { this.burst(e.x, e.y, '#e9c27a', 10); this.floater(e.x, e.y - 18, '*munch*', '#ff9b6b'); }
       if (e.t === 'crumb') this.floater(e.x, e.y - 30, '+' + CFG.CRUMB_TIME + 's', '#9cff8a');
-      if (e.t === 'caught' && p) { this.burst(p.x, p.y, '#ffffff', 30); this.flash = { text: `${p.name} WAS THE TRAITOR! Webbed!`, t: 3, col: '#9cff8a' }; }
-      if (e.t === 'wrong' && p) { this.burst(p.x, p.y, '#ffffff', 20); this.flash = { text: `${p.name} was innocent... accusers lose their vote`, t: 3, col: '#ff8a8a' }; }
-      if (e.t === 'found') this.flash = { text: `${p ? p.name : 'Someone'} found ${view.food.label}! Follow the arrow`, t: 3, col: '#ffe08a' };
+      if (e.t === 'caught' && p) { this.burst(p.x, p.y, '#ffffff', 30); this.flash = { text: `${p.name} WAS A TRAITOR! Webbed for the round`, t: 3.5, col: '#9cff8a' }; }
+      if (e.t === 'wrong' && p) { this.burst(p.x, p.y, '#ffffff', 20); this.flash = { text: `${p.name} was innocent... the accusers lose their vote`, t: 3.5, col: '#ff8a8a' }; }
+      if (e.t === 'meetingEnd') this.flash = { text: 'Nobody was voted out', t: 2.5, col: '#e8dcc8' };
+      if (e.t === 'found') this.flash = { text: 'Someone smelled food! Follow the scent arrows', t: 3, col: '#ffe08a' };
+      if (e.t === 'scent' && !view.amTraitor) this.flash = { text: 'A new food scent is in the air...', t: 3, col: '#ffb0d8' };
+      if (e.t === 'scent' && view.amTraitor) this.flash = { text: 'Fake scent planted', t: 2, col: '#ff9b9b' };
+      if (e.t === 'debunk') { this.flash = { text: `${p ? p.name : 'Someone'} sniffed out a FAKE scent!`, t: 3, col: '#ff9b6b' }; this.burst(e.x, e.y, '#ff9bd0', 24); }
+      if (e.t === 'noscent' && e.id === view.me) this.flash = { text: 'Too close to the food or nest to plant a fake', t: 2, col: '#ff9b9b' };
+      if (e.t === 'nomeet' && e.id === view.me) this.flash = { text: "Can't call a meeting right now", t: 2, col: '#e8dcc8' };
     }
   }
   burst(x, y, col, n) {
@@ -81,20 +121,34 @@ export class Renderer {
     const [mx, my] = me ? this.pos('p' + me.id, me.x, me.y, alpha) : [view.nest.x, view.nest.y];
     const z = Math.min(W, H) / (CFG.VISION * 1.75);
     this.cam = { x: mx, y: my, z };
+    if (z !== this.spriteZ) { this.sprites.clear(); this.spriteZ = z; this.buildFog(W, H, z); }
     const sx = x => (x - mx) * z + W / 2, sy = y => (y - my) * z + H / 2;
 
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.fillStyle = '#1b130c'; g.fillRect(0, 0, W, H);
     g.setTransform(z, 0, 0, z, W / 2 - mx * z, H / 2 - my * z);
     // ground
-    g.fillStyle = groundPattern; g.fillRect(0, 0, CFG.WORLD_W, CFG.WORLD_H);
+    const hw = W / z / 2 + 2, hh = H / z / 2 + 2;
+    const gx0 = Math.max(0, mx - hw), gy0 = Math.max(0, my - hh);
+    g.fillStyle = groundPattern; g.fillRect(gx0, gy0, Math.min(CFG.WORLD_W, mx + hw) - gx0, Math.min(CFG.WORLD_H, my + hh) - gy0);
     g.strokeStyle = '#2a1d10'; g.lineWidth = 6; g.strokeRect(0, 0, CFG.WORLD_W, CFG.WORLD_H);
 
     const vis = (x, y, pad = 0) => Math.abs(x - mx) < W / z / 2 + pad && Math.abs(y - my) < H / z / 2 + pad;
 
     for (const q of view.puddles) if (vis(q.x, q.y, q.r)) this.puddle(q);
-    this.nest(view.nest);
-    for (const d of view.decor) if (vis(d.x, d.y, 40) && d.t !== 'grass') this.decor(d);
+    const n = view.nest;
+    if (vis(n.x, n.y, 80)) { this.blit('nest', n.x, n.y, n.r * 1.6 + 14, () => this.nest({ x: 0, y: 0, r: n.r })); this.nestLabel(n); }
+    view.decor.forEach((d, i) => { if (d.t !== 'grass' && vis(d.x, d.y, 50)) this.blit('d' + i, d.x, d.y, 45 * d.s, () => this.decor({ ...d, x: 0, y: 0 })); });
+    // scent clouds (real and fake look the same unless you planted it)
+    const tnow = performance.now() / 1000;
+    for (const sc of view.scents) {
+      if (!vis(sc.x, sc.y, 60)) continue;
+      for (let i = 0; i < 3; i++) {
+        const rr = 18 + ((tnow * 14 + i * 14) % 42);
+        g.strokeStyle = sc.fake ? `rgba(255,120,120,${0.5 - rr / 120})` : `rgba(255,150,210,${0.5 - rr / 120})`;
+        g.lineWidth = 1.5; g.beginPath(); g.arc(sc.x, sc.y, rr, 0, 7); g.stroke();
+      }
+    }
 
     // crumbs
     for (const c of view.crumbs) {
@@ -108,11 +162,17 @@ export class Renderer {
 
     // depth-sorted things: rocks, food, ants, grass
     const items = [];
-    for (const k of view.rocks) if (vis(k.x, k.y, k.r)) items.push({ y: k.y + k.r * 0.4, f: () => this.rock(k) });
-    for (const d of view.decor) if (d.t === 'grass' && vis(d.x, d.y, 40)) items.push({ y: d.y, f: () => this.grass(d) });
-    const [fx, fy] = this.pos('food', view.food.x, view.food.y, alpha);
-    const foodVisible = view.foodKnown || Math.hypot(fx - mx, fy - my) < CFG.VISION + 40;
-    if (foodVisible) items.push({ y: fy, f: () => this.food(view.food, fx, fy) });
+    view.rocks.forEach((k, i) => { if (vis(k.x, k.y, k.r * 1.4)) items.push({ y: k.y + k.r * 0.4, f: () => this.blit('r' + i, k.x, k.y, k.r * 1.4, () => this.rock({ x: 0, y: 0, r: k.r })) }); });
+    view.decor.forEach((d, i) => { if (d.t === 'grass' && vis(d.x, d.y, 70)) items.push({ y: d.y, f: () => this.blit('g' + i, d.x, d.y - 30 * d.s, 40 * d.s, () => this.grass({ ...d, x: 0, y: 30 * d.s })) }); });
+    const [fx, fy] = view.food.hidden ? [NaN, NaN] : this.pos('food', view.food.x, view.food.y, alpha);
+    if (!view.food.hidden) items.push({ y: fy, f: () => {
+      const f = view.food;
+      g.fillStyle = 'rgba(0,0,0,0.3)'; g.beginPath(); g.ellipse(fx + 4, fy + f.r * 0.5, f.r * 1.05, f.r * 0.5, 0, 0, 7); g.fill();
+      const spin = f.kind === 'cookie' || f.kind === 'cheeseball' || f.kind === 'donut';
+      const c = this.spr('food-' + f.kind, f.r * 1.3, () => this.food({ ...f, rot: 0 }, 0, 0));
+      g.save(); g.translate(fx, fy - f.r * 0.15); if (spin) g.rotate(f.rot);
+      g.drawImage(c, -f.r * 1.3, -f.r * 1.3, f.r * 2.6, f.r * 2.6); g.restore();
+    } });
     for (const p of view.players) {
       const [px, py] = this.pos('p' + p.id, p.x, p.y, alpha);
       const far = Math.hypot(px - mx, py - my) > CFG.VISION + 20;
@@ -147,17 +207,8 @@ export class Renderer {
     g.globalAlpha = 1;
     this.floaters = this.floaters.filter(f => f.t > 0);
 
-    // fog of vision
+    // fog of vision (pre-rendered; the camera always centres on you)
     g.setTransform(1, 0, 0, 1, 0, 0);
-    const fg = this.fog.getContext('2d');
-    fg.globalCompositeOperation = 'source-over';
-    fg.clearRect(0, 0, W, H);
-    fg.fillStyle = 'rgba(12,8,4,0.86)'; fg.fillRect(0, 0, W, H);
-    fg.globalCompositeOperation = 'destination-out';
-    const R = CFG.VISION * z;
-    const grd = fg.createRadialGradient(W / 2, H / 2, R * 0.55, W / 2, H / 2, R);
-    grd.addColorStop(0, 'rgba(0,0,0,1)'); grd.addColorStop(1, 'rgba(0,0,0,0)');
-    fg.fillStyle = grd; fg.beginPath(); fg.arc(W / 2, H / 2, R, 0, 7); fg.fill();
     g.drawImage(this.fog, 0, 0);
 
     this.hud(view, me, ui, dt, sx, sy, fx, fy);
@@ -184,6 +235,9 @@ export class Renderer {
     const grd = g.createRadialGradient(n.x, n.y, 2, n.x, n.y, n.r * 0.8);
     grd.addColorStop(0, '#000'); grd.addColorStop(1, '#2a1a0c');
     g.fillStyle = grd; g.beginPath(); g.ellipse(n.x, n.y, n.r * 0.7, n.r * 0.55, 0, 0, 7); g.fill();
+  }
+  nestLabel(n) {
+    const g = this.g;
     g.fillStyle = 'rgba(255,240,200,0.8)'; g.font = 'bold 9px system-ui'; g.textAlign = 'center';
     g.fillText('NEST', n.x, n.y - n.r * 1.25 - 4);
   }
@@ -231,8 +285,7 @@ export class Renderer {
 
   food(f, x, y) {
     const g = this.g, r = f.r;
-    g.fillStyle = 'rgba(0,0,0,0.3)'; g.beginPath(); g.ellipse(x + 4, y + r * 0.5, r * 1.05, r * 0.5, 0, 0, 7); g.fill();
-    g.save(); g.translate(x, y - r * 0.15);
+    g.save(); g.translate(x, y);
     if (f.kind === 'strawberry') {
       g.fillStyle = '#d6283a'; g.beginPath(); g.moveTo(0, r); g.bezierCurveTo(r * 1.3, r * 0.2, r * 0.9, -r, 0, -r * 0.8); g.bezierCurveTo(-r * 0.9, -r, -r * 1.3, r * 0.2, 0, r); g.fill();
       g.fillStyle = '#f5e08a';
@@ -325,7 +378,7 @@ export class Renderer {
   label(view, p, x, y) {
     const g = this.g;
     g.font = 'bold 9px system-ui'; g.textAlign = 'center';
-    const isT = view.traitorId === p.id;
+    const isT = view.traitors.includes(p.id);
     const txt = p.name + (isT ? ' (traitor)' : '');
     g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillText(txt, x + 0.5, y - 17.5 * ANT_DRAW);
     g.fillStyle = isT ? '#ff6b6b' : (p.id === view.me ? '#fff' : 'rgba(255,255,255,0.8)');
@@ -355,15 +408,23 @@ export class Renderer {
     g.fillStyle = col; g.beginPath(); g.moveTo(14 * dpr, 0); g.lineTo(-6 * dpr, -8 * dpr); g.lineTo(-6 * dpr, 8 * dpr); g.closePath(); g.fill();
     g.restore();
     g.font = `bold ${11 * dpr}px system-ui`; g.textAlign = 'center'; g.fillStyle = col;
-    g.fillText(text, x - Math.cos(a) * 22 * dpr, y - Math.sin(a) * 22 * dpr + 4 * dpr);
+    const off = 18 * dpr + Math.abs(Math.cos(a)) * g.measureText(text).width / 2;
+    g.fillText(text, x - Math.cos(a) * off, y - Math.sin(a) * 22 * dpr + 4 * dpr);
   }
 
   hud(view, me, ui, dt, sx, sy, fx, fy) {
     const g = this.g, W = this.c.width, H = this.c.height, d = this.dpr;
     g.setTransform(1, 0, 0, 1, 0, 0);
-    // edge arrows
-    this.arrowTo(W, H, sx(view.nest.x), sy(view.nest.y), '#ffe9b0', 'nest ' + Math.round(Math.hypot(view.nest.x - me.x, view.nest.y - me.y) / 10) + 'cm');
-    if (view.foodKnown) this.arrowTo(W, H, sx(fx), sy(fy), view.amTraitor && !view.foodFound ? '#ff8a8a' : '#ff6b8a', (view.amTraitor && !view.foodFound ? 'food (only you know)' : 'food'));
+    const playing = view.phase === 'play' || view.phase === 'countdown';
+    if (playing) {
+      this.arrowTo(W, H, sx(view.nest.x), sy(view.nest.y), '#ffe9b0', 'nest ' + Math.round(Math.hypot(view.nest.x - me.x, view.nest.y - me.y) / 10) + 'cm');
+      if (view.amTraitor) {
+        this.arrowTo(W, H, sx(view.food.x), sy(view.food.y), '#ff6b8a', view.foodFound ? 'food' : 'food (only you know)');
+        for (const sc of view.scents) if (sc.fake) this.arrowTo(W, H, sx(sc.x), sy(sc.y), '#ff9b9b', 'your fake');
+      } else {
+        for (const sc of view.scents) this.arrowTo(W, H, sx(sc.x), sy(sc.y), '#ff9bd0', 'scent');
+      }
+    }
 
     // timer + score
     const t = Math.max(0, view.timeLeft);
@@ -383,67 +444,158 @@ export class Renderer {
     g.font = `bold ${14 * d}px system-ui`;
     g.textAlign = 'right'; g.fillStyle = '#9cf4a0'; g.fillText('COLONY', W / 2 - 80 * d, 30 * d);
     pips(view.score.colony, '#9cf4a0', W / 2 - 92 * d, -1);
-    g.textAlign = 'left'; g.fillStyle = '#ff7a7a'; g.fillText('TRAITOR', W / 2 + 80 * d, 30 * d);
+    g.textAlign = 'left'; g.fillStyle = '#ff7a7a'; g.fillText(numTraitors(view) > 1 ? 'TRAITORS' : 'TRAITOR', W / 2 + 80 * d, 30 * d);
     pips(view.score.traitor, '#ff7a7a', W / 2 + 92 * d, 1);
 
     // role + status panel
+    const small = W < 700 * d;
     g.textAlign = 'left';
     g.font = `bold ${14 * d}px system-ui`;
     g.fillStyle = view.amTraitor ? '#ff6b6b' : '#9cf4a0';
-    g.fillText(view.amTraitor ? 'YOU ARE THE TRAITOR' : 'YOU ARE A WORKER', 16 * d, 28 * d);
+    const partners = view.amTraitor ? view.traitors.filter(id => id !== view.me).map(id => view.players.find(p => p.id === id)?.name) : [];
+    g.fillText(view.amTraitor ? 'YOU ARE A TRAITOR' + (partners.length ? ` (with ${partners.join(', ')})` : '') : 'YOU ARE A WORKER', 16 * d, small ? 84 * d : 28 * d);
     g.font = `${12 * d}px system-ui`; g.fillStyle = '#e8dcc8';
     const lines = [];
     const f = view.food;
     if (me.hold === 'food') {
       const spd = Math.hypot(f.vx, f.vy);
-      lines.push(`Carrying with ${f.carriers} ant${f.carriers === 1 ? '' : 's'} · ${spd < 2 ? 'not moving' : Math.round(spd / 10 * 10) / 10 + ' cm/s'}`);
+      lines.push(`Carrying with ${f.carriers} ant${f.carriers === 1 ? '' : 's'} · ${spd < 2 ? 'not moving' : (spd / 10).toFixed(1) + ' cm/s'}`);
     } else if (typeof me.hold === 'number') lines.push(view.amTraitor ? 'Holding a crumb · Q to eat it (risky!)' : 'Holding a crumb · bring it home for +' + CFG.CRUMB_TIME + 's');
     if (me.stun > 0) lines.push('You tripped!');
     if (me.web > 0) lines.push(me.web > 1000 ? 'Caught and webbed for the rest of the round' : `Webbed! ${Math.ceil(me.web)}s`);
-    if (view.amTraitor) lines.push(me.tripCd > 0 ? `Trip ready in ${Math.ceil(me.tripCd)}s` : 'Trip ready (Q near an ant)');
+    if (view.amTraitor) {
+      lines.push(me.tripCd > 0 ? `Trip ready in ${Math.ceil(me.tripCd)}s` : 'Trip ready (Q near an ant)');
+      if (me.scentsLeft > 0) lines.push(me.scentCd > 0 ? `Fake scent in ${Math.ceil(me.scentCd)}s (${me.scentsLeft} left)` : `T: plant a fake scent here (${me.scentsLeft} left)`);
+    }
     lines.push(me.voteLocked ? 'You lost your accusation this round' : me.vote !== null ? `Accusing ${view.players.find(p => p.id === me.vote)?.name}` : 'V next to an ant to accuse');
-    lines.forEach((l, i) => g.fillText(l, 16 * d, (48 + i * 17) * d));
+    lines.push(me.meetUsed ? 'Meeting used' : 'M: call an antennae meeting (once a round)');
+    if (ui?.touch) for (let i = 0; i < lines.length; i++) lines[i] = lines[i].replace('Q near an ant', 'TRIP near an ant').replace('Q to eat', 'EAT to eat').replace('T: plant', 'FAKE SCENT: plant').replace('V next to', 'ACCUSE next to').replace('M: call', 'MEET: call');
+    if (!small || view.phase === 'play') lines.forEach((l, i) => g.fillText(l, 16 * d, ((small ? 102 : 48) + i * 17) * d));
 
-    // controls
-    g.font = `${11 * d}px system-ui`; g.fillStyle = 'rgba(255,255,255,0.55)';
-    g.fillText(view.amTraitor
-      ? 'WASD/Arrows move · Space grab/let go · Q trip ant / eat crumb · V accuse · Esc menu'
-      : 'WASD/Arrows move · Space grab/let go · V accuse (majority webs them) · Esc menu', 16 * d, H - 16 * d);
+    if (!ui?.touch) {
+      g.font = `${11 * d}px system-ui`; g.fillStyle = 'rgba(255,255,255,0.55)';
+      g.fillText(view.amTraitor
+        ? 'WASD move · Space grab · Q trip / eat crumb · T fake scent · V accuse · M meeting · Esc menu'
+        : 'WASD move · Space grab/let go · V accuse · M meeting · Esc menu', 16 * d, H - 16 * d);
+    }
+    if (ui?.fps) {
+      g.textAlign = 'right'; g.font = `${11 * d}px ui-monospace, monospace`; g.fillStyle = 'rgba(255,255,255,0.6)';
+      g.fillText(`${ui.fps} fps`, W - 12 * d, 72 * d);
+    }
 
-    // flash messages
     if (this.flash) {
       this.flash.t -= dt;
-      g.globalAlpha = Math.min(1, this.flash.t);
-      g.textAlign = 'center'; g.font = `bold ${18 * d}px system-ui`;
-      g.fillStyle = '#000'; g.fillText(this.flash.text, W / 2 + 2, H * 0.22 + 2);
-      g.fillStyle = this.flash.col; g.fillText(this.flash.text, W / 2, H * 0.22);
+      g.globalAlpha = Math.max(0, Math.min(1, this.flash.t));
+      g.textAlign = 'center'; g.font = `bold ${(small ? 14 : 18) * d}px system-ui`;
+      g.fillStyle = '#000'; g.fillText(this.flash.text, W / 2 + 2, H * 0.2 + 2);
+      g.fillStyle = this.flash.col; g.fillText(this.flash.text, W / 2, H * 0.2);
       g.globalAlpha = 1;
       if (this.flash.t <= 0) this.flash = null;
     }
 
-    // big center banners
-    const banner = (title, sub, col, sub2) => {
-      g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillRect(0, H * 0.36, W, H * 0.28);
-      g.textAlign = 'center'; g.fillStyle = col; g.font = `bold ${38 * d}px system-ui`;
-      g.fillText(title, W / 2, H * 0.36 + 60 * d);
-      g.fillStyle = '#f0e6d2'; g.font = `${16 * d}px system-ui`;
-      g.fillText(sub, W / 2, H * 0.36 + 92 * d);
-      if (sub2) { g.fillStyle = 'rgba(255,255,255,0.6)'; g.font = `${13 * d}px system-ui`; g.fillText(sub2, W / 2, H * 0.36 + 116 * d); }
+    const banner = (title, sub, col, sub2, y0 = H * 0.36, h = H * 0.28) => {
+      g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(0, y0, W, h);
+      g.textAlign = 'center'; g.fillStyle = col; g.font = `bold ${(small ? 24 : 38) * d}px system-ui`;
+      g.fillText(title, W / 2, y0 + (small ? 40 : 56) * d);
+      g.fillStyle = '#f0e6d2'; g.font = `${(small ? 13 : 16) * d}px system-ui`;
+      g.fillText(sub, W / 2, y0 + (small ? 64 : 86) * d);
+      if (sub2) { g.fillStyle = 'rgba(255,255,255,0.6)'; g.font = `${13 * d}px system-ui`; g.fillText(sub2, W / 2, y0 + (small ? 84 : 110) * d); }
     };
     if (view.phase === 'countdown') {
-      banner(view.amTraitor ? 'YOU ARE THE TRAITOR' : 'YOU ARE A WORKER',
-        view.amTraitor ? `Stop them hauling ${view.food.label} home. Pretend to help. Don't get caught.` : `Find ${view.food.label} and haul it to the nest. One of you is lying.`,
+      banner(view.amTraitor ? 'YOU ARE A TRAITOR' : 'YOU ARE A WORKER',
+        view.amTraitor ? `Stop them hauling ${view.food.label} home. Pretend to help.` : `Find ${view.food.label} and haul it to the nest. Someone is lying.`,
         view.amTraitor ? '#ff6b6b' : '#9cf4a0', `Starting in ${Math.ceil(view.phaseT)}...`);
     } else if (view.phase === 'roundEnd' || view.phase === 'matchEnd') {
-      const r = view.result, tn = view.players.find(p => p.id === r.traitorId)?.name;
+      const r = view.result, tn = r.traitors.map(id => view.players.find(p => p.id === id)?.name).join(' & ');
+      const many = r.traitors.length > 1;
       const title = view.phase === 'matchEnd'
-        ? (view.winner === 'colony' ? 'THE COLONY WINS THE MATCH' : 'THE TRAITOR WINS THE MATCH')
+        ? (view.winner === 'colony' ? 'THE COLONY WINS THE MATCH' : `THE TRAITOR${many ? 'S WIN' : ' WINS'} THE MATCH`)
         : (r.winner === 'colony' ? 'FOOD DELIVERED!' : "TIME'S UP!");
       const sub = r.winner === 'colony'
-        ? (r.reason === 'caught' ? `Colony scores. ${tn} was caught and webbed.` : `Colony scores. The traitor was ${tn}.`)
-        : `The traitor (${tn}) scores.`;
-      banner(title, sub, (view.phase === 'matchEnd' ? view.winner : r.winner) === 'colony' ? '#9cf4a0' : '#ff6b6b',
-        view.phase === 'matchEnd' ? 'Enter: rematch · Esc: menu' : `Next round in ${Math.ceil(view.phaseT)}...`);
+        ? (r.reason === 'caught' ? `Colony scores. ${tn} ${many ? 'were' : 'was'} the traitor${many ? 's' : ''} (caught!).` : `Colony scores. The traitor${many ? 's were' : ' was'} ${tn}.`)
+        : `The traitor${many ? 's' : ''} (${tn}) score${many ? '' : 's'}.`;
+      const next = view.phase === 'matchEnd' ? (ui?.touch ? 'Tap to play again' : 'Enter: rematch · Esc: menu')
+        : `${ui?.touch ? 'Tap' : 'Space'} to continue${me.ready ? ' (waiting...)' : ''} · next round in ${Math.ceil(view.phaseT)}`;
+      banner(title, sub, (view.phase === 'matchEnd' ? view.winner : r.winner) === 'colony' ? '#9cf4a0' : '#ff6b6b', next, H * 0.05, small ? 100 * d : 124 * d);
+      this.replayPanel(view, H * 0.05 + (small ? 108 : 134) * d);
     }
+  }
+
+  // Round-end reveal: the haul replayed with everyone's push arrows, plus who really helped.
+  replayPanel(view, top) {
+    const g = this.g, W = this.c.width, H = this.c.height, d = this.dpr;
+    const rp = view.replay;
+    const small = W < 700 * d;
+    const pad = 16 * d;
+    const boxH = H - top - pad;
+    const mapW = small ? W - pad * 2 : Math.min(W * 0.55, boxH * 1.4);
+    const mapH = small ? boxH * 0.55 : boxH;
+    const mx0 = small ? pad : W / 2 - (mapW + Math.min(360 * d, W * 0.35)) / 2, my0 = top;
+    g.fillStyle = 'rgba(10,7,4,0.85)'; g.fillRect(mx0, my0, mapW, mapH);
+    g.strokeStyle = 'rgba(255,220,160,0.25)'; g.strokeRect(mx0, my0, mapW, mapH);
+    if (rp.length > 1) {
+      let x0 = view.nest.x, x1 = view.nest.x, y0 = view.nest.y, y1 = view.nest.y;
+      for (const [x, y] of rp) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+      const m = 120; x0 -= m; y0 -= m; x1 += m; y1 += m;
+      const k = Math.min(mapW / (x1 - x0), mapH / (y1 - y0));
+      const ox = mx0 + (mapW - (x1 - x0) * k) / 2 - x0 * k, oy = my0 + (mapH - (y1 - y0) * k) / 2 - y0 * k;
+      const X = x => ox + x * k, Y = y => oy + y * k;
+      g.save(); g.beginPath(); g.rect(mx0, my0, mapW, mapH); g.clip();
+      g.fillStyle = 'rgba(140,135,125,0.5)';
+      for (const r of view.rocks) { g.beginPath(); g.arc(X(r.x), Y(r.y), r.r * k, 0, 7); g.fill(); }
+      g.fillStyle = 'rgba(70,120,160,0.5)';
+      for (const q of view.puddles) { g.beginPath(); g.arc(X(q.x), Y(q.y), q.r * k, 0, 7); g.fill(); }
+      g.fillStyle = '#a07c50'; g.beginPath(); g.arc(X(view.nest.x), Y(view.nest.y), Math.max(4 * d, view.nest.r * k), 0, 7); g.fill();
+      // full path faint, progress bright
+      const prog = Math.min(1, Math.max(0, (CFG.INTERMISSION - view.phaseT) / (CFG.INTERMISSION * 0.8)));
+      const idx = view.phase === 'matchEnd' ? rp.length - 1 : Math.floor(prog * (rp.length - 1));
+      g.fillStyle = '#ffe9b0'; g.font = `bold ${10 * d}px system-ui`; g.textAlign = 'center';
+      g.fillText('NEST', X(view.nest.x), Y(view.nest.y) - Math.max(4 * d, view.nest.r * k) - 4 * d);
+      g.lineWidth = 3 * d; g.strokeStyle = 'rgba(255,255,255,0.25)';
+      g.beginPath(); rp.forEach(([x, y], i) => i ? g.lineTo(X(x), Y(y)) : g.moveTo(X(x), Y(y))); g.stroke();
+      g.strokeStyle = '#ffd27a'; g.beginPath();
+      for (let i = 0; i <= idx; i++) { const [x, y] = rp[i]; i ? g.lineTo(X(x), Y(y)) : g.moveTo(X(x), Y(y)); }
+      g.stroke();
+      const [fx, fy, cs] = rp[idx];
+      g.fillStyle = '#ff6b8a'; g.beginPath(); g.arc(X(fx), Y(fy), Math.max(5 * d, view.food.r * k), 0, 7); g.fill();
+      const toNest = Math.atan2(view.nest.y - fy, view.nest.x - fx);
+      for (const [id, px, py, slot] of cs) {
+        const p = view.players.find(q => q.id === id); if (!p) continue;
+        const ax = X(fx) + Math.cos(slot) * Math.max(8 * d, view.food.r * k), ay = Y(fy) + Math.sin(slot) * Math.max(8 * d, view.food.r * k);
+        const L = 26 * d;
+        const bad = (px * Math.cos(toNest) + py * Math.sin(toNest)) < 0;
+        g.strokeStyle = bad ? '#ff4d4d' : p.color; g.fillStyle = g.strokeStyle; g.lineWidth = (bad ? 3 : 2) * d;
+        g.beginPath(); g.moveTo(ax, ay); g.lineTo(ax + px * L, ay + py * L); g.stroke();
+        g.font = `bold ${10 * d}px system-ui`; g.textAlign = 'center';
+        if (Math.hypot(px, py) > 0.1) g.fillText(p.name, ax + px * (L + 8 * d), ay + py * (L + 8 * d) + 3 * d);
+      }
+      g.restore();
+      g.font = `${11 * d}px system-ui`; g.fillStyle = 'rgba(255,255,255,0.6)'; g.textAlign = 'left';
+      g.fillText('REPLAY · red arrows pulled away from the nest', mx0 + 8 * d, my0 + 16 * d);
+    } else {
+      g.font = `${13 * d}px system-ui`; g.fillStyle = 'rgba(255,255,255,0.6)'; g.textAlign = 'center';
+      g.fillText('Nobody carried the food this round', mx0 + mapW / 2, my0 + mapH / 2);
+    }
+
+    // helpfulness bars
+    const bx = small ? pad : mx0 + mapW + 16 * d, by = small ? my0 + mapH + 14 * d : my0;
+    const bw = small ? W - pad * 2 : Math.min(360 * d, W * 0.35) - 16 * d;
+    const ps = [...view.players].sort((a, b) => (b.help - b.harm) - (a.help - a.harm));
+    const maxV = Math.max(1, ...ps.map(p => Math.max(p.help, p.harm)));
+    const rowH = Math.min(26 * d, ((small ? H - by - pad : mapH) - 20 * d) / ps.length);
+    g.font = `bold ${11 * d}px system-ui`; g.textAlign = 'left'; g.fillStyle = 'rgba(255,255,255,0.7)';
+    g.fillText('WHO PULLED THEIR WEIGHT (seconds pushing home / away)', bx, by + 10 * d);
+    ps.forEach((p, i) => {
+      const y = by + 20 * d + i * rowH;
+      const isT = view.result.traitors.includes(p.id);
+      g.fillStyle = isT ? '#ff6b6b' : p.color; g.font = `bold ${Math.min(12 * d, rowH * 0.5)}px system-ui`; g.textAlign = 'left';
+      g.fillText(p.name + (isT ? ' (T)' : '') + (p.id === view.me ? ' (you)' : ''), bx, y + rowH * 0.62);
+      const cx = bx + bw * 0.5, half = bw * 0.24;
+      g.fillStyle = 'rgba(255,255,255,0.08)'; g.fillRect(cx - half, y + rowH * 0.2, half * 2, rowH * 0.6);
+      g.fillStyle = '#6fdc7a'; g.fillRect(cx, y + rowH * 0.2, half * p.help / maxV, rowH * 0.6);
+      g.fillStyle = '#ff5a5a'; g.fillRect(cx - half * p.harm / maxV, y + rowH * 0.2, half * p.harm / maxV, rowH * 0.6);
+      g.fillStyle = 'rgba(255,255,255,0.7)'; g.textAlign = 'right'; g.font = `${Math.min(11 * d, rowH * 0.45)}px system-ui`;
+      g.fillText(`+${p.help.toFixed(0)} / -${p.harm.toFixed(0)}`, bx + bw, y + rowH * 0.62);
+    });
   }
 }

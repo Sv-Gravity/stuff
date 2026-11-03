@@ -26,6 +26,10 @@ export class Sfx {
       if (e.t === 'wrong') this.beep(200, 0.35, 'sawtooth', 0.05, -120);
       if (e.t === 'found') this.beep(740, 0.2, 'triangle', 0.06, 300);
       if (e.t === 'go') this.beep(880, 0.2, 'square', 0.05);
+      if (e.t === 'meeting') { this.beep(440, 0.12, 'square', 0.06); setTimeout(() => this.beep(440, 0.12, 'square', 0.06), 160); }
+      if (e.t === 'debunk') this.beep(300, 0.25, 'triangle', 0.06, 300);
+      if (e.t === 'scent') this.beep(620, 0.3, 'sine', 0.05, 200);
+      if (e.t === 'say') this.beep(1200, 0.03, 'sine', 0.03);
       if (e.t === 'roundEnd') this.beep(e.winner === 'colony' ? 520 : 180, 0.5, 'triangle', 0.07, e.winner === 'colony' ? 520 : -80);
     }
   }

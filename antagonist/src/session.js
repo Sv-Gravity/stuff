@@ -6,11 +6,11 @@ import { createMatch, step, viewFor } from './sim.js';
 import { Bot } from './bots.js';
 
 export class LocalSession {
-  constructor({ name, count, seed, sameTraitor, role }) {
+  constructor({ name, count, seed, sameTraitor, role, traitorCount }) {
     const players = [{ id: 0, name: name || 'You', isBot: false }];
     const botNames = ['Pip', 'Crumb', 'Dot', 'Twig', 'Mote', 'Speck', 'Nib', 'Grub', 'Fleck', 'Seed', 'Bean'];
     for (let i = 1; i < count; i++) players.push({ id: i, name: botNames[(i - 1) % botNames.length], isBot: true });
-    this.opts = { players, seed, sameTraitor, forceTraitor: role === 'traitor' ? 0 : null, avoidTraitor: role === 'worker' ? 0 : null };
+    this.opts = { players, seed, sameTraitor, traitorCount, forceTraitor: role === 'traitor' ? 0 : null, avoidTraitor: role === 'worker' ? 0 : null };
     this.localId = 0;
     this.reset(seed);
   }
