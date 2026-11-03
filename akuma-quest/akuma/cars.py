@@ -60,7 +60,7 @@ DRAWN_MODELS = [
          windows=[[(24, 23), (41, 14), (50, 14), (50, 23)], [(53, 14), (61, 14), (74, 23), (53, 23)]],
          wheels=(22, 84, 8), popups=None, head=(94, 27, 6, 3), tail=(4, 27, 3, 4),
          extras=["wing"]),
-    dict(name="'65 COUGAR XLR", color=(110, 24, 36), lower=None,
+    dict(name="'67 COUGAR XLR", color=(110, 24, 36), lower=None,
          body=[(1, 26), (24, 25), (80, 25), (104, 26), (106, 29), (106, 40), (1, 40)],
          cabin=[(30, 25), (42, 13), (66, 13), (76, 25)],
          windows=[[(36, 24), (43, 15), (53, 15), (53, 24)], [(56, 15), (65, 15), (73, 24), (56, 24)]],
@@ -78,7 +78,7 @@ CAR_MODELS = [
     dict(name="HONDA S2000 AP1", key="s2000", color=(240, 196, 30), roof=(28, 28, 32), drawn=3),
     dict(name="VW GTI MK2", key="gti", color=(232, 232, 228), roof=None, drawn=0),
     dict(name="MAZDA RX-7 FC35", key="rx7", color=(242, 240, 236), roof=None, drawn=3),
-    dict(name="'65 MERCURY COUGAR", key="cougar", color=(40, 130, 136), roof=None, drawn=4),
+    dict(name="'67 MERCURY COUGAR", key="cougar", color=(40, 130, 136), roof=None, drawn=4),
 ]
 MODEL_BY_NAME = {m["name"]: m for m in CAR_MODELS}
 STAGES = 5          # pristine, light, medium, heavy, destroyed
