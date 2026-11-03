@@ -208,6 +208,20 @@
   .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--ok);color:#06210f;
     padding:8px 16px;border-radius:8px;font-weight:600;opacity:0;pointer-events:none;transition:.2s;z-index:30}
   .toast.show{opacity:1}
+  .mk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
+  .mk-grid.off .mk{opacity:.55}
+  .mk{position:relative;display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);cursor:pointer;overflow:hidden;user-select:none}
+  .mk:hover{border-color:var(--accent)}
+  .mk::after{content:"";position:absolute;left:0;bottom:0;height:3px;width:var(--p,0);background:var(--accent)}
+  .mk b{flex:1;min-width:0;font-weight:600;font-size:14px;line-height:1.3}
+  .mk.on{border-color:var(--accent)}
+  .mk.on b{color:var(--accent)}
+  .mk.miss{opacity:.35;cursor:default}
+  .mk-ic{flex:none;width:0;height:0;border-left:11px solid var(--accent);border-top:7px solid transparent;border-bottom:7px solid transparent;margin-left:2px}
+  .mk.on .mk-ic{width:11px;height:12px;border:0;border-left:3.5px solid var(--accent);border-right:3.5px solid var(--accent);box-sizing:border-box}
+  .mk-ns{display:flex;gap:4px}
+  .mk-n{padding:2px 7px;font-size:12px;min-width:0}
+  .mk-n.on{border-color:var(--accent);color:var(--accent)}
 </style>
 </head>
 <body>
@@ -2757,6 +2771,7 @@ const MAP_ICONS = {
   nvidia:  '<rect x="2" y="6" width="20" height="11" rx="1"/><circle cx="9" cy="11.5" r="3"/><path d="M14.5 9h4M14.5 11.5h4M14.5 14h4M5 17v2.5M8 17v2.5M11 17v2.5"/>',
   spray:   '<path d="M8 21v-3.5M8 14.5v-3M8 8.5c0-2.5 1.5-4.5 4.5-4.5M15.5 4c1.8 0 3 .8 3.5 2"/><circle cx="8" cy="21" r=".9"/><circle cx="8" cy="16" r=".9"/><circle cx="8" cy="11.5" r=".9"/><circle cx="9.5" cy="6.3" r=".9"/><circle cx="14" cy="4" r=".9"/><circle cx="18.5" cy="5.5" r=".9"/>',
   practice: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".9"/><path d="M12 1.5v4M12 18.5v4M1.5 12h4M18.5 12h4"/>',
+  music:   '<path d="M9 18V5.5l11-2.5v12.5"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="15.5" r="2.5"/><path d="M9 9l11-2.5"/>',
   economy: '<circle cx="12" cy="12" r="9"/><path d="M15 8.5c-.6-1-1.7-1.5-3-1.5-1.8 0-3 .9-3 2.3 0 3.2 6.2 1.8 6.2 5 0 1.4-1.3 2.4-3.2 2.4-1.4 0-2.6-.6-3.2-1.7M12 5v2M12 17v2"/>',
   gear:    '<rect x="2.5" y="8" width="19" height="10" rx="1.5"/><path d="M5.5 11h1M8.5 11h1M11.5 11h1M14.5 11h1M17.5 11h1M5.5 14h1M17.5 14h1M8.5 14h7"/><path d="M12 8V5.5c0-1.2 1-2 2.5-2"/>'
 };
@@ -2772,6 +2787,7 @@ const PANTRY = [
   { id:'gear',       name:'Gear' },
   { id:'spray',      name:'Spray' },
   { id:'practice',   name:'Practice' },
+  { id:'music',      name:'Music Kits' },
   { id:'economy',    name:'Economy' }
 ];
 // page: 'map' | 'ing' | 'pantry' (mid = section id) | 'other' (no map); null hides the bar
@@ -3478,6 +3494,239 @@ function ecoHtml(){
     <div class="panel"><h2>Round money</h2>${facts(ECO_ROUND)}</div>
     <div class="panel"><h2>Kill rewards</h2>${facts(ECO_KILLS)}</div>`;
 }
+/* ---------- Music Kits: every kit's MVP anthem, played from a folder on this PC ---------- */
+// [kit folder in sounds/music, name, anthem files]; audio is exported from the player's own CS2 (MK_BAT), never stored in the book
+const MK_KITS = [
+  ["3kliksphilip_01", "3kliksphilip, Heading for the Source", ["roundmvpanthem_01"]],
+  ["adambeyer_01", "Adam Beyer, Red Room", ["roundmvpanthem_01"]],
+  ["alrt_01", "ALRT, DOPAMINE HIT", ["roundmvpanthem_01", "roundmvpanthem_02"]],
+  ["altare_01", "Altare, Change My Mind", ["roundmvpanthem_01", "roundmvpanthem_02"]],
+  ["amontobin_01", "Amon Tobin, All for Dust", ["roundmvpanthem_01"]],
+  ["austinwintory_02", "Austin Wintory, Bachram", ["roundmvpanthem_01"]],
+  ["austinwintory_01", "Austin Wintory, Desert Fire", ["roundmvpanthem_01"]],
+  ["austinwintory_03", "Austin Wintory, Mocha Petal", ["roundmvpanthem_01", "roundmvpanthem_02"]],
+  ["austinwintory_04", "Austin Wintory, The Devil Went Clubbing In Georgia", ["roundmvpanthem_01"]],
+  ["awolnation_01", "AWOLNATION, I Am", ["roundmvpanthem_01"]],
+  ["bbnos_01", "bbno$, u mad!", ["roundmvpanthem", "roundmvpanthem_01"]],
+  ["beartooth_01", "Beartooth, Disgusting", ["roundmvpanthem_01"]],
+  ["benbromfield_01", "Ben Bromfield, Rabbit Hole", ["roundmvpanthem_01"]],
+  ["borne_01", "borne, Give It To Me", ["roundmvpanthem_01", "roundmvpanthem_02"]],
+  ["chipzel_01", "Chipzel, ~Yellow Magic~", ["roundmvpanthem_01"]],
+  ["damjanmravunac_01", "Damjan Mravunac, The Talos Principle", ["roundmvpanthem_01"]],
+  ["danielsadowski_01", "Daniel Sadowski, Crimson Assault", ["roundmvpanthem_01"]],
+  ["danielsadowski_05", "Daniel Sadowski, Dead Shot", ["roundmvpanthem_01"]],
+  ["danielsadowski_04", "Daniel Sadowski, Eye of the Dragon", ["roundmvpanthem_01"]],
+  ["danielsadowski_03", "Daniel Sadowski, The 8-Bit Kit", ["roundmvpanthem_01"]],
+  ["danielsadowski_02", "Daniel Sadowski, Total Domination", ["roundmvpanthem_01"]],
+  ["hades_01", "Darren Korb, Hades Music Kit", ["roundmvpanthem_01"]],
+  ["darude_01", "Darude, Moments CS:GO", ["roundmvpanthem_01"]],
+  ["denzelcurry_01", "Denzel Curry, ULTIMATE", ["roundmvpanthem_01"]],
+  ["dren_03", "Dren McDonald, Coffee! Kofe! Kahveh!", ["roundmvpanthem_01"]],
+  ["dren_01", "Dren, Death's Head Demolition", ["roundmvpanthem_01"]],
+  ["dren_02", "Dren, Gunman Taco Truck", ["roundmvpanthem_01"]],
+  ["dryden_01", "DRYDEN, Feel The Power", ["roundmvpanthem_01"]],
+  ["feedme_01", "Feed Me, High Noon", ["roundmvpanthem_01"]],
+  ["freakydna_01", "Freaky DNA, Vici", ["roundmvpanthem_01"]],
+  ["ghost_01", "Ghost, Skeletá", ["roundmvpanthem_01"]],
+  ["hlalyx_01", "Half-Life: Alyx, Anti-Citizen", ["roundmvpanthem_01"]],
+  ["halo_01", "Halo, The Master Chief Collection", ["roundmvpanthem_01"]],
+  ["health_01", "HEALTH, RAT WARS", ["roundmvpanthem_01"]],
+  ["hlb_01", "Humanity's Last Breath, Void", ["roundmvpanthem_01"]],
+  ["ianhultquist_01", "Ian Hultquist, Lion's Mouth", ["roundmvpanthem_01"]],
+  ["isoxo_01", "ISOxo, inhuman", ["roundmvpanthem_01"]],
+  ["jamesandthecoldgun_01", "James and the Cold Gun, Chewing Glass", ["roundmvpanthem_01"]],
+  ["jesseharlin_01", "Jesse Harlin, Astro Bellum", ["roundmvpanthem_01"]],
+  ["jonathanyoung_01", "Jonathan Young, Starship Velociraptor", ["roundmvpanthem_01"]],
+  ["juelz_02", "Juelz, Floorspace", ["roundmvpanthem_01"]],
+  ["juelz_01", "Juelz, Shooters", ["roundmvpanthem_01"]],
+  ["kellybailey_01", "Kelly Bailey, Hazardous Environments", ["roundmvpanthem_01"]],
+  ["kitheory_01", "Ki:Theory, MOLOTOV", ["roundmvpanthem_01"]],
+  ["killscript_01", "KILL SCRIPT, All Night", ["roundmvpanthem_01"]],
+  ["killermike_01", "Killer Mike, MICHAEL", ["roundmvpanthem_01"]],
+  ["knock2_01", "Knock2, dashstar*", ["roundmvpanthem_01"]],
+  ["knock2_02", "Knock2, Make U SWEAT!", ["roundmvpanthem_01"]],
+  ["laurashigihara_01", "Laura Shigihara: Work Hard, Play Hard", ["roundmvpanthem_01"]],
+  ["lenniemoore_01", "Lennie Moore, Java Havana Funkaloo", ["roundmvpanthem_01"]],
+  ["mateomessina_01", "Mateo Messina, For No Mankind", ["roundmvpanthem_01", "roundmvpanthem_02", "roundmvpanthem_03"]],
+  ["mattlange_01", "Matt Lange, IsoRhythm", ["roundmvpanthem_01", "roundmvpanthem_02"]],
+  ["mattlevine_02", "Matt Levine, Agency", ["roundmvpanthem_01"]],
+  ["mattlevine_01", "Matt Levine, Drifter", ["roundmvpanthem_01"]],
+  ["meechydarko_01", "Meechy Darko, Gothic Luxury", ["roundmvpanthem_01"]],
+  ["michaelbross_01", "Michael Bross, Invasion!", ["roundmvpanthem_01"]],
+  ["midnightriders_01", "Midnight Riders, All I Want for Christmas", ["roundmvpanthem_01"]],
+  ["mordfustang_01", "Mord Fustang, Diamonds", ["roundmvpanthem_01"]],
+  ["neckdeep_02", "Neck Deep, The Lowlife Pack", ["roundmvpanthem_01"]],
+  ["newbeatfund_01", "New Beat Fund, Sponge Fingerz", ["roundmvpanthem_01"]],
+  ["noisia_01", "Noisia, Sharpened", ["roundmvpanthem_01", "roundmvpanthem_02"]],
+  ["perfectworld_02", "Perfect World, Ay Hey", ["roundmvpanthem_01"]],
+  ["perfectworld_01", "Perfect World, 花脸 Hua Lian (Painted Face)", ["roundmvpanthem_01"]],
+  ["pirapus_01", "Pirapus, EVERYNITE", ["roundmvpanthem_01", "roundmvpanthem_02"]],
+  ["proxy_01", "Proxy, Battlepack", ["roundmvpanthem_01"]],
+  ["pvris_01", "PVRIS, Evergreen", ["roundmvpanthem_01"]],
+  ["radcat_01", "Rad Cat, Reason", ["roundmvpanthem_01"]],
+  ["repiet_01", "Repiet & Julia Kleijn, On And On", ["roundmvpanthem_01", "roundmvpanthem_02"]],
+  ["robertallaire_01", "Robert Allaire, Insurgency", ["roundmvpanthem_01"]],
+  ["sammarshall_01", "Sam Marshall, Bodacious", ["roundmvpanthem_01"]],
+  ["sammarshall_02", "Sam Marshall, Clutch", ["roundmvpanthem_01"]],
+  ["sarahschachner_01", "Sarah Schachner, KOLIBRI", ["roundmvpanthem_01"]],
+  ["sasha_01", "Sasha, LNOE", ["roundmvpanthem_01"]],
+  ["scarlxrd_02", "Scarlxrd, CHAIN$AW.LXADXUT.", ["roundmvpanthem_01"]],
+  ["scarlxrd_01", "Scarlxrd: King, Scar", ["roundmvpanthem_01"]],
+  ["seanmurray_01", "Sean Murray, A*D*8", ["roundmvpanthem_01"]],
+  ["selectiveresponse_01", "Selective Response, No Love Only Pleasure", ["roundmvpanthem_01"]],
+  ["shockone_01", "ShockOne, Voices", ["roundmvpanthem_01", "roundmvpanthem_02"]],
+  ["skog_02", "Skog, II-Headshot", ["roundmvpanthem_01"]],
+  ["skog_01", "Skog, Metal", ["roundmvpanthem_01"]],
+  ["starjunk95_01", "Starjunk 95, Industrial Sunset Memories", ["roundmvpanthem_01", "roundmvpanthem_02"]],
+  ["sullivanking_01", "Sullivan King, Lock Me Up", ["roundmvpanthem_01"]],
+  ["theverkkars_02", "The Verkkars & n0thing, Flashbang Dance", ["roundmvpanthem_01"]],
+  ["theverkkars_01", "The Verkkars, EZ4ENCE", ["roundmvpanthem_01"]],
+  ["tigercub_01", "Tigercub, The Perfume of Decay", ["roundmvpanthem_01"]],
+  ["timhuling_02", "Tim Huling, Devil's Paintbrush", ["roundmvpanthem_01"]],
+  ["timhuling_01", "Tim Huling, Neo Noir", ["roundmvpanthem_01"]],
+  ["treeadams_benbromfield_01", "Tree Adams and Ben Bromfield, M.U.D.D. FORCE", ["roundmvpanthem_01"]],
+  ["treeadams_01", "Tree Adams, Seventh Moon", ["roundmvpanthem_01"]],
+  ["troelsfolmann_01", "Troels Folmann, Uber Blasto Phone", ["roundmvpanthem_01"]],
+  ["twerl_01", "TWERL, Ekko & Sidetrack, Under Bright Lights", ["roundmvpanthem_01"]],
+  ["valve_cs2_01", "Valve, Counter-Strike 2", ["roundmvpanthem_01"]],
+  ["valve_01", "Valve, CS:GO", ["roundmvpanthem_01"]],
+  ["valve_02", "Valve, CS:GO 2", ["roundmvpanthem_01"]],
+  ["hotlinemiami_01", "Various Artists, Hotline Miami", ["roundmvpanthem_01", "roundmvpanthem_02"]]
+];
+const MK_BAT = [
+  '@echo off',
+  'rem Exports every music kit MVP anthem from your CS2 install, using Source 2 Viewer CLI.',
+  'setlocal',
+  'set "OUT=%USERPROFILE%\\Music\\CS2 MVP anthems"',
+  'set "T=%TEMP%\\s2v-cli"',
+  'echo Downloading Source 2 Viewer CLI...',
+  'powershell -NoProfile -Command "$ErrorActionPreference=\'Stop\'; $ProgressPreference=\'SilentlyContinue\'; New-Item -Force -ItemType Directory $env:T | Out-Null; Invoke-WebRequest \'https://github.com/ValveResourceFormat/ValveResourceFormat/releases/latest/download/cli-windows-x64.zip\' -OutFile \\"$env:T\\cli.zip\\"; Expand-Archive -Force \\"$env:T\\cli.zip\\" $env:T"',
+  'if errorlevel 1 goto fail',
+  'echo Exporting MVP anthems...',
+  '"%T%\\Source2Viewer-CLI.exe" -i "steam:730/game/csgo/pak01_dir.vpk" -o "%T%\\out" -d -e vsnd_c -f "sounds/music/*/roundmvpanthem*" -q',
+  'powershell -NoProfile -Command "$ErrorActionPreference=\'Stop\'; New-Item -Force -ItemType Directory $env:OUT | Out-Null; Get-ChildItem \\"$env:T\\out\\sounds\\music\\" -Recurse -Include *.mp3,*.wav | ForEach-Object { Copy-Item $_.FullName (Join-Path $env:OUT ($_.Directory.Name + \'__\' + $_.Name)) -Force }"',
+  'if errorlevel 1 goto fail',
+  'echo Done. Pick this folder in the cookbook: %OUT%',
+  'explorer "%OUT%"',
+  'pause',
+  'exit /b 0',
+  ':fail',
+  'echo Something went wrong, see the message above.',
+  'pause',
+  'exit /b 1'
+].join('\r\n') + '\r\n';
+let mkFiles = null, mkAudio = null, mkNow = null, mkUrl = null, mkHandle = null, mkRaf = 0;
+const mkKey = (k, a) => k + '|' + a;
+const mkIdb = (mode, fn) => new Promise((ok, no) => {
+  try {
+    const r = indexedDB.open('cookbook', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('kv');
+    r.onsuccess = () => { const tx = r.result.transaction('kv', mode); const q = fn(tx.objectStore('kv')); tx.oncomplete = () => ok(q && q.result); tx.onerror = () => no(tx.error); };
+    r.onerror = () => no(r.error);
+  } catch(e){ no(e); }
+});
+// exported files are named <kit>__roundmvpanthem_01.mp3; files still in sounds/music/<kit>/ folders work too
+function mkAdd(map, file, path){
+  const m = /^(?:(.+?)__)?(roundmvpanthem[^.]*)\.(mp3|wav)$/i.exec(file.name);
+  if(!m) return;
+  const kit = (m[1] || path.split('/').slice(-2, -1)[0] || '').toLowerCase();
+  map[mkKey(kit, m[2].toLowerCase())] = file;
+}
+async function mkScanDir(dir, path, map){
+  for await (const h of dir.values()){
+    if(h.kind === 'directory') await mkScanDir(h, path + h.name + '/', map);
+    else mkAdd(map, await h.getFile(), path + h.name);
+  }
+}
+async function mkUseDir(h){
+  const map = {};
+  await mkScanDir(h, '', map);
+  mkFiles = map; mkHandle = h;
+  if(curPantry() === 'music') viewPantry('music');
+}
+const curPantry = () => (location.hash.match(/^#\/pantry\/(\w+)/) || [])[1];
+window.mkPick = async () => {
+  if(window.showDirectoryPicker){
+    let h;
+    try { h = await showDirectoryPicker({ id:'mvp', startIn:'music' }); } catch(e){ return; }
+    mkIdb('readwrite', s => s.put(h, 'mvpDir')).catch(() => {});
+    await mkUseDir(h);
+  } else document.getElementById('mk-input').click();
+};
+window.mkInput = inp => {
+  const map = {};
+  for(const f of inp.files) mkAdd(map, f, f.webkitRelativePath || f.name);
+  mkFiles = map;
+  viewPantry('music');
+};
+// Chrome keeps the folder handle; after a reload it needs one click to allow reading it again
+window.mkReconnect = async () => {
+  try { if(await mkHandle.requestPermission({ mode:'read' }) === 'granted') await mkUseDir(mkHandle); } catch(e){}
+};
+async function mkRestore(){
+  if(mkFiles || mkHandle || !window.showDirectoryPicker) return;
+  try {
+    const h = await mkIdb('readonly', s => s.get('mvpDir'));
+    if(!h) return;
+    mkHandle = h;
+    if(await h.queryPermission({ mode:'read' }) === 'granted') await mkUseDir(h);
+    else if(curPantry() === 'music') viewPantry('music');
+  } catch(e){}
+}
+window.mkSaveBat = () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([MK_BAT], { type:'application/octet-stream' }));
+  a.download = 'export-mvp-anthems.bat';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+};
+function mkStop(){
+  if(mkAudio){ mkAudio.pause(); mkAudio = null; }
+  if(mkUrl){ URL.revokeObjectURL(mkUrl); mkUrl = null; }
+  cancelAnimationFrame(mkRaf);
+  document.querySelectorAll('.mk.on').forEach(el => { el.classList.remove('on'); el.style.removeProperty('--p'); });
+  mkNow = null;
+}
+window.mkPlay = (i, a) => {
+  const [kit, , anthems] = MK_KITS[i], name = anthems[a || 0], key = mkKey(kit, name);
+  if(!mkFiles){ mkHandle ? mkReconnect() : mkPick(); return; }
+  const file = mkFiles[key];
+  if(!file) return;
+  if(mkNow === key){ mkStop(); return; }
+  mkStop();
+  mkNow = key;
+  mkUrl = URL.createObjectURL(file);
+  mkAudio = new Audio(mkUrl);
+  const el = document.querySelector(`[data-mk="${i}"]`);
+  el && el.classList.add('on');
+  el && el.querySelectorAll('.mk-n').forEach((b, j) => b.classList.toggle('on', j === (a || 0)));
+  const tick = () => {
+    if(!mkAudio) return;
+    if(el && mkAudio.duration) el.style.setProperty('--p', (mkAudio.currentTime / mkAudio.duration * 100).toFixed(2) + '%');
+    mkRaf = requestAnimationFrame(tick);
+  };
+  mkAudio.onended = mkStop;
+  mkAudio.play().then(tick, mkStop);
+};
+function mkHtml(){
+  mkRestore();
+  const n = mkFiles ? MK_KITS.filter(([k, , a]) => a.some(x => mkFiles[mkKey(k, x)])).length : 0;
+  const top = mkFiles
+    ? (n ? '' : `<div class="savepath"><b>No anthems found in that folder.</b><button onclick="mkPick()">Pick folder</button></div>`)
+    : `<div class="savepath"><b>Anthems</b><code>%USERPROFILE%\\Music\\CS2 MVP anthems</code>
+        ${mkHandle ? '<button onclick="mkReconnect()">Load folder</button>' : '<button onclick="mkPick()">Pick folder</button>'}
+        <button onclick="mkSaveBat()">Export script</button>
+        <span>First time: run the export script (CS2 installed through Steam). It saves every MVP anthem from your game into that folder. Then pick the folder.</span></div>`;
+  return `<div class="panel">${top}
+    <input id="mk-input" type="file" webkitdirectory multiple hidden onchange="mkInput(this)">
+    <div class="mk-grid${mkFiles ? '' : ' off'}">${MK_KITS.map(([k, name, a], i) => {
+      const miss = mkFiles && !a.some(x => mkFiles[mkKey(k, x)]);
+      return `<div class="mk${miss ? ' miss' : ''}" data-mk="${i}" onclick="mkPlay(${i})">
+        <i class="mk-ic"></i><b>${esc(name)}</b>
+        ${a.length > 1 ? `<span class="mk-ns">${a.map((x, j) => `<button class="mk-n" onclick="event.stopPropagation();mkPlay(${i},${j})">${j + 1}</button>`).join('')}</span>` : ''}
+      </div>`;
+    }).join('')}</div></div>`;
+}
 const PANTRY_VIEWS = {
   audio: () => `<div class="panel">${facts(AUDIO)}</div>`,
   video: () => `<div class="panel">${facts([...VIDEO_LATENCY, ...VIDEO_REST])}</div>`,
@@ -3523,6 +3772,7 @@ const PANTRY_VIEWS = {
         <pre class="cfg">${esc(c.text)}</pre>
       </div>`).join(''),
   keybinds: () => kbHtml(),
+  music: () => mkHtml(),
   economy: () => ecoHtml(),
   spray: () => sprayHtml(),
   practice: () => ssHtml(),
