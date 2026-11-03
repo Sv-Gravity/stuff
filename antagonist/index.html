@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Antagonist</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #1b130c; overflow: hidden; font-family: system-ui, sans-serif; color: #f0e6d2; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+  #menu { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 50% 40%, rgba(60,40,20,0.85), rgba(10,6,3,0.96)); }
+  #menu.hidden { display: none; }
+  .card { width: min(520px, calc(100vw - 32px)); padding: 28px; border-radius: 16px; background: rgba(30,20,10,0.9); border: 1px solid #5a4126; box-shadow: 0 20px 60px rgba(0,0,0,0.6); box-sizing: border-box; }
+  h1 { margin: 0 0 4px; font-size: 44px; letter-spacing: 2px; color: #ffd27a; }
+  h1 span { color: #ff6b6b; }
+  .tag { margin: 0 0 18px; color: #cbb89a; }
+  label { display: block; margin: 12px 0 4px; font-size: 13px; color: #cbb89a; }
+  input[type=text], select { width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; border: 1px solid #5a4126; background: #140d06; color: #f0e6d2; font-size: 15px; }
+  input[type=range] { width: 100%; }
+  button { margin-top: 20px; width: 100%; padding: 12px; font-size: 18px; font-weight: bold; border: 0; border-radius: 10px; background: #ffd27a; color: #2a1a0c; cursor: pointer; }
+  button:hover { background: #ffe0a0; }
+  .how { margin-top: 18px; font-size: 13px; line-height: 1.5; color: #bfae92; }
+  .how b { color: #f0e6d2; }
+  .row { display: flex; gap: 12px; } .row > div { flex: 1; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="menu">
+  <div class="card">
+    <h1>ANT<span>AGONIST</span></h1>
+    <p class="tag">You're a stickman the size of an ant. Haul the giant food home together. One of you is a traitor.</p>
+    <label for="name">Your name</label>
+    <input id="name" type="text" maxlength="12" value="You">
+    <label for="count">Ants in the colony: <b id="countLabel">6</b> (you + bots)</label>
+    <input id="count" type="range" min="4" max="10" value="6">
+    <div class="row">
+      <div>
+        <label for="role">Your role</label>
+        <select id="role"><option value="random">Random</option><option value="worker">Always worker</option><option value="traitor">Always traitor</option></select>
+      </div>
+      <div>
+        <label for="mode">Traitor</label>
+        <select id="mode"><option value="same">Same traitor all match</option><option value="shuffle">New traitor each round</option></select>
+      </div>
+    </div>
+    <button id="start">Start match</button>
+    <div class="how">
+      <b>Workers:</b> explore the yard, find the big food, grab it (Space) and push toward the nest. Everyone's push adds up, so one ant pulling the wrong way slows the whole team. Bring crumbs home for extra time.<br>
+      <b>Traitor:</b> you always know where the food is. Grab on and drag it the wrong way, trip ants off it (Q), eat crumbs (Q). Run out the clock.<br>
+      <b>Accuse:</b> stand next to an ant and press V. If a majority accuses the same ant they get webbed. Wrong guess and the accusers lose their vote for the round.<br>
+      First side to 3 points wins.
+    </div>
+  </div>
+</div>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
