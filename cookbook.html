@@ -174,7 +174,8 @@
   .row .detail{color:var(--muted);font-weight:400;font-size:14px}
   .done{color:var(--ok);font-size:13px}
   .empty{border:1px dashed var(--line);border-radius:12px;padding:28px;color:var(--muted);text-align:center}
-  .flink{display:inline-block;margin-top:4px;font-size:13px;color:var(--accent);text-decoration:none}
+  .flink{display:inline-block;font-size:13px;color:var(--accent);text-decoration:none}
+  .fact .ft .flink{display:block;width:max-content;margin-top:4px}
   .flink:hover{text-decoration:underline}
   .ab{margin:0 0 18px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--panel)}
   .ab-v{position:relative;aspect-ratio:16/9;cursor:pointer;user-select:none}
@@ -2858,7 +2859,7 @@ const VIDEO_LATENCY = [
   { what:'FidelityFX Super Resolution', val:'Disabled', why:'Upscaling adds a pass and softens the image. Native is the goal.' }
 ];
 const VIDEO_REST = [
-  { what:'Boost Player Contrast', val:'Disabled (user preference)', link:['#/pantry/video/contrast', 'Compare Enabled and Disabled'] },
+  { what:'Boost Player Contrast', val:'Disabled (user preference)', link:['#/pantry/video/contrast', 'Compare &rarr;'] },
   { what:'Global Shadow Quality', val:'High', why:'Costs frame time, bought on purpose: enemy shadows round corners before the player does.' },
   { what:'Dynamic Shadows', val:'All', why:'Indoor lights cast player shadows too, so you can spot people around corners in tunnels and rooms. Small frame cost.' },
   { what:'Model / Texture Detail', val:'Low', why:'Fewer draw calls, which helps a CPU-bound game slightly.' },
@@ -3481,7 +3482,7 @@ function ssDraw(){
 }
 
 const facts = list => list.map(v => `<div class="fact">
-        <div class="ft"><b>${esc(v.what)}</b>${v.why ? `<span>${esc(v.why)}</span>` : ''}${v.link ? `<a class="flink" href="${v.link[0]}">${esc(v.link[1])}</a>` : ''}${v.list ? `<div class="vlist">${v.list.map(([k,x]) => `<div><span>${esc(k)}</span><b>${esc(x)}</b></div>`).join('')}</div>` : ''}</div>
+        <div class="ft"><b>${esc(v.what)}</b>${v.why ? `<span>${esc(v.why)}</span>` : ''}${v.link ? `<a class="flink" href="${v.link[0]}">${v.link[1]}</a>` : ''}${v.list ? `<div class="vlist">${v.list.map(([k,x]) => `<div><span>${esc(k)}</span><b>${esc(x)}</b></div>`).join('')}</div>` : ''}</div>
         ${v.val ? `<div class="fv">${esc(v.val)}</div>` : ''}</div>`).join('');
 // CS2 competitive money (game/csgo/cfg/gamemode_competitive.cfg + scripts/weapons.vdata, checked 2026-11-02)
 const ECO_ROUND = [
