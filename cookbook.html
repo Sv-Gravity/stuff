@@ -174,6 +174,17 @@
   .row .detail{color:var(--muted);font-weight:400;font-size:14px}
   .done{color:var(--ok);font-size:13px}
   .empty{border:1px dashed var(--line);border-radius:12px;padding:28px;color:var(--muted);text-align:center}
+  .flink{display:inline-block;margin-top:4px;font-size:13px;color:var(--accent);text-decoration:none}
+  .flink:hover{text-decoration:underline}
+  .ab{margin:0 0 18px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--panel)}
+  .ab-v{position:relative;aspect-ratio:16/9}
+  .ab-v img{display:block;width:100%;height:100%;object-fit:cover}
+  .ab-a{position:absolute;inset:0;clip-path:inset(0 calc(100% - var(--x)) 0 0)}
+  .ab-bar{position:absolute;top:0;bottom:0;left:var(--x);width:2px;margin-left:-1px;background:var(--accent);pointer-events:none}
+  .ab-l,.ab-r{position:absolute;top:10px;padding:3px 8px;border-radius:6px;background:rgba(18,21,26,.75);font-size:12px;font-weight:600;pointer-events:none}
+  .ab-l{left:10px}.ab-r{right:10px}
+  .ab-v input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:ew-resize}
+  .ab figcaption{border-top:1px solid var(--line)}
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:18px}
   .panel h2{margin:0 0 10px;font-size:15px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
   .panel.bon figure{border:0;border-radius:0;background:none}
@@ -2826,7 +2837,7 @@ const VIDEO_LATENCY = [
   { what:'FidelityFX Super Resolution', val:'Disabled', why:'Upscaling adds a pass and softens the image. Native is the goal.' }
 ];
 const VIDEO_REST = [
-  { what:'Boost Player Contrast', val:'Disabled', why:'No difference you would notice in a fight, and it can cost up to 0.1 ms.' },
+  { what:'Boost Player Contrast', val:'Disabled (user preference)', link:['#/pantry/video/contrast', 'Compare Enabled and Disabled'] },
   { what:'Global Shadow Quality', val:'High', why:'Costs frame time, bought on purpose: enemy shadows round corners before the player does.' },
   { what:'Dynamic Shadows', val:'All', why:'Indoor lights cast player shadows too, so you can spot people around corners in tunnels and rooms. Small frame cost.' },
   { what:'Model / Texture Detail', val:'Low', why:'Fewer draw calls, which helps a CPU-bound game slightly.' },
@@ -3448,7 +3459,7 @@ function ssDraw(){
 }
 
 const facts = list => list.map(v => `<div class="fact">
-        <div class="ft"><b>${esc(v.what)}</b>${v.why ? `<span>${esc(v.why)}</span>` : ''}${v.list ? `<div class="vlist">${v.list.map(([k,x]) => `<div><span>${esc(k)}</span><b>${esc(x)}</b></div>`).join('')}</div>` : ''}</div>
+        <div class="ft"><b>${esc(v.what)}</b>${v.why ? `<span>${esc(v.why)}</span>` : ''}${v.link ? `<a class="flink" href="${v.link[0]}">${esc(v.link[1])}</a>` : ''}${v.list ? `<div class="vlist">${v.list.map(([k,x]) => `<div><span>${esc(k)}</span><b>${esc(x)}</b></div>`).join('')}</div>` : ''}</div>
         ${v.val ? `<div class="fv">${esc(v.val)}</div>` : ''}</div>`).join('');
 // CS2 competitive money (game/csgo/cfg/gamemode_competitive.cfg + scripts/weapons.vdata, checked 2026-11-02)
 const ECO_ROUND = [
@@ -3529,9 +3540,23 @@ const PANTRY_VIEWS = {
   gear: () => `<div class="panel">${GEAR.map(g => `<div class="fact">
         <div class="ft"><span class="gk">${esc(g.kind)}</span><b class="gn">${esc(g.name)}</b>${g.why ? `<span>${esc(g.why)}</span>` : ''}</div></div>`).join('')}</div>`
 };
+// Boost Player Contrast A/B: same spot and view, Disabled vs Enabled. Drag to wipe between them.
+const CONTRAST = [];
+const abHtml = p => `<figure class="ab"><div class="ab-v" style="--x:50%">
+      <img src="${imgUrl(p.on)}" alt="Enabled" decoding="async">
+      <div class="ab-a"><img src="${imgUrl(p.off)}" alt="Disabled" decoding="async"></div>
+      <i class="ab-bar" aria-hidden="true"></i>
+      <span class="ab-l">Disabled</span><span class="ab-r">Enabled</span>
+      <input type="range" min="0" max="100" value="50" aria-label="Disabled to Enabled"
+        oninput="this.parentNode.style.setProperty('--x', this.value + '%')"></div>
+      ${p.caption ? `<figcaption>${esc(p.caption)}</figcaption>` : ''}</figure>`;
+const contrastHtml = () => `<a class="flink" href="#/pantry/video">&larr; Video</a>
+    <h1 style="margin:8px 0 18px">Boost Player Contrast</h1>
+    ${CONTRAST.length ? CONTRAST.map(abHtml).join('') : '<div class="panel"><p class="sub" style="margin:0">Pictures coming.</p></div>'}`;
 const pantryId = id => PANTRY.some(t => t.id === id) ? id : PANTRY[0].id;
-function viewPantry(id){
+function viewPantry(id, sub){
   const t = PANTRY.find(x => x.id === pantryId(id));
+  if(t.id === 'video' && sub === 'contrast'){ app.innerHTML = contrastHtml(); return; }
   // Practice has no heading, so the window and its results fit on one screen
   app.innerHTML = (t.id === 'practice' ? '' : `<h1 style="margin-bottom:18px">${esc(t.title || t.name)}</h1>`) + PANTRY_VIEWS[t.id]();
   if(t.id === 'spray') sprayPlay();
@@ -3800,7 +3825,7 @@ function render(keepScroll){
   if(!a) viewHome();
   else if(a==='map' && b) viewMap(b);
   else if(a==='entry' && b) viewEntry(b);
-  else if(a==='pantry') viewPantry(b);
+  else if(a==='pantry') viewPantry(b, c);
   else if(a==='ingredients') viewIngredients(b || 'inferno');
   else if(a==='times') viewIngredients('inferno');
   else viewHome();
