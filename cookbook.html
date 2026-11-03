@@ -133,6 +133,21 @@
   .tp-row.dim{color:#7a8595}
   .tp-row.dim .tp-val{font-family:inherit;font-weight:400;font-size:15px;color:#7a8595}
   .tp-card:hover .tp-name,.tp-row:hover .tp-name{color:var(--accent)}
+  /* front-page search: every lineup across all maps */
+  .srch{margin-bottom:16px}
+  .srch input{display:block;width:100%;box-sizing:border-box;font:600 18px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--text);
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 20px;outline:none}
+  .srch input::placeholder{color:var(--muted);font-weight:400}
+  .srch input:focus{border-color:var(--accent)}
+  .srch input::-webkit-search-cancel-button{-webkit-appearance:none;width:16px;height:16px;cursor:pointer;
+    background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 3l10 10M13 3 3 13' stroke='%238c98a9' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") center/16px no-repeat}
+  .srch .row .tags{flex-basis:140px}
+  .srch .list{margin-top:10px}
+  .srch .row.sel{border-color:var(--accent)}
+  .srch .where{color:var(--muted);font-size:13px;white-space:nowrap}
+  .srch mark{background:none;color:var(--accent)}
+  .srch .empty{margin-top:10px}
+  @media(max-width:560px){ .srch .row{flex-wrap:wrap} .srch .row .tags{flex:0 0 100%} }
   .card:hover{border-color:var(--accent);transform:translateY(-2px)}
   .card h3{margin:0 0 4px;font-size:18px}
   .card .meta{color:var(--muted);font-size:13px}
@@ -3675,9 +3690,62 @@ function viewHome(){
     <h1 class="tp-title"><span>Fire</span> in the Hole</h1>
     <div class="tp-sub">A COOKBOOK</div>
     <div class="tp-art"><img src="${imgUrl(HOME_ART)}" alt="" decoding="async"></div>
+    <div class="srch"><input id="srch" type="search" placeholder="Search lineups" autocomplete="off" spellcheck="false"
+      value="${esc(SEARCH.q)}" oninput="searchInput(this.value)" onkeydown="searchKey(event)"><div id="srchOut"></div></div>
+    <div id="srchHide">
     <a class="tp-card" href="#/pantry"><span class="tp-name">The Pantry</span></a>
     <div class="tp-list">${rows}</div>
+    </div>
   </div>`;
+  if(SEARCH.q) searchInput(SEARCH.q);
+}
+
+/* search: every word must match somewhere in the lineup; name hits rank first */
+const SEARCH = {q: '', hits: [], sel: 0};
+const fold = t => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+function searchText(e){
+  if(e._st) return e._st;
+  const m = getMap(e.map);
+  const secs = sectionsOf(e).map(id => (m.sections.find(x => x.id === id) || {}).name || id);
+  const caps = (e.images || []).concat(...(e.stages || []).map(g => g.images || [])).map(i => i.caption).filter(c => c && c !== 'Bon appétit');
+  return e._st = {
+    name: fold([entryName(e), e.location].join(' ')),
+    rest: fold([m.name, ...secs, ...typesOf(e), e.side, e.detail, e.notes, ...(e.steps || []), ...caps,
+      ...actionsOf(e).map(a => ACT_LABEL[a])].join(' '))
+  };
+}
+function searchInput(q){
+  SEARCH.q = q; SEARCH.sel = 0;
+  const out = document.getElementById('srchOut'), hide = document.getElementById('srchHide');
+  const words = fold(q).split(/\s+/).filter(Boolean);
+  hide.style.display = words.length ? 'none' : '';
+  if(!words.length){ out.innerHTML = ''; SEARCH.hits = []; return; }
+  SEARCH.hits = ENTRIES.filter(e => !e.sample).map(e => {
+    const t = searchText(e); let score = 0;
+    for(const w of words){
+      if(t.name.includes(w)) score += 3; else if(t.rest.includes(w)) score += 1; else return null;
+    }
+    return {e, score};
+  }).filter(Boolean).sort((a, b) => b.score - a.score || MAPS.findIndex(m => m.id === a.e.map) - MAPS.findIndex(m => m.id === b.e.map)).map(h => h.e);
+  const mark = txt => { let h = esc(txt);
+    for(const w of words){ const re = new RegExp('(' + esc(w).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig'); h = h.replace(re, '<mark>$1</mark>'); }
+    return h; };
+  out.innerHTML = SEARCH.hits.length ? `<div class="list">${SEARCH.hits.map((e, i) => `
+    <a class="row${i === 0 ? ' sel' : ''}" href="#/entry/${esc(e.id)}">
+      <span class="tags">${typeTags(e)}</span>
+      <span class="name">${mark(entryName(e))}${e.detail ? ` <span class="detail">· ${mark(e.detail)}</span>` : ''}</span>
+      <span class="where">${esc(getMap(e.map).name)} · ${esc(e.side)}</span>
+    </a>`).join('')}</div>` : `<div class="empty">No lineups match.</div>`;
+}
+function searchKey(ev){
+  const rows = document.querySelectorAll('#srchOut .row'); if(!rows.length) return;
+  if(ev.key === 'ArrowDown' || ev.key === 'ArrowUp'){
+    ev.preventDefault();
+    rows[SEARCH.sel].classList.remove('sel');
+    SEARCH.sel = (SEARCH.sel + (ev.key === 'ArrowDown' ? 1 : rows.length - 1)) % rows.length;
+    rows[SEARCH.sel].classList.add('sel'); rows[SEARCH.sel].scrollIntoView({block: 'nearest'});
+  } else if(ev.key === 'Enter') location.hash = rows[SEARCH.sel].getAttribute('href');
+  else if(ev.key === 'Escape'){ ev.target.value = ''; searchInput(''); }
 }
 
 // map page order: section, then side, then type
