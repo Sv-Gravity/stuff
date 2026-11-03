@@ -16,6 +16,7 @@ thread while Ryu "thinks", so the frame never freezes.
 
 import math
 import random
+import sys
 import threading
 import time
 
@@ -513,9 +514,13 @@ class Connect4Scene:
 
         def run():
             box["move"] = self.brain.best_move(cur, mask)
+        self.ai = box
+        if sys.platform == "emscripten":
+            # no real threads in the browser build: think on the frame Ryu would move (_u_think)
+            box["sync"] = run
+            return
         th = threading.Thread(target=run, daemon=True)
         box["thread"] = th
-        self.ai = box
         th.start()
 
     # ---- update ----------------------------------------------------------
@@ -610,6 +615,8 @@ class Connect4Scene:
             self._go("pick")
 
     def _u_think(self, inp):
+        if self.phase_t >= THINK_MIN and self.ai and self.ai.get("sync"):
+            self.ai.pop("sync")()
         if self.phase_t >= THINK_MIN and self.ai and self.ai["move"] is not None:
             col = self.ai["move"]
             self.ai = None

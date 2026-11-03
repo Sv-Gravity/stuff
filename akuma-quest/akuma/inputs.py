@@ -12,11 +12,17 @@ the keyboard keeps working alongside them. Anything SDL doesn't know as a
 game controller falls back to a plain joystick with a best-guess layout.
 """
 
+import sys
+
 import pygame
 
+WEB = sys.platform == "emscripten"
 try:
     from pygame._sdl2 import controller as _ctrl
 except ImportError:                    # very old pygame / builds without it
+    _ctrl = None
+if WEB:
+    # in a browser every pad arrives as a plain joystick in the W3C "standard gamepad" layout
     _ctrl = None
 
 KEYMAP = {
@@ -51,6 +57,11 @@ if _ctrl is not None:
 # raw joystick fallback, numbered like XInput on Windows: A0 B1 X2 Y3 LB4 RB5 View6 Start7
 JOY_BUTTONS = {2: "punch", 0: "kick", 1: "special", 3: "special", 4: "punch", 5: "kick",
                6: "back", 7: "start", 8: "shield"}
+if WEB:
+    # browser standard gamepad: A0 B1 X2 Y3 LB4 RB5 LT6 RT7 View8 Start9 LS10 RS11, d-pad 12-15
+    JOY_BUTTONS = {2: "punch", 0: "kick", 1: "special", 3: "special", 4: "punch", 5: "kick",
+                   6: "shield", 7: "shield", 8: "back", 9: "start", 10: "shield",
+                   12: "up", 13: "down", 14: "left", 15: "right"}
 PAD_LEGEND = "PAD  X:PUNCH  A:KICK  B:SPECIAL  RT:SHIELD (I)"
 ATTACKS = ("punch", "kick", "special")
 DIRECTIONS = ("up", "down", "left", "right")
@@ -176,7 +187,7 @@ class Input:
                     _stick(held, x, -y)
                 if j.get_numaxes() >= 2:
                     _stick(held, j.get_axis(0), j.get_axis(1))
-                if j.get_numaxes() >= 6:      # XInput triggers rest at -1
+                if j.get_numaxes() >= 6 and not WEB:      # XInput triggers rest at -1
                     if max(j.get_axis(4), j.get_axis(5)) > 0:
                         held.add("shield")
                 for b, a in JOY_BUTTONS.items():

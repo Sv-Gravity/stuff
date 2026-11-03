@@ -16,9 +16,17 @@ A roguelike where every encounter turns into a Street Fighter–style duel, and 
 12. **Dust II**: Counter-Strike on a Dust 2 style map. Akuma is the lone terrorist, 1 vs 3: plant the bomb on A or B and keep the CTs off it. No guns, just hadoukens and fists.
 13. **Knee-Deep in the Demon**: Doom, shooting hadoukens. Boss: **Cyber-Gief**.
 
-The main menu has **Start Game**, **Practice** (Akuma vs a sparring Ryu), **Level** (a debug shortcut: press left/right to pick a level and start there) and **Quit**.
+The main menu has **Start Game**, **Practice** (Akuma vs a sparring Ryu), **Level** (a debug shortcut: press left/right to pick a level and start there) and **Quit** (not in the browser version).
 
 All the fighters use Toshi's sprite pack (`art_source/sprites/`): Akuma, and as enemies Ryu, Ken, Sakura, Felicia, Hsien-Ko, Zangief, Morrigan, Chun-Li and Dr. Doom (cut from Toshi's own Dr. Doom sheet by `tools/make_drdoom.py`). Each character's sheet is cut into frames in `akuma/assets/chars/<name>/`, with every engine pose mapped to a full animation (Akuma alone has about 200 drawings). Attack animations are stretched to fit each move's exact frame data, so every in-between drawing shows without changing the timing. The HUD shows both fighters' portraits. On the map everyone walks with their own walk cycle at half size, timed to the distance walked so feet never slide. Cars, Doom's first-person hands and the red fireballs and explosions come from Toshi's sheets too (`tools/make_cars.py`, `tools/make_doom_hands.py`, `tools/make_fx.py`). Tiles, stages and sound are drawn or synthesized by code.
+
+## Play it in your browser
+
+**https://sv-gravity.github.io/stuff/akuma-quest/play/**
+
+Open the link in Chrome, Edge or Firefox on a computer, wait for it to load (up to about 50 MB the first time, cached after that; it takes a little while), then click the page once to start. That click is what lets the browser play sound. Everything works the same as the desktop version: all 13 levels, practice, keyboard, and an Xbox / PlayStation pad (press any button on the pad once so the browser notices it). The browser version has no **Quit** item (close the tab instead) and no F11 toggle (use the browser's own full screen, F11 in most browsers).
+
+It's the same Python code, run in the browser by [pygbag](https://pygame-web.github.io) (Python and pygame compiled to WebAssembly). `web/build.sh` rebuilds `play/` from the current code; see [Build the web version](#build-the-web-version).
 
 ## Run it on Windows
 
@@ -234,10 +242,28 @@ Doom with hadoukens. A hell fortress in first person under a blood-red sky: gree
 
 The game runs a fixed 60 fps with frame-counted logic, like an arcade fighter: no variable timestep, so every move has exact frame data. It uses hitstop and screen shake on impact, renders at 320×180 and scales up with sharp pixels, and caches every sprite up front. A frame of gameplay takes about 1 ms of CPU.
 
+## Build the web version
+
+```
+pip install pygbag
+sh web/build.sh            # writes play/index.html + play/akuma-quest.apk
+sh web/build.sh --serve    # same, then serves it on http://localhost:8000
+```
+
+Commit `play/` and push to main; GitHub Pages serves it at the link above. The build copies only `main.py` and `akuma/` (no tests, tools or source art) and keeps the sprites lossless. Notes on the browser build:
+
+- `main.py` runs the async loop (`Game.run_async`) under Emscripten and the normal loop everywhere else. The browser loop steps the game at exactly 60 logic frames a second whatever the monitor's refresh rate.
+- numpy (levels 12 and 13) is listed in the `# /// script` block at the top of `main.py`, which pygbag reads to download it.
+- Browsers have no threads, so in Connect Four Ryu thinks on the frame he moves (a short pause) instead of in a background thread.
+- Pads arrive as browser "standard gamepads" (`inputs.py` maps those buttons separately).
+- Testing on localhost uses pygbag's developer package server; test through `127.0.0.1` or the real site instead.
+
 ## Project layout
 
 ```
-main.py            entry point
+main.py            entry point (desktop and browser)
+web/build.sh       builds the browser version into play/ with pygbag
+play/              the built browser version (served by GitHub Pages)
 run.bat            Windows launcher (installs pygame if needed)
 build_exe.bat      PyInstaller build of a standalone .exe
 akuma/

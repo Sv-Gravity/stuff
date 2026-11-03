@@ -3,6 +3,8 @@
 import random
 import sys
 
+WEB = sys.platform == "emscripten"     # running in a browser (pygbag)
+
 import pygame
 
 from . import audio
@@ -23,6 +25,8 @@ LAST_LEVEL = max(LEVELS)
 class Title:
     # LEVEL SELECT is a debug shortcut (Toshi asked for it while testing; easy to drop later)
     ITEMS = ["START GAME", "PRACTICE", "LEVEL SELECT", "QUIT"]
+    if WEB:                            # a browser tab can't be quit from inside the game
+        ITEMS = ITEMS[:-1]
 
     def __init__(self, game):
         self.game = game
@@ -62,7 +66,7 @@ class Title:
                 self.game.scene = PracticeScene(self.game)
             else:
                 self.game.running = False
-        elif inp.pressed("back"):
+        elif inp.pressed("back") and "QUIT" in self.ITEMS:
             # a pad's View button only jumps to QUIT, so one stray press can't close the game
             if "back" in inp.pad_pressed and self.ITEMS[self.i] != "QUIT":
                 self.i = self.ITEMS.index("QUIT")
@@ -162,7 +166,8 @@ class Game:
         audio.init()
         pygame.init()
         pygame.display.set_caption(TITLE)
-        flags = pygame.SCALED
+        # the browser page scales the canvas itself (see web/build.sh); SCALED there needs WebGL
+        flags = 0 if WEB else pygame.SCALED
         if fullscreen:
             flags |= pygame.FULLSCREEN
         try:
@@ -270,7 +275,7 @@ class Game:
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
                 self.running = False
-            elif ev.type == pygame.KEYDOWN and ev.key == pygame.K_F11:
+            elif ev.type == pygame.KEYDOWN and ev.key == pygame.K_F11 and not WEB:
                 pygame.display.toggle_fullscreen()
             elif ev.type == pygame.KEYDOWN and ev.key == pygame.K_F3:
                 self.show_fps = not self.show_fps
@@ -281,7 +286,8 @@ class Game:
             self.run_frames = getattr(self, "run_frames", 0) + 1
         self.scene.draw(self.canvas)
         if self.show_fps:
-            draw_text(self.canvas, "%d FPS" % round(self.clock.get_fps()), W - 4, H - 10,
+            fps = getattr(self, "web_fps", 0) if WEB else self.clock.get_fps()
+            draw_text(self.canvas, "%d FPS" % round(fps), W - 4, H - 10,
                       (120, 255, 120), align="right")
         pygame.display.flip()
         self.frames += 1
@@ -292,7 +298,35 @@ class Game:
             self.clock.tick_busy_loop(FPS)
         pygame.quit()
 
+    async def run_async(self):
+        """Browser loop: the page owns the frame timing, so yield to it every frame."""
+        import asyncio
+        import time
+        # The page wakes us once per display refresh (60, 120, 144 Hz...) or faster; the game
+        # logic is frame-based, so step it at exactly FPS per second whatever the refresh rate.
+        step = 1.0 / FPS
+        due = time.perf_counter()
+        t0, n = due, 0
+        while True:
+            now = time.perf_counter()
+            if now >= due - 0.004:
+                self.tick()
+                n += 1                    # F3 counter (the browser's Clock.get_fps is unreliable)
+                if now - t0 >= 1:
+                    self.web_fps, t0, n = n / (now - t0), now, 0
+                if not self.running:      # no quitting a browser tab: back to the title
+                    self.running = True
+                    self.to_title()
+                due += step
+                if now - due > 0.1:       # fell far behind (tab hidden, slow frame): resync
+                    due = now
+            await asyncio.sleep(0)
+
 
 def main():
     fullscreen = "--fullscreen" in sys.argv
     Game(fullscreen=fullscreen).run()
+
+
+async def main_web():
+    await Game().run_async()
