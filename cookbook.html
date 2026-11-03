@@ -3122,12 +3122,6 @@ const KB_LABELS = {
   f6:['prac','All\nnades'], f7:['prac','God'], f8:['prac','Noclip'], f9:['prac','Rethrow'],
   f10:['prac','Restart'], f11:['prac','Clear\nnades'], f12:['prac','Nade\npreview'], p:['prac','Place\nbot']
 };
-// the full command for each key, read from the configs so the tooltip never drifts
-const kbCmds = () => {
-  const m = {};
-  CFGS.forEach(c => c.text.replace(/^\s*bind\s+"?([^"\s]+)"?\s+"([^"]*)"/gmi, (_, k, v) => { m[k.toLowerCase()] = v.replace(/;\s*$/, ''); }));
-  return m;
-};
 // tenkeyless board, x/w in key units; [id, top legend, width]
 const KB_ROWS = [
   { y:0, keys:[['escape','Esc',1,0],['f1','F1',1,2],['f2','F2'],['f3','F3'],['f4','F4'],['f5','F5',1,6.5],['f6','F6'],['f7','F7'],['f8','F8'],
@@ -3148,34 +3142,123 @@ const kbLines = (s, x, y, size) => {
   const ls = s.split('\n');
   return ls.map((l, i) => `<text x="${x}" y="${y + (i - (ls.length - 1) / 2) * (size + 1.5)}" font-size="${size}">${esc(l)}</text>`).join('');
 };
-function kbKey(id, legend, x, y, w, cmds){
+// Read every bind (and alias) out of a cfg. Quotes are optional, // comments and trailing ; are dropped.
+const KB_KEYNAMES = { semicolon:';', apostrophe:"'", grave:'`', lctrl:'ctrl', lshift:'shift', lalt:'alt', delete:'del',
+  pageup:'pgup', pagedown:'pgdn', insert:'ins', return:'enter', esc:'escape', backspace:'backspace', capslock:'capslock',
+  mwheel_up:'mwheelup', mwheel_down:'mwheeldown', mouse_x1:'mouse4', mouse_x2:'mouse5' };
+function kbParse(text){
+  const binds = {}, aliases = {};
+  text.split('\n').forEach(line => {
+    const m = line.match(/^\s*(bind|alias)\s+(?:"([^"]*)"|(\S+))\s+(?:"([^"]*)"|([^\s/]+))/i);
+    if(!m) return;
+    const name = (m[2] ?? m[3]).toLowerCase(), cmd = (m[4] ?? m[5]).trim().replace(/;\s*$/, '');
+    if(m[1].toLowerCase() === 'alias') aliases[name] = cmd;
+    else binds[KB_KEYNAMES[name] || name] = cmd;
+  });
+  return { binds, aliases };
+}
+// Name a bind from its command, for players without hand-written labels. [group, label]
+const KB_BUY = { awp:'AWP', ak47:'AK', m4a1:'M4', m4a1_silencer:'M4', vesthelm:'Armor', vest:'Armor', defuser:'Kit', taser:'Zeus',
+  smokegrenade:'Smoke', flashbang:'Flash', hegrenade:'HE', molotov:'Molly', incgrenade:'Molly', decoy:'Decoy', deagle:'Deagle',
+  ssg08:'Scout', galilar:'Galil', famas:'FAMAS', mac10:'MAC-10', mp9:'MP9', p250:'P250', tec9:'Tec-9', fiveseven:'Five-7',
+  ump45:'UMP', aug:'AUG', sg556:'SG', p90:'P90', mp7:'MP7', mp5sd:'MP5', cz75a:'CZ', elite:'Duals', revolver:'R8', xm1014:'XM', nova:'Nova', mag7:'MAG-7', sawedoff:'Sawed-off' };
+const KB_NADES = ['Smoke','Flash','HE','Molly','Decoy'];
+const KB_SLOTS = { slot1:'Primary', slot2:'Pistol', slot3:'Knife', slot4:'Nades', slot5:'Bomb', slot6:'HE', slot7:'Flash',
+  slot8:'Smoke', slot9:'Decoy', slot10:'Molly', slot11:'Zeus', slot12:'Shot' };
+const KB_CMDS = {
+  '+forward':['move','Forward'], '+back':['move','Back'], '+left':['move','Left'], '+right':['move','Right'],
+  '+moveleft':['move','Left'], '+moveright':['move','Right'], '+jump':['move','Jump'], '+duck':['move','Crouch'],
+  '+sprint':['move','Walk'], '+speed':['move','Walk'],
+  '+attack':['gun','Fire'], '+attack2':['gun','Alt fire'], '+use':['gun','Use'], '+reload':['gun','Reload'],
+  '+lookatweapon':['gun','Inspect'], drop:['gun','Drop'], '+showscores':['gun','Scores'], lastinv:['gun','Last\ngun'],
+  invprev:['gun','Prev\ngun'], invnext:['gun','Next\ngun'], 'use weapon_knife':['gun','Knife'],
+  'use weapon_flashbang':['nade','Flash'], 'use weapon_smokegrenade':['nade','Smoke'], 'use weapon_hegrenade':['nade','HE'],
+  'use weapon_molotov':['nade','Molly'], 'use weapon_incgrenade':['nade','Molly'], 'use weapon_decoy':['nade','Decoy'],
+  'use weapon_c4':['gun','Bomb'], '-attack':['nade','Jump\nthrow'],
+  buymenu:['buy','Buy\nmenu'], buyammo1:['buy','Ammo 1'], buyammo2:['buy','Ammo 2'], sellbackall:['buy','Sell all'],
+  teammenu:['buy','Team'], autobuy:['buy','Autobuy'], rebuy:['buy','Rebuy'],
+  messagemode:['comms','All\nchat'], messagemode2:['comms','Team\nchat'], radio:['comms','Radio'], radio1:['comms','Radio'],
+  radio2:['comms','Radio'], radio3:['comms','Radio'], '+radialradio':['comms','Radio'], '+spray_menu':['comms','Spray'],
+  player_ping:['comms','Ping'], '+voicerecord':['comms','Voice'], '+cl_show_team_equipment':['comms','Team\ngear'],
+  noclip:['tool','Noclip'], sv_rethrow_last_grenade:['tool','Rethrow'], toggleconsole:['tool','Console'],
+  god:['prac','God'], bot_place:['prac','Place\nbot'], bot_kick:['prac','Kick\nbots'], bot_add:['prac','Add bot']
+};
+function kbAuto(cmd, aliases, seen = {}){
+  const c = cmd.toLowerCase().replace(/\s+/g, ' ').trim();
+  const parts = c.split(/\s*;\s*/).filter(Boolean);
+  // aliases: name the alias by what it runs (a +alias is named by its + half)
+  const flat = parts.flatMap(p => aliases[p] && !seen[p] ? (seen[p] = 1, aliases[p].toLowerCase().split(/\s*;\s*/)) : [p]);
+  if(flat.includes('+jump') && flat.some(p => /^-attack2?$/.test(p))) return ['nade','Jump\nthrow'];
+  if(KB_CMDS[c]) return KB_CMDS[c];
+  const buys = flat.filter(p => /^buy /.test(p)).map(p => KB_BUY[p.slice(4).trim()] || p.slice(4).trim());
+  if(buys.length){
+    const u = [...new Set(buys)];
+    if(u.length > 1 && u.every(b => KB_NADES.includes(b)))
+      return ['buy', u.includes('HE') === u.includes('Molly') ? 'Nades' : 'Nades\n+ ' + (u.includes('HE') ? 'HE' : 'Molly')];
+    return ['buy', u.length === 2 && u.join('/').length <= 8 ? u.join('/') : u[0] + (u.length > 1 ? '\n+ more' : '')];
+  }
+  for(const p of flat){
+    if(KB_CMDS[p]) return KB_CMDS[p];
+    if(KB_SLOTS[p]) return [/^slot(4|6|7|8|9|10)$/.test(p) ? 'nade' : 'gun', KB_SLOTS[p]];
+    let m;
+    if((m = p.match(/^r_fullscreen_gamma (\S+)/))) return ['tool','Gamma\n' + m[1]];
+    if((m = p.match(/^volume (\S+)/))) return ['tool', +m[1] === 0 ? 'Mute' : 'Vol\n' + Math.round(m[1] * 100) + '%'];
+    if(/^(toggle|incrementvar) volume/.test(p)) return ['tool','Volume'];
+    if(/^(toggle |incrementvar )?cl_radar_scale/.test(p)) return ['tool','Radar'];
+    if(/^give weapon_/.test(p)) return ['prac', flat.filter(q => /^give weapon_/.test(q)).length > 3 ? 'All\nnades' : 'Give'];
+    if(/^ent_fire .*projectile/.test(p)) return ['prac','Clear\nnades'];
+    if(/pipreview/.test(p)) return ['prac','Nade\npreview'];
+    if(/^mp_restartgame/.test(p)) return ['prac','Restart'];
+  }
+  // unknown: show the command itself, cut to fit the key
+  const raw = parts[0].replace(/^[+]/, '');
+  return ['tool', raw.length > 9 ? raw.slice(0, 8) + '…' : raw];
+}
+// Keybinds tabs: toshi first, then everyone A-Z. Add a player = add { name, cfg:`<their autoexec>` };
+// keys are named from the commands. toshi keeps his hand-written labels (KB_LABELS).
+const KB_PLAYERS = [
+  { name:'toshi', cfg: CFGS.map(c => c.text).join('\n'), labels: KB_LABELS },
+].sort((a, b) => (b.name === 'toshi') - (a.name === 'toshi') || a.name.localeCompare(b.name, undefined, { sensitivity:'base' }));
+// key -> { cat, label, cmd } for one player; the tooltip command is read from their cfg so it never drifts
+const kbMaps = {};
+function kbMap(p){
+  if(kbMaps[p.name]) return kbMaps[p.name];
+  const { binds, aliases } = kbParse(p.cfg), out = {};
+  Object.entries(binds).forEach(([k, cmd]) => {
+    const [g, label] = (p.labels && p.labels[k]) || kbAuto(cmd, aliases);
+    out[k] = { cat: kbCat(g), label, cmd };
+  });
+  return kbMaps[p.name] = out;
+}
+let kbTab = 0;
+window.setKbTab = i => { kbTab = i; render(true); };
+function kbKey(id, legend, x, y, w, map){
   const px = x * KB_U, py = y * KB_U, pw = w * KB_U - KB_GAP, ph = KB_U - KB_GAP;
-  const b = KB_LABELS[id], cat = b && kbCat(b[0]);
+  const b = map[id], cat = b && b.cat;
   if(!cat) return `<g class="kb-off"><rect x="${px}" y="${py}" width="${pw}" height="${ph}" rx="5"/>
     <text x="${px + pw/2}" y="${py + ph/2 + 3.5}" font-size="10">${esc(legend)}</text></g>`;
-  const tip = `${legend}: ${cmds[id] || ''}`;
+  const tip = `${legend}: ${b.cmd}`;
   return `<g class="kb-on"><title>${esc(tip)}</title>
     <rect x="${px}" y="${py}" width="${pw}" height="${ph}" rx="5" fill="${cat.c}" fill-opacity=".2" stroke="${cat.c}"${cat.dash ? ' stroke-dasharray="3 2"' : ''}/>
     <text class="kb-leg" x="${px + 4}" y="${py + 9.5}" font-size="8">${esc(legend)}</text>
-    <g class="kb-act">${kbLines(b[1], px + pw/2, py + ph/2 + 5, Math.max(...b[1].split('\n').map(l => l.length)) > 6 ? 7.5 : 8.5)}</g></g>`;
+    <g class="kb-act">${kbLines(b.label, px + pw/2, py + ph/2 + 5, Math.max(...b.label.split('\n').map(l => l.length)) > 6 ? 7.5 : 8.5)}</g></g>`;
 }
-function kbBoard(){
-  const cmds = kbCmds();
+function kbBoard(map){
   let out = '';
   KB_ROWS.forEach(r => { let x = 0;
-    r.keys.forEach(([id, leg, w = 1, at]) => { if(at != null) x = at; out += kbKey(id, leg, x, r.y, w, cmds); x += w; }); });
+    r.keys.forEach(([id, leg, w = 1, at]) => { if(at != null) x = at; out += kbKey(id, leg, x, r.y, w, map); x += w; }); });
   return `<svg class="kb-board" viewBox="-4 -4 ${18.25 * KB_U + 4} ${6.4 * KB_U + 4}" role="img" aria-label="Keyboard binds">${out}</svg>`;
 }
 // top-down mouse: buttons, wheel split in two (up / down), side buttons, each with a callout
-const KB_MOUSE_NAMES = { mouse1:'Left click', mouse2:'Right click', mwheelup:'Wheel up', mwheeldown:'Wheel down', mouse4:'Mouse 4', mouse5:'Mouse 5' };
-function kbMouse(){
-  const cmds = kbCmds();
-  const col = id => kbCat(KB_LABELS[id][0]).c;
-  const part = (id, d) => `<path d="${d}" fill="${col(id)}" fill-opacity=".2" stroke="${col(id)}" stroke-width="1.4"><title>${esc(KB_MOUSE_NAMES[id])}: ${esc(cmds[id] || '')}</title></path>`;
+const KB_MOUSE_NAMES = { mouse3:'Wheel click', mouse1:'Left click', mouse2:'Right click', mwheelup:'Wheel up', mwheeldown:'Wheel down', mouse4:'Mouse 4', mouse5:'Mouse 5' };
+function kbMouse(map){
+  const col = id => map[id] ? map[id].cat.c : 'var(--line)';
+  const part = (id, d) => map[id] ? `<path d="${d}" fill="${col(id)}" fill-opacity=".2" stroke="${col(id)}" stroke-width="1.4"><title>${esc(KB_MOUSE_NAMES[id])}: ${esc(map[id].cmd)}</title></path>`
+    : `<path d="${d}" fill="none" stroke="var(--line)" stroke-width="1.4"/>`;
   // elbow line from the part to a label at the side
-  const call = (px, py, ex, ly, id, left) => `<path d="M${px} ${py}H${ex}V${ly}H${left ? ex - 4 : ex + 4}" fill="none" stroke="#56647a" stroke-width="1"/>
+  const call = (px, py, ex, ly, id, left) => !map[id] ? '' : `<path d="M${px} ${py}H${ex}V${ly}H${left ? ex - 4 : ex + 4}" fill="none" stroke="#56647a" stroke-width="1"/>
       <text x="${left ? ex - 7 : ex + 7}" y="${ly - 3}" text-anchor="${left ? 'end' : 'start'}" class="kb-leg" font-size="9">${esc(KB_MOUSE_NAMES[id])}</text>
-      <text x="${left ? ex - 7 : ex + 7}" y="${ly + 10}" text-anchor="${left ? 'end' : 'start'}" font-size="12" font-weight="700" fill="${col(id)}">${esc(KB_LABELS[id][1])}</text>`;
+      <text x="${left ? ex - 7 : ex + 7}" y="${ly + 10}" text-anchor="${left ? 'end' : 'start'}" font-size="12" font-weight="700" fill="${col(id)}">${esc(map[id].label.replace(/\n/g, ' '))}</text>`;
   return `<svg class="kb-mouse" viewBox="0 0 262 262" role="img" aria-label="Mouse binds">
     <g transform="translate(10,0)">
     <path d="M115 30 C150 30 160 60 162 110 L164 190 C164 235 145 252 115 252 C85 252 66 235 66 190 L68 110 C70 60 80 30 115 30Z" fill="var(--panel2)" stroke="var(--line)" stroke-width="1.4"/>
@@ -3188,6 +3271,8 @@ function kbMouse(){
     <text x="115" y="62" text-anchor="middle" font-size="9" fill="var(--text)">▲</text>
     <text x="115" y="83" text-anchor="middle" font-size="9" fill="var(--text)">▼</text>
     </g>
+    ${map.mouse3 ? `<rect x="115" y="40" width="20" height="56" rx="10" fill="none" stroke="${col('mouse3')}" stroke-width="1.4" stroke-dasharray="3 2"><title>Wheel click: ${esc(map.mouse3.cmd)}</title></rect>` : ''}
+    ${call(118, 44, 62, 18, 'mouse3', true)}
     ${call(98, 85, 62, 60, 'mouse1', true)}
     ${call(70, 135, 62, 128, 'mouse5', true)}
     ${call(70, 167, 62, 182, 'mouse4', true)}
@@ -3196,10 +3281,17 @@ function kbMouse(){
     ${call(158, 98, 186, 146, 'mouse2', false)}
   </svg>`;
 }
-const kbHtml = () => `<div class="panel">
-    <div class="kb-legend">${KB_CATS.map(c => `<span><i style="border-color:${c.c};background:${c.c}33${c.dash ? ';border-style:dashed' : ''}"></i>${esc(c.name)}</span>`).join('')}</div>
-    <div class="kb-wrap"><div class="kb-scroll">${kbBoard()}</div>${kbMouse()}</div>
+function kbHtml(){
+  const p = KB_PLAYERS[kbTab], map = kbMap(p);
+  const used = new Set(Object.values(map).map(b => b.cat.id));
+  const cats = KB_CATS.filter(c => used.has(c.id));
+  return `<div class="panel">
+    <div class="tabs">${KB_PLAYERS.map((q,i) =>
+      `<button class="${i===kbTab?'on':''}" onclick="setKbTab(${i})">${esc(q.name)}</button>`).join('')}</div>
+    <div class="kb-legend">${cats.map(c => `<span><i style="border-color:${c.c};background:${c.c}33${c.dash ? ';border-style:dashed' : ''}"></i>${esc(p.name === 'toshi' ? c.name : c.name.replace(/ \(.*\)/, ''))}</span>`).join('')}</div>
+    <div class="kb-wrap"><div class="kb-scroll">${kbBoard(map)}</div>${kbMouse(map)}</div>
   </div>`;
+}
 
 // Spray patterns: where each bullet lands with no mouse movement, in degrees from the first shot
 // (x right, y up). Generated from CS2 weapons.vdata (m_nRecoilSeed, recoil angle/magnitude + variance)
@@ -3779,8 +3871,8 @@ function viewPantry(id, sub){
     <h1 style="margin:8px 0 18px">4:3 - or How I Learned to Stop Worrying and Love Native Res</h1>` + nativeHtml();
     nrInit(); return;
   }
-  // Practice has no heading, so the window and its results fit on one screen
-  app.innerHTML = (t.id === 'practice' ? '' : `<h1 style="margin-bottom:18px">${esc(t.title || t.name)}</h1>`) + PANTRY_VIEWS[t.id]();
+  // No page heading: the selected tab in the top bar already names the page
+  app.innerHTML = PANTRY_VIEWS[t.id]();
   if(t.id === 'spray') sprayPlay();
   if(t.id === 'practice') ssInit();
 }
