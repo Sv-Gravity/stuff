@@ -3827,8 +3827,8 @@ const pantryId = id => PANTRY.some(t => t.id === id) ? id : PANTRY[0].id;
 function viewPantry(id, sub){
   const t = PANTRY.find(x => x.id === pantryId(id));
   if(t.id === 'video' && sub === 'contrast'){ app.innerHTML = contrastHtml(); return; }
-  // Practice has no heading, so the window and its results fit on one screen
-  app.innerHTML = (t.id === 'practice' ? '' : `<h1 style="margin-bottom:18px">${esc(t.title || t.name)}</h1>`) + PANTRY_VIEWS[t.id]();
+  // No page heading: the selected tab in the top bar already names the page
+  app.innerHTML = PANTRY_VIEWS[t.id]();
   if(t.id === 'spray') sprayPlay();
   if(t.id === 'practice') ssInit();
 }
